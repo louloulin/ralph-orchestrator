@@ -6,11 +6,11 @@
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen)](tests/)
 [![Mentioned in Awesome Claude Code](https://awesome.re/mentioned-badge.svg)](https://github.com/hesreallyhim/awesome-claude-code)
 
-A somewhat functional implementation of the Ralph Wiggum software engineering technique - putting AI agents in a loop until the task is done.
+A functional, early-stage (alpha) implementation of the Ralph Wiggum software engineering technique — putting AI agents in a loop until the task is done.
 
 > "Me fail English? That's unpossible!" - Ralph Wiggum
 
-### NOTE: This was a toy project that was itself built with the ralph wiggum technique. Expect bugs, missing functionality, and breaking changes while I clean it up. Mainly tested with Claude Agent SDK path
+### NOTE: Ralph is alpha-quality and under active development. It works today, but expect rough edges, occasional bugs, and breaking API/config changes between releases. Primarily tested via the Claude Agent SDK adapter path.
 
 ## 📚 Documentation
 
@@ -20,9 +20,9 @@ A somewhat functional implementation of the Ralph Wiggum software engineering te
 
 Ralph Orchestrator implements a simple but effective pattern for autonomous task completion using AI agents. It continuously runs an AI agent against a prompt file until the task is marked as complete or limits are reached.
 
-Based on the Ralph Wiggum technique by [Geoffrey Huntley](https://ghuntley.com/ralph/), this implementation provides a robust, tested, and feature-complete orchestration system for AI-driven development.
+Based on the Ralph Wiggum technique by [Geoffrey Huntley](https://ghuntley.com/ralph/), this implementation provides a robust, tested, and actively developed orchestration system for AI-driven development.
 
-## ✅ Production Ready - v1.2.2
+## 🧪 Alpha Status - v1.2.2
 
 - **Claude Integration**: ✅ COMPLETE (with Agent SDK)
 - **Kiro CLI Integration**: ✅ COMPLETE (Successor to Q Chat)
@@ -32,7 +32,7 @@ Based on the Ralph Wiggum technique by [Geoffrey Huntley](https://ghuntley.com/r
 - **Core Orchestration**: ✅ OPERATIONAL
 - **Test Suite**: ✅ 920+ tests passing
 - **Documentation**: ✅ [COMPLETE](https://mikeyobrien.github.io/ralph-orchestrator/)
-- **Production Deployment**: ✅ [READY](https://mikeyobrien.github.io/ralph-orchestrator/advanced/production-deployment/)
+- **Deployment Guidance**: ✅ [AVAILABLE](https://mikeyobrien.github.io/ralph-orchestrator/advanced/production-deployment/) (for advanced users; expect changes)
 
 ## Features
 
@@ -617,7 +617,7 @@ MIT License - See LICENSE file for details
 ## Support
 
 - **Documentation**: [Full Documentation](https://mikeyobrien.github.io/ralph-orchestrator/)
-- **Deployment Guide**: [Production Deployment](https://mikeyobrien.github.io/ralph-orchestrator/advanced/production-deployment/)
+- **Deployment Guide**: [Deployment (alpha)](https://mikeyobrien.github.io/ralph-orchestrator/advanced/production-deployment/)
 - **Issues**: [GitHub Issues](https://github.com/mikeyobrien/ralph-orchestrator/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/mikeyobrien/ralph-orchestrator/discussions)
 - **Research**: [Ralph Wiggum Research](../)
@@ -650,7 +650,7 @@ MIT License - See LICENSE file for details
 - **v1.0.0** (2025-09-07)
   - Initial release with Claude, Q, and Gemini support
   - Comprehensive test suite (17 tests)
-  - Production-ready error handling
+  - Robust error handling
   - Full documentation
   - Git-based checkpointing
   - State persistence and metrics

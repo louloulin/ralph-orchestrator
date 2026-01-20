@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **TUI Autoscroll**: Content now autoscrolls to keep latest output visible
 - **TUI Artifacts**: Fixed viewport buffer clearing to prevent visual artifacts when switching iterations
 - **Markdown Boundaries**: Preserved line boundaries when rendering markdown content
+- **Backend Support**: Added `opencode` and `copilot` to valid backends for `ralph init` (#75, #77)
 
 ## [2.0.0] - 2026-01-14
 

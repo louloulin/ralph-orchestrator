@@ -1,6 +1,6 @@
 # Ralph Orchestrator
 
-<div align="center">
+<div align="center" markdown>
 
 **Hat-based orchestration framework that keeps AI agents in a loop until the task is done.**
 
@@ -136,6 +136,8 @@ Ralph Orchestrator is open source software licensed under the [MIT License](http
 
 ---
 
-<div align="center">
-<i>"I'm learnding!" - Ralph Wiggum</i>
+<div align="center" markdown>
+
+*"I'm learnding!" - Ralph Wiggum*
+
 </div>

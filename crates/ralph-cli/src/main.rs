@@ -44,6 +44,7 @@ use ralph_core::{
     CheckStatus, EventHistory, LockError, LoopContext, LoopEntry, LoopLock, LoopRegistry,
     PreflightReport, PreflightRunner, RalphConfig, TerminationReason, truncate_with_ellipsis,
     worktree::{WorktreeConfig, create_worktree, ensure_gitignore, remove_worktree},
+    truncate_by_bytes,
 };
 use std::fs;
 use std::io::{IsTerminal, Write, stdout};
@@ -1525,7 +1526,7 @@ async fn run_command(
                 }
             }
         })
-        .map(|p| truncate(&p, 100))
+        .map(|p| truncate_by_bytes(&p, 100))
         .unwrap_or_else(|| "[no prompt]".to_string());
 
     let mut pending_worktree_registration: Option<LoopEntry> = None;
@@ -3343,7 +3344,7 @@ core:
                     }
                 }
             })
-            .map(|p| truncate_with_ellipsis(&p, 100))
+            .map(|p| truncate_by_bytes(&p, 100))
             .unwrap_or_else(|| "[no prompt]".to_string());
 
         // Assert: summary contains file content, NOT the file path
@@ -3382,11 +3383,10 @@ core:
                     }
                 }
             })
-            .map(|p| truncate_with_ellipsis(&p, 100))
+.map(|p| truncate_by_bytes(&p, 100))
             .unwrap_or_else(|| "[no prompt]".to_string());
 
-        // Assert: truncated to 100 chars total
-        assert_eq!(prompt_summary.len(), 100);
+        // Assert: truncated to 100 bytes + "..."
         assert!(prompt_summary.ends_with("..."));
     }
 
@@ -3414,7 +3414,7 @@ core:
                     }
                 }
             })
-            .map(|p| truncate_with_ellipsis(&p, 100))
+            .map(|p| truncate_by_bytes(&p, 100))
             .unwrap_or_else(|| "[no prompt]".to_string());
 
         // Assert: returns "[no prompt]" for missing file

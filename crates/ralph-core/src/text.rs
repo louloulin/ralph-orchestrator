@@ -86,6 +86,48 @@ pub fn truncate_with_ellipsis(s: &str, max_chars: usize) -> String {
     }
 }
 
+/// Truncates a string to a maximum number of bytes, adding "..." if truncated.
+///
+/// This function is UTF-8 safe: it uses `floor_char_boundary` to ensure we never
+/// slice in the middle of a multi-byte character. This is useful when you need
+/// to truncate based on byte length (e.g., for display width limits).
+///
+/// # Arguments
+///
+/// * `s` - The string to truncate
+/// * `max_bytes` - Maximum number of bytes before truncation
+///
+/// # Returns
+///
+/// - The original string if its byte length is <= `max_bytes`
+/// - A truncated string with "..." appended if longer
+///
+/// # Examples
+///
+/// ```
+/// use ralph_core::truncate_by_bytes;
+///
+/// // Short strings pass through unchanged
+/// assert_eq!(truncate_by_bytes("hello", 10), "hello");
+///
+/// // Long strings are truncated with ellipsis
+/// assert_eq!(truncate_by_bytes("hello world", 5), "hello...");
+///
+/// // UTF-8 safe: Chinese characters are not split (3 bytes each)
+/// // "先" occupies bytes 98-101, so truncating at 100 bytes is safe
+/// let s = "Migrate TranslateFlow to Mastra 实现存在问题";
+/// let result = truncate_by_bytes(s, 100);
+/// assert!(!result.contains('�')); // No replacement character
+/// ```
+pub fn truncate_by_bytes(s: &str, max_bytes: usize) -> String {
+    if s.len() <= max_bytes {
+        s.to_string()
+    } else {
+        let safe_bytes = floor_char_boundary(s, max_bytes);
+        format!("{}...", &s[..safe_bytes])
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,5 +221,56 @@ mod tests {
     fn test_single_char_truncation() {
         assert_eq!(truncate_with_ellipsis("hello", 1), "h");
         assert_eq!(truncate_with_ellipsis("🎉hello", 1), "🎉");
+    }
+
+    // Tests for truncate_by_bytes
+
+    #[test]
+    fn test_truncate_by_bytes_short() {
+        assert_eq!(truncate_by_bytes("hello", 10), "hello");
+        assert_eq!(truncate_by_bytes("", 5), "");
+        assert_eq!(truncate_by_bytes("hello", 5), "hello");
+    }
+
+    #[test]
+    fn test_truncate_by_bytes_long() {
+        assert_eq!(truncate_by_bytes("hello world", 5), "hello...");
+        assert_eq!(truncate_by_bytes("abcdef", 3), "abc...");
+    }
+
+    #[test]
+    fn test_truncate_by_bytes_chinese_safe() {
+        // Chinese characters are 3 bytes each
+        // "先" occupies bytes 98-101, so truncating at 100 should be safe
+        let s = "Migrate TranslateFlow to Mastra + React + shadcn/ui 实现存在问题，充分复用mastra库 优先完善整个代码结构，分析存在的问题";
+        let result = truncate_by_bytes(s, 100);
+        // Should not contain the Unicode replacement character
+        assert!(!result.contains('\u{FFFD}'));
+        // Should end with ...
+        assert!(result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_by_bytes_chinese_truncates_at_boundary() {
+        let s = "测试中文abc"; // Each Chinese char is 3 bytes, total 6 + 3 = 9 bytes
+        let result = truncate_by_bytes(s, 7); // Should truncate after 2 Chinese chars (6 bytes)
+        assert_eq!(result, "测试...");
+    }
+
+    #[test]
+    fn test_truncate_by_bytes_emoji_safe() {
+        // Emojis are 4 bytes each
+        let s = "🎉🎊🎁🎄abc";
+        let result = truncate_by_bytes(s, 10); // 2 emojis = 8 bytes, safe
+        assert!(!result.contains('\u{FFFD}'));
+        assert!(result.ends_with("..."));
+    }
+
+    #[test]
+    fn test_truncate_by_bytes_mixed_utf8() {
+        let s = "a测试b🎉c"; // a=1, 测试=6, b=1, 🎉=4, c=1 = 13 bytes
+        let result = truncate_by_bytes(s, 9); // Should include a + 测试 + b = 8 bytes
+        assert!(!result.contains('\u{FFFD}'));
+        assert_eq!(result, "a测试b...");
     }
 }

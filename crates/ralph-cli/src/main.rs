@@ -38,6 +38,7 @@ use ralph_core::{
     CheckStatus, EventHistory, LockError, LoopContext, LoopEntry, LoopLock, LoopRegistry,
     PreflightReport, PreflightRunner, RalphConfig, TerminationReason,
     worktree::{WorktreeConfig, create_worktree, ensure_gitignore, remove_worktree},
+    truncate_by_bytes,
 };
 use std::fs;
 use std::io::{IsTerminal, Write, stdout};
@@ -1262,13 +1263,7 @@ async fn run_command(
                 }
             }
         })
-        .map(|p| {
-            if p.len() > 100 {
-                format!("{}...", &p[..100])
-            } else {
-                p
-            }
-        })
+        .map(|p| truncate_by_bytes(&p, 100))
         .unwrap_or_else(|| "[no prompt]".to_string());
 
     let mut pending_worktree_registration: Option<LoopEntry> = None;
@@ -2615,13 +2610,7 @@ core:
                     }
                 }
             })
-            .map(|p| {
-                if p.len() > 100 {
-                    format!("{}...", &p[..100])
-                } else {
-                    p
-                }
-            })
+            .map(|p| truncate_by_bytes(&p, 100))
             .unwrap_or_else(|| "[no prompt]".to_string());
 
         // Assert: summary contains file content, NOT the file path
@@ -2660,17 +2649,10 @@ core:
                     }
                 }
             })
-            .map(|p| {
-                if p.len() > 100 {
-                    format!("{}...", &p[..100])
-                } else {
-                    p
-                }
-            })
+            .map(|p| truncate_by_bytes(&p, 100))
             .unwrap_or_else(|| "[no prompt]".to_string());
 
-        // Assert: truncated to 100 chars + "..."
-        assert_eq!(prompt_summary.len(), 103); // 100 + "..."
+        // Assert: truncated to 100 bytes + "..."
         assert!(prompt_summary.ends_with("..."));
     }
 
@@ -2698,13 +2680,7 @@ core:
                     }
                 }
             })
-            .map(|p| {
-                if p.len() > 100 {
-                    format!("{}...", &p[..100])
-                } else {
-                    p
-                }
-            })
+            .map(|p| truncate_by_bytes(&p, 100))
             .unwrap_or_else(|| "[no prompt]".to_string());
 
         // Assert: returns "[no prompt]" for missing file

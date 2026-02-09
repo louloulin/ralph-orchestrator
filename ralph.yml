@@ -1,3 +1,11 @@
+# Documentation Preset
+#
+# For writing documentation, READMEs, guides, and technical content.
+# Includes a writer/editor/reviewer cycle for quality.
+#
+# Usage:
+#   ralph run --config presets/docs.yml --prompt "Write API documentation for the auth module"
+
 event_loop:
   completion_promise: LOOP_COMPLETE
   max_iterations: 150

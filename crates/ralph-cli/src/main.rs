@@ -36,6 +36,8 @@ mod task_cli;
 mod test_support;
 mod tools;
 mod web;
+#[cfg(feature = "embedded-web")]
+mod web_embedded;
 
 use anyhow::{Context, Result};
 use clap::{ArgAction, CommandFactory, Parser, Subcommand, ValueEnum};

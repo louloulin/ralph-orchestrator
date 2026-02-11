@@ -28,6 +28,15 @@ export default defineConfig({
                 target: backendTarget,
                 changeOrigin: true,
             },
+            "/trpc": {
+                target: backendTarget,
+                changeOrigin: true,
+            },
+            "/ws": {
+                target: backendTarget,
+                ws: true,
+                changeOrigin: true,
+            },
         },
     },
     test: {

@@ -5,6 +5,8 @@
  * - /health endpoint for health checks
  * - /trpc/* endpoints for TRPC API
  * - /ws/logs WebSocket endpoint for real-time log streaming
+ * - Static file serving for frontend assets
+ * - SPA routing (fallback to index.html)
  * - CORS support for cross-origin requests
  */
 
@@ -14,13 +16,15 @@ import websocket from "@fastify/websocket";
 import { fastifyTRPCPlugin, FastifyTRPCPluginOptions } from "@trpc/server/adapters/fastify";
 import { appRouter, createContext, AppRouter } from "./trpc";
 import { getDatabase } from "../db/connection";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
 import { getLogBroadcaster } from "./LogBroadcaster";
 import { registerRestRoutes } from "./rest";
 import { TaskBridge } from "../services/TaskBridge";
 import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
+import * as fs from "fs";
+import * as path from "path";
 
 export interface ServerOptions {
   /** Port to listen on (default: 3000) */
@@ -28,7 +32,7 @@ export interface ServerOptions {
   /** Host to bind to (default: '0.0.0.0') */
   host?: string;
   /** Optional database instance (creates one if not provided) */
-  db?: BetterSQLite3Database<typeof schema>;
+  db?: BunSQLiteDatabase<typeof schema>;
   /** Enable request logging (default: true) */
   logger?: boolean;
   /** TaskBridge for task execution (optional) */
@@ -37,13 +41,15 @@ export interface ServerOptions {
   loopsManager?: LoopsManager;
   /** PlanningService for planning sessions (optional) */
   planningService?: PlanningService;
+  /** Frontend dist directory for serving static files */
+  frontendDist?: string;
 }
 
 /**
  * Create and configure a Fastify server with TRPC
  */
 export async function createServer(options: ServerOptions = {}): Promise<FastifyInstance> {
-  const { port = 3000, host = "0.0.0.0", db = getDatabase(), logger = true, taskBridge, loopsManager, planningService } = options;
+  const { port = 3000, host = "0.0.0.0", db = getDatabase(), logger = true, taskBridge, loopsManager, planningService, frontendDist } = options;
 
   const server = Fastify({ logger });
 
@@ -56,6 +62,44 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
 
   // Register WebSocket plugin
   await server.register(websocket);
+
+  // Determine frontend dist directory
+  // When running from compiled binary, look for embedded assets
+  // When running in dev mode, use the frontend dist directory
+  const distPath = frontendDist || path.join(process.cwd(), "dist");
+  const hasFrontend = fs.existsSync(distPath);
+
+  if (hasFrontend) {
+    console.log(`Serving frontend from: ${distPath}`);
+
+    // Register static file serving
+    server.register(require("@fastify/static"), {
+      root: distPath,
+      prefix: "/", // Serve from root
+      decorateReply: false,
+    });
+
+    // SPA fallback: serve index.html for non-API routes
+    server.setNotFoundHandler(async (request, reply) => {
+      const url = request.url;
+
+      // Don't fallback for API routes
+      if (url.startsWith("/api/") || url.startsWith("/trpc/") || url.startsWith("/ws/")) {
+        reply.code(404).send({ error: "Not Found" });
+        return;
+      }
+
+      // For all other routes, serve index.html (SPA routing)
+      const indexPath = path.join(distPath, "index.html");
+      if (fs.existsSync(indexPath)) {
+        reply.type("text/html").send(fs.readFileSync(indexPath, "utf-8"));
+      } else {
+        reply.code(404).send({ error: "Frontend not found" });
+      }
+    });
+  } else {
+    console.log("Frontend dist directory not found, running API-only mode");
+  }
 
   // Health check endpoint
   server.get("/health", async () => {

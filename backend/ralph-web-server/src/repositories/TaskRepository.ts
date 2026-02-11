@@ -6,14 +6,15 @@
  */
 
 import { eq, and, isNull, isNotNull } from "drizzle-orm";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { tasks, Task, NewTask } from "../db/schema";
 import * as schema from "../db/schema";
+import { getRunResult } from "../db/connection";
 
 export class TaskRepository {
-  private db: BetterSQLite3Database<typeof schema>;
+  private db: BunSQLiteDatabase<typeof schema>;
 
-  constructor(db: BetterSQLite3Database<typeof schema>) {
+  constructor(db: BunSQLiteDatabase<typeof schema>) {
     this.db = db;
   }
 
@@ -138,7 +139,7 @@ export class TaskRepository {
    * Returns true if a task was deleted, false if not found
    */
   delete(id: string): boolean {
-    const result = this.db.delete(tasks).where(eq(tasks.id, id)).run();
+    const result = getRunResult(this.db.delete(tasks).where(eq(tasks.id, id)).run());
     return result.changes > 0;
   }
 
@@ -146,7 +147,7 @@ export class TaskRepository {
    * Delete all tasks (useful for testing)
    */
   deleteAll(): number {
-    const result = this.db.delete(tasks).run();
+    const result = getRunResult(this.db.delete(tasks).run());
     return result.changes;
   }
 }

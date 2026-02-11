@@ -6,14 +6,15 @@
  */
 
 import { eq } from "drizzle-orm";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { queuedTasks, QueuedTask, NewQueuedTask } from "../db/schema";
 import * as schema from "../db/schema";
+import { getRunResult } from "../db/connection";
 
 export class QueuedTaskRepository {
-  private db: BetterSQLite3Database<typeof schema>;
+  private db: BunSQLiteDatabase<typeof schema>;
 
-  constructor(db: BetterSQLite3Database<typeof schema>) {
+  constructor(db: BunSQLiteDatabase<typeof schema>) {
     this.db = db;
   }
 
@@ -132,7 +133,7 @@ export class QueuedTaskRepository {
    * Delete a queued task by ID
    */
   delete(id: string): boolean {
-    const result = this.db.delete(queuedTasks).where(eq(queuedTasks.id, id)).run();
+    const result = getRunResult(this.db.delete(queuedTasks).where(eq(queuedTasks.id, id)).run());
     return result.changes > 0;
   }
 
@@ -140,7 +141,7 @@ export class QueuedTaskRepository {
    * Delete all queued tasks
    */
   deleteAll(): number {
-    const result = this.db.delete(queuedTasks).run();
+    const result = getRunResult(this.db.delete(queuedTasks).run());
     return result.changes;
   }
 }

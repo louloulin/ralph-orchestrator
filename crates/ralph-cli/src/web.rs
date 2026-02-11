@@ -1,5 +1,6 @@
 // ABOUTME: Web dashboard development server launcher.
 // ABOUTME: Provides the `ralph web` command that runs backend and frontend dev servers in parallel.
+// ABOUTME: Falls back to embedded Rust server when Node.js is not available.
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -266,11 +267,12 @@ async fn forward_output(
 }
 
 /// Run both backend and frontend dev servers in parallel
+/// Falls back to embedded server if Node.js is not available
 pub async fn execute(args: WebArgs) -> Result<()> {
     println!("Starting Ralph web servers...");
 
     // Determine workspace root: explicit flag or current directory
-    let workspace_root = match args.workspace {
+    let workspace_root = match args.workspace.as_ref() {
         Some(path) => {
             // Canonicalize to get absolute path
             path.canonicalize()
@@ -283,14 +285,49 @@ pub async fn execute(args: WebArgs) -> Result<()> {
     let backend_dir = workspace_root.join("backend/ralph-web-server");
     let frontend_dir = workspace_root.join("frontend/ralph-web");
 
-    // Verify Node.js/npm, check tsx version, and auto-install dependencies if needed
-    preflight(&workspace_root, &backend_dir).await?;
+    // Try to use Node.js dev servers if available
+    let node_available = check_node_with(OsStr::new("node")).is_ok()
+        && check_npm_with(OsStr::new("npm")).is_ok();
 
-    // Check ports before spawning anything
-    check_port_available(args.backend_port)?;
-    check_port_available(args.frontend_port)?;
+    if node_available && backend_dir.exists() && frontend_dir.exists() {
+        // Verify Node.js/npm, check tsx version, and auto-install dependencies if needed
+        preflight(&workspace_root, &backend_dir).await?;
 
+        // Check ports before spawning anything
+        check_port_available(args.backend_port)?;
+        check_port_available(args.frontend_port)?;
+
+        println!("Using workspace: {}", workspace_root.display());
+
+        // Continue with npm-based servers...
+        return execute_npm_servers(args, workspace_root, backend_dir, frontend_dir).await;
+    }
+
+    // Fall back to embedded server
+    println!("Node.js dev servers not available, using embedded server...");
     println!("Using workspace: {}", workspace_root.display());
+
+    #[cfg(feature = "embedded-web")]
+    {
+        return crate::web_embedded::execute(args.backend_port, workspace_root, args.no_open).await;
+    }
+
+    #[cfg(not(feature = "embedded-web"))]
+    {
+        anyhow::bail!(
+            "Node.js is not installed and embedded web server is not enabled. \
+             Please install Node.js 18+ or build Ralph with the 'embedded-web' feature."
+        );
+    }
+}
+
+/// Execute the npm-based development servers
+async fn execute_npm_servers(
+    args: WebArgs,
+    workspace_root: PathBuf,
+    backend_dir: PathBuf,
+    frontend_dir: PathBuf,
+) -> Result<()> {
 
     // Spawn backend server with piped output
     // Pass RALPH_WORKSPACE_ROOT so the backend knows where to spawn ralph run from

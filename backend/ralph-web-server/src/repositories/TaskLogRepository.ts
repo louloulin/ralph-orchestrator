@@ -5,10 +5,11 @@
  */
 
 import { and, asc, eq, gt } from "drizzle-orm";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { taskLogs, TaskLog } from "../db/schema";
 import * as schema from "../db/schema";
 import type { LogEntry } from "../runner/LogStream";
+import { getRunResult } from "../db/connection";
 
 export interface ListTaskLogsOptions {
   /** Only return logs with id greater than this value */
@@ -18,9 +19,9 @@ export interface ListTaskLogsOptions {
 }
 
 export class TaskLogRepository {
-  private db: BetterSQLite3Database<typeof schema>;
+  private db: BunSQLiteDatabase<typeof schema>;
 
-  constructor(db: BetterSQLite3Database<typeof schema>) {
+  constructor(db: BunSQLiteDatabase<typeof schema>) {
     this.db = db;
   }
 
@@ -31,15 +32,17 @@ export class TaskLogRepository {
   append(taskId: string, entry: LogEntry): number {
     const timestamp = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
 
-    const result = this.db
-      .insert(taskLogs)
-      .values({
-        taskId,
-        timestamp,
-        source: entry.source,
-        line: entry.line,
-      })
-      .run();
+    const result = getRunResult(
+      this.db
+        .insert(taskLogs)
+        .values({
+          taskId,
+          timestamp,
+          source: entry.source,
+          line: entry.line,
+        })
+        .run()
+    );
 
     return Number(result.lastInsertRowid);
   }
@@ -69,7 +72,7 @@ export class TaskLogRepository {
    * Returns the number of deleted rows.
    */
   deleteAll(): number {
-    const result = this.db.delete(taskLogs).run();
+    const result = getRunResult(this.db.delete(taskLogs).run());
     return result.changes;
   }
 }

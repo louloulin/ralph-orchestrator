@@ -2,15 +2,15 @@
  * Database Test Utilities
  *
  * Provides isolated in-memory database for testing.
- * Each test gets a fresh database instance.
+ * Each test gets a fresh database instance using Bun's SQLite.
  */
 
-import Database from "better-sqlite3";
-import { drizzle, BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { Database } from "bun:sqlite";
+import { drizzle, BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema";
 
-let testSqlite: Database.Database | null = null;
-let testDb: BetterSQLite3Database<typeof schema> | null = null;
+let testSqlite: Database | null = null;
+let testDb: BunSQLiteDatabase<typeof schema> | null = null;
 
 /**
  * Initialize an isolated in-memory test database
@@ -98,7 +98,7 @@ export function initializeTestDatabase(): void {
 /**
  * Get the test database instance
  */
-export function getTestDatabase(): BetterSQLite3Database<typeof schema> {
+export function getTestDatabase(): BunSQLiteDatabase<typeof schema> {
   if (!testDb) {
     throw new Error("Test database not initialized. Call initializeTestDatabase() first.");
   }

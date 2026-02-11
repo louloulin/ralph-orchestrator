@@ -1,10 +1,10 @@
 /**
  * Database Connection Module
  *
- * Provides SQLite database connection using better-sqlite3 and Drizzle ORM.
+ * Provides SQLite database connection using bun:sqlite and Drizzle ORM.
  *
  * Design decisions:
- * - Uses better-sqlite3 for synchronous, fast SQLite access
+ * - Uses bun:sqlite for fast, built-in SQLite access
  * - Lazy initialization pattern for on-demand connection
  * - WAL mode enabled for better concurrent read performance
  * - Connection cleanup function for graceful shutdown
@@ -12,13 +12,30 @@
 
 import fs from "fs";
 import path from "path";
-import Database from "better-sqlite3";
-import { drizzle, BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { Database } from "bun:sqlite";
+import { drizzle, BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "./schema";
 
 // Module-level connection state
-let sqlite: Database.Database | null = null;
-let db: BetterSQLite3Database<typeof schema> | null = null;
+let sqlite: Database | null = null;
+let db: BunSQLiteDatabase<typeof schema> | null = null;
+
+/**
+ * Run result type for Bun SQLite
+ * Bun's .run() returns an object with changes and lastInsertRowid,
+ * but Drizzle's type definition says void.
+ */
+export interface RunResult {
+  changes: number;
+  lastInsertRowid: number | bigint;
+}
+
+/**
+ * Helper function to get the actual run result from a statement
+ */
+export function getRunResult(result: unknown): RunResult {
+  return result as RunResult;
+}
 
 /**
  * Get or create the database connection
@@ -26,7 +43,7 @@ let db: BetterSQLite3Database<typeof schema> | null = null;
  * @param dbPath - Path to the SQLite database file (defaults to ~/.ralph/web/ralph.db)
  * @returns Drizzle database instance with typed schema
  */
-export function getDatabase(dbPath?: string): BetterSQLite3Database<typeof schema> {
+export function getDatabase(dbPath?: string): BunSQLiteDatabase<typeof schema> {
   if (db) {
     return db;
   }
@@ -44,10 +61,10 @@ export function getDatabase(dbPath?: string): BetterSQLite3Database<typeof schem
   sqlite = new Database(resolvedPath);
 
   // Enable WAL mode for better concurrent read performance
-  sqlite.pragma("journal_mode = WAL");
+  sqlite.exec("PRAGMA journal_mode = WAL");
 
   // Enable foreign keys (not currently used but good practice)
-  sqlite.pragma("foreign_keys = ON");
+  sqlite.exec("PRAGMA foreign_keys = ON");
 
   // Create Drizzle ORM instance with typed schema
   db = drizzle(sqlite, { schema });
@@ -71,7 +88,7 @@ function getDefaultDbPath(): string {
  * Note: For production, use drizzle-kit migrations instead.
  * This is a convenience function for development/testing.
  */
-export function initializeDatabase(database?: BetterSQLite3Database<typeof schema>): void {
+export function initializeDatabase(database?: BunSQLiteDatabase<typeof schema>): void {
   const targetDb = database ?? getDatabase();
 
   // Get raw SQLite connection for table creation
@@ -195,7 +212,7 @@ export function closeDatabase(): void {
  * Get the raw SQLite connection
  * Useful for advanced operations or testing
  */
-export function getSqliteConnection(): Database.Database | null {
+export function getSqliteConnection(): Database | null {
   return sqlite;
 }
 

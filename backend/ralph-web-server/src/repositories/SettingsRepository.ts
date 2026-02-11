@@ -6,14 +6,15 @@
  */
 
 import { eq } from "drizzle-orm";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { settings, Setting, NewSetting } from "../db/schema";
 import * as schema from "../db/schema";
+import { getRunResult } from "../db/connection";
 
 export class SettingsRepository {
-  private db: BetterSQLite3Database<typeof schema>;
+  private db: BunSQLiteDatabase<typeof schema>;
 
-  constructor(db: BetterSQLite3Database<typeof schema>) {
+  constructor(db: BunSQLiteDatabase<typeof schema>) {
     this.db = db;
   }
 
@@ -86,7 +87,7 @@ export class SettingsRepository {
    * Returns true if a setting was deleted, false if not found
    */
   delete(key: string): boolean {
-    const result = this.db.delete(settings).where(eq(settings.key, key)).run();
+    const result = getRunResult(this.db.delete(settings).where(eq(settings.key, key)).run());
     return result.changes > 0;
   }
 
@@ -128,7 +129,7 @@ export class SettingsRepository {
    * Delete all settings (useful for testing)
    */
   deleteAll(): number {
-    const result = this.db.delete(settings).run();
+    const result = getRunResult(this.db.delete(settings).run());
     return result.changes;
   }
 }

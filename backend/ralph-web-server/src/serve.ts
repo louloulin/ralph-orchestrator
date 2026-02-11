@@ -6,6 +6,7 @@
  */
 
 import path from "path";
+import * as fs from "fs";
 import { startServer, configureLogBroadcaster } from "./api";
 import { initializeDatabase, getDatabase } from "./db/connection";
 import { TaskQueueService, EventBus, Dispatcher } from "./queue";
@@ -167,7 +168,25 @@ async function gracefulShutdown(signal: string, timeoutMs: number): Promise<void
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM", 30000));
 process.on("SIGINT", () => gracefulShutdown("SIGINT", 10000));
 
-startServer({ port: PORT, host: HOST, db, taskBridge, loopsManager, planningService })
+// Determine frontend dist directory
+// When running as embedded binary, look for dist in the same directory as the binary
+// When running in dev mode, use the frontend dist directory relative to repo root
+let frontendDist: string | undefined;
+const binaryDir = path.dirname(process.execPath);
+const embeddedDist = path.join(binaryDir, "dist");
+const repoDist = path.join(REPO_ROOT, "frontend", "ralph-web", "dist");
+
+if (fs.existsSync(embeddedDist)) {
+  frontendDist = embeddedDist;
+  console.log(`Using embedded frontend from: ${embeddedDist}`);
+} else if (fs.existsSync(repoDist)) {
+  frontendDist = repoDist;
+  console.log(`Using repo frontend from: ${repoDist}`);
+} else {
+  console.log("Frontend dist not found, API-only mode");
+}
+
+startServer({ port: PORT, host: HOST, db, taskBridge, loopsManager, planningService, frontendDist })
   .then(() => {
     // Restore pending tasks from database
     const restoredCount = taskQueue.hydrate();

@@ -13,7 +13,7 @@ import { TaskBridge } from "../services/TaskBridge";
 import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
 import { CollectionService } from "../services/CollectionService";
-import { BetterSQLite3Database } from "drizzle-orm/better-sqlite3";
+import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
 import * as fs from "fs";
 import * as path from "path";
@@ -40,7 +40,7 @@ export interface Context {
  * @param planningService - Optional PlanningService for planning sessions
  */
 export function createContext(
-  db: BetterSQLite3Database<typeof schema>,
+  db: BunSQLiteDatabase<typeof schema>,
   taskBridge?: TaskBridge,
   loopsManager?: LoopsManager,
   planningService?: PlanningService

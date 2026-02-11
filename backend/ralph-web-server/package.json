@@ -1,21 +1,23 @@
 {
   "name": "@ralph-web/server",
   "version": "0.1.0",
-  "description": "Ralph web server with tRPC API and task dispatcher",
+  "description": "Ralph web server with tRPC API and task dispatcher (Bun-based)",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "module",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/serve.js",
-    "dev": "tsc && node --watch dist/serve.js",
-    "test": "tsx --test $(find src -name '*.test.ts')",
-    "clean": "rm -rf dist"
+    "start": "bun run dist/serve.js",
+    "dev": "tsc && bun --watch dist/serve.js",
+    "test": "bun test $(find src -name '*.test.ts')",
+    "clean": "rm -rf dist",
+    "bundle": "bun build src/serve.ts --outfile dist/bundle.js --target bun --compile && chmod +x dist/bundle"
   },
   "dependencies": {
     "@fastify/cors": "^11.2.0",
+    "@fastify/static": "^9.0.0",
     "@fastify/websocket": "^11.2.0",
     "@trpc/server": "^11.8.1",
-    "better-sqlite3": "^12.6.2",
     "drizzle-orm": "^0.45.1",
     "fastify": "^5.7.1",
     "strip-ansi": "^6.0.1",
@@ -23,18 +25,18 @@
     "yaml": "^2.8.2",
     "zod": "^4.3.6"
   },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/ws": "^8.18.1",
+    "bun-types": "^1.3.9",
+    "drizzle-kit": "^0.31.8",
+    "typescript": "^5.9.3"
+  },
   "keywords": [
     "ralph",
     "server",
-    "orchestrator"
+    "orchestrator",
+    "bun"
   ],
-  "license": "MIT",
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.0.0",
-    "@types/ws": "^8.18.1",
-    "drizzle-kit": "^0.31.8",
-    "tsx": "^4.19.0",
-    "typescript": "^5.9.3"
-  }
+  "license": "MIT"
 }

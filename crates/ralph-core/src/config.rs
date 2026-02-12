@@ -888,11 +888,10 @@ impl Default for CoreConfig {
             scratchpad: default_scratchpad(),
             specs_dir: default_specs_dir(),
             guardrails: default_guardrails(),
-            workspace_root: std::env::var("RALPH_WORKSPACE_ROOT")
-                .map(std::path::PathBuf::from)
-                .unwrap_or_else(|_| {
-                    std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."))
-                }),
+            // Always use current directory at runtime, not from environment variable
+            // This ensures workspace_root is always the directory where ralph is run
+            workspace_root: std::env::current_dir()
+                .unwrap_or_else(|_| std::path::PathBuf::from(".")),
         }
     }
 }

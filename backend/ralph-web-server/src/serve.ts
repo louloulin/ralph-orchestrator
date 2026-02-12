@@ -169,21 +169,37 @@ process.on("SIGTERM", () => gracefulShutdown("SIGTERM", 30000));
 process.on("SIGINT", () => gracefulShutdown("SIGINT", 10000));
 
 // Determine frontend dist directory
-// When running as embedded binary, look for dist in the same directory as the binary
-// When running in dev mode, use the frontend dist directory relative to repo root
+// Priority:
+// 1. RALPH_FRONTEND_DIST env var (explicit override)
+// 2. dist/ directory relative to __dirname (when running from bundle.js)
+// 3. dist/ directory in the same folder as the binary (legacy)
+// 4. frontend/ralph-web/dist relative to repo root (dev mode)
 let frontendDist: string | undefined;
-const binaryDir = path.dirname(process.execPath);
-const embeddedDist = path.join(binaryDir, "dist");
-const repoDist = path.join(REPO_ROOT, "frontend", "ralph-web", "dist");
 
-if (fs.existsSync(embeddedDist)) {
-  frontendDist = embeddedDist;
-  console.log(`Using embedded frontend from: ${embeddedDist}`);
-} else if (fs.existsSync(repoDist)) {
-  frontendDist = repoDist;
-  console.log(`Using repo frontend from: ${repoDist}`);
+// Try RALPH_FRONTEND_DIST first (set by embedded server)
+if (process.env.RALPH_FRONTEND_DIST && fs.existsSync(process.env.RALPH_FRONTEND_DIST)) {
+  frontendDist = process.env.RALPH_FRONTEND_DIST;
+  console.log(`Using frontend from env var: ${frontendDist}`);
 } else {
-  console.log("Frontend dist not found, API-only mode");
+  // Use __dirname to find dist relative to bundle.js
+  const scriptDir = __dirname;
+  const scriptDirDist = path.join(scriptDir, "dist");
+  const binaryDir = path.dirname(process.execPath);
+  const binaryDirDist = path.join(binaryDir, "dist");
+  const repoDist = path.join(REPO_ROOT, "frontend", "ralph-web", "dist");
+
+  if (fs.existsSync(scriptDirDist)) {
+    frontendDist = scriptDirDist;
+    console.log(`Using frontend from script dir: ${scriptDirDist}`);
+  } else if (fs.existsSync(binaryDirDist)) {
+    frontendDist = binaryDirDist;
+    console.log(`Using frontend from binary dir: ${binaryDirDist}`);
+  } else if (fs.existsSync(repoDist)) {
+    frontendDist = repoDist;
+    console.log(`Using frontend from repo: ${repoDist}`);
+  } else {
+    console.log("Frontend dist not found, API-only mode");
+  }
 }
 
 startServer({ port: PORT, host: HOST, db, taskBridge, loopsManager, planningService, frontendDist })

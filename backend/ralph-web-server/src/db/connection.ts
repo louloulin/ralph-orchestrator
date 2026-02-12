@@ -89,9 +89,8 @@ function getDefaultDbPath(): string {
  * This is a convenience function for development/testing.
  */
 export function initializeDatabase(database?: BunSQLiteDatabase<typeof schema>): void {
-  const targetDb = database ?? getDatabase();
-
   // Get raw SQLite connection for table creation
+  database ?? getDatabase();
   if (!sqlite) {
     throw new Error("Database not initialized. Call getDatabase() first.");
   }

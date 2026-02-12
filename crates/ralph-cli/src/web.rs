@@ -25,6 +25,9 @@ const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(10);
 /// Timeout for both servers to become ready
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Maximum number of ports to try for dynamic port selection
+const MAX_PORT_ATTEMPTS: u16 = 100;
+
 /// Arguments for the web subcommand
 #[derive(Parser, Debug)]
 pub struct WebArgs {
@@ -145,19 +148,33 @@ async fn run_npm_install_with(root: &Path, npm_cmd: &OsStr) -> Result<()> {
     Ok(())
 }
 
-/// Check that a TCP port is available for binding.
-fn check_port_available(port: u16) -> Result<()> {
-    match std::net::TcpListener::bind(("127.0.0.1", port)) {
-        Ok(_) => Ok(()),
-        Err(_) => {
-            anyhow::bail!(
-                "Port {} is already in use.\n\
-                 Use --backend-port or --frontend-port to pick a different port.\n\
-                 To free the port: fuser -k {}/tcp",
-                port,
-                port
-            );
+/// Find an available port starting from the specified port.
+/// Tries ports in the range [start_port..start_port + MAX_PORT_ATTEMPTS]
+/// Binds to 0.0.0.0 to match the backend server's binding behavior
+fn find_available_port(start_port: u16) -> Result<u16> {
+    for offset in 0..MAX_PORT_ATTEMPTS {
+        let port = start_port + offset;
+        match std::net::TcpListener::bind(("0.0.0.0", port)) {
+            Ok(_) => {
+                // Port is available, close the listener and return
+                return Ok(port);
+            }
+            Err(_) => continue,
         }
+    }
+    anyhow::bail!(
+        "No available ports found in range {}..{}",
+        start_port,
+        start_port + MAX_PORT_ATTEMPTS
+    )
+}
+
+/// Check that a TCP port is available for binding.
+/// Returns the port if available, None if it's in use.
+fn check_port_available(port: u16) -> Result<Option<u16>> {
+    match std::net::TcpListener::bind(("127.0.0.1", port)) {
+        Ok(_) => Ok(Some(port)),
+        Err(_) => Ok(None),
     }
 }
 
@@ -293,23 +310,42 @@ pub async fn execute(args: WebArgs) -> Result<()> {
         // Verify Node.js/npm, check tsx version, and auto-install dependencies if needed
         preflight(&workspace_root, &backend_dir).await?;
 
-        // Check ports before spawning anything
-        check_port_available(args.backend_port)?;
-        check_port_available(args.frontend_port)?;
+        // Find available ports dynamically
+        let backend_port = find_available_port(args.backend_port)?;
+        let frontend_port = find_available_port(args.frontend_port)?;
+
+        // Report if we're using different ports than requested
+        if backend_port != args.backend_port || frontend_port != args.frontend_port {
+            println!("Port selection:");
+            if backend_port != args.backend_port {
+                println!("  Backend: {} (requested {} was unavailable)", backend_port, args.backend_port);
+            }
+            if frontend_port != args.frontend_port {
+                println!("  Frontend: {} (requested {} was unavailable)", frontend_port, args.frontend_port);
+            }
+            println!();
+        }
 
         println!("Using workspace: {}", workspace_root.display());
 
         // Continue with npm-based servers...
-        return execute_npm_servers(args, workspace_root, backend_dir, frontend_dir).await;
+        return execute_npm_servers(args, workspace_root, backend_dir, frontend_dir, backend_port, frontend_port).await;
     }
 
     // Fall back to embedded server
     println!("Node.js dev servers not available, using embedded server...");
     println!("Using workspace: {}", workspace_root.display());
 
+    // Find available port for embedded server
+    let backend_port = find_available_port(args.backend_port)?;
+    if backend_port != args.backend_port {
+        println!("  Backend: {} (requested {} was unavailable)", backend_port, args.backend_port);
+        println!();
+    }
+
     #[cfg(feature = "embedded-web")]
     {
-        return crate::web_embedded::execute(args.backend_port, workspace_root, args.no_open).await;
+        return crate::web_embedded::execute(backend_port, workspace_root, args.no_open).await;
     }
 
     #[cfg(not(feature = "embedded-web"))]
@@ -327,6 +363,8 @@ async fn execute_npm_servers(
     workspace_root: PathBuf,
     backend_dir: PathBuf,
     frontend_dir: PathBuf,
+    backend_port: u16,
+    frontend_port: u16,
 ) -> Result<()> {
 
     // Spawn backend server with piped output
@@ -336,7 +374,7 @@ async fn execute_npm_servers(
         .args(["run", "dev"])
         .current_dir(&backend_dir)
         .env("RALPH_WORKSPACE_ROOT", &workspace_root)
-        .env("PORT", args.backend_port.to_string())
+        .env("PORT", backend_port.to_string())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -356,10 +394,10 @@ async fn execute_npm_servers(
             "dev",
             "--",
             "--port",
-            &args.frontend_port.to_string(),
+            &frontend_port.to_string(),
         ])
         .current_dir(&frontend_dir)
-        .env("RALPH_BACKEND_PORT", args.backend_port.to_string())
+        .env("RALPH_BACKEND_PORT", backend_port.to_string())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -581,14 +619,15 @@ mod tests {
         match TcpListener::bind(("127.0.0.1", 0)) {
             Ok(listener) => {
                 let port = listener.local_addr().expect("addr").port();
-                assert!(check_port_available(port).is_err());
+                // Port should return None when in use (not Err)
+                assert_eq!(check_port_available(port).ok(), Some(None));
                 drop(listener);
 
                 // Some environments (CI, heavily loaded systems) can take a moment to fully
                 // release the port after the listener is dropped. Retry briefly to avoid flakes.
                 let mut freed = false;
                 for _ in 0..25 {
-                    if check_port_available(port).is_ok() {
+                    if check_port_available(port).ok() == Some(Some(port)) {
                         freed = true;
                         break;
                     }
@@ -602,7 +641,7 @@ mod tests {
             Err(err) => {
                 // Some sandboxes disallow binding; ensure we handle that path gracefully.
                 assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
-                assert!(check_port_available(0).is_err());
+                assert_eq!(check_port_available(0).ok(), Some(None));
             }
         }
     }

@@ -71,9 +71,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [2.5.1] - 2026-02-14
 
-### Changed
+### 新增 (Added)
 
-- Version bump for 2.5.1 release.
+- **Shell 补全支持**：新增 `ralph completions <SHELL>` 命令，支持生成 bash、zsh、fish 和 PowerShell 的自动补全脚本
+- **Fresh-Eyes 预设**：新增强制审查轮次的预设配置，确保代码经过多轮独立审查
+- **Teams 标志**：`ralph plan --teams` 和 `ralph code-task --teams` 支持 Claude Code 的实验性 Agent Teams 功能，实现并行研究和对抗性设计审查
+- **后端 Pi 流可见性增强**：改进 Pi 后端的流事件可见性和配置，支持 provider/model 跟踪显示
+
+### 修复 (Fixed)
+
+- **UTF-8 安全字符串截断**：修复多字节字符（中文、emoji）导致的字符串截断崩溃问题（#169）
+- **确定性 Hat 选择**：将 HashMap 改为 BTreeMap 确保 hat 选择顺序确定（按字母排序），修复 default_publishes 注入逻辑（#157）
+
+### 变更 (Changed)
+
+- **Homebrew 安装说明**：更新支持 Linux 平台
+- **Pre-commit 钩子**：与 CI 检查对齐并修复格式问题
+- **版本发布**：v2.5.1 版本发布
 
 ## [2.3.0] - 2025-01-28
 

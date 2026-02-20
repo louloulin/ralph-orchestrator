@@ -349,6 +349,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.5.66"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c757a3b7e39161a4e56f9365141ada2a6c915a8622c408ab6bb4b5d047371031"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.5.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2220,7 +2229,7 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
 
 [[package]]
 name = "ralph-adapters"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "ansi-to-tui",
  "anyhow",
@@ -2244,7 +2253,7 @@ dependencies = [
 
 [[package]]
 name = "ralph-bench"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anyhow",
  "clap",
@@ -2260,12 +2269,13 @@ dependencies = [
 
 [[package]]
 name = "ralph-cli"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anyhow",
  "axum",
  "chrono",
  "clap",
+ "clap_complete",
  "crossterm 0.28.1",
  "indicatif",
  "keyring",
@@ -2296,7 +2306,7 @@ dependencies = [
 
 [[package]]
 name = "ralph-core"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2319,7 +2329,7 @@ dependencies = [
 
 [[package]]
 name = "ralph-e2e"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2338,7 +2348,7 @@ dependencies = [
 
 [[package]]
 name = "ralph-proto"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2350,7 +2360,7 @@ dependencies = [
 
 [[package]]
 name = "ralph-telegram"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2368,7 +2378,7 @@ dependencies = [
 
 [[package]]
 name = "ralph-tui"
-version = "2.5.0"
+version = "2.5.1"
 dependencies = [
  "anyhow",
  "chrono",

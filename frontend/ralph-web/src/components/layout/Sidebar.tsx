@@ -9,7 +9,7 @@
 import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3 } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { useUIStore } from "@/store";
-import { ThemeToggleMinimal } from "@/components/shared/ThemeToggle";
+import { ThemeToggleMinimal, LocaleSwitcherMinimal } from "@/components/shared";
 import { cn } from "@/lib/utils";
 
 /** Ralph hat logo matching favicon */
@@ -108,18 +108,25 @@ export function Sidebar() {
           )}
         </button>
 
-        {/* Theme toggle - only in collapsed mode */}
+        {/* Theme and locale toggles - only in collapsed mode */}
         {!sidebarOpen && (
-          <ThemeToggleMinimal className="w-full mt-1" />
+          <div className="mt-1 space-y-1">
+            <ThemeToggleMinimal className="w-full" />
+            <LocaleSwitcherMinimal className="w-full" />
+          </div>
         )}
       </div>
 
-      {/* Footer with theme toggle (expanded mode) and command palette hint */}
+      {/* Footer with theme and locale toggles (expanded mode) and command palette hint */}
       {sidebarOpen && (
         <div className="p-3 border-t border-border space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">Theme</span>
             <ThemeToggleMinimal />
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Language</span>
+            <LocaleSwitcherMinimal />
           </div>
           <div className="text-xs text-muted-foreground text-center">
             Press{" "}

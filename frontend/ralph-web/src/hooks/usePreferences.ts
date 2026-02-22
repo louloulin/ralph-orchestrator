@@ -4,6 +4,9 @@
  * Manages user preferences with localStorage persistence.
  * Provides a centralized way to access and modify UI preferences
  * that survive page refreshes and browser sessions.
+ *
+ * Note: Theme preference is managed separately via useTheme hook
+ * and themeStore for more complex system-detection logic.
  */
 
 import { useCallback, useMemo } from "react";
@@ -149,6 +152,7 @@ export function clearAllRalphLocalStorage(): void {
     "ralph-ui", // UI store from store.ts
     "ralph-command-history", // Command palette history
     "ralph-notifications", // Notification preferences
+    "ralph-theme", // Theme preference
   ];
 
   ralphKeys.forEach((key) => {

@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 import { Search, FileText, ArrowRight, Moon, Play, Trash2 } from "lucide-react";
 import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
 import { createCommandGroups, findCommandById } from "@/lib/commands.tsx";
+import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 
 // Placeholder functions - will be connected to actual implementations
@@ -37,16 +38,12 @@ const defaultCancelLoop = () => {
   // TODO: Connect to actual loop cancel logic
 };
 
-const defaultToggleTheme = () => {
-  console.log("Toggle theme");
-  // TODO: Connect to theme system
-};
-
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<"command" | "task">("command");
   const [taskPrompt, setTaskPrompt] = useState("");
   const navigate = useNavigate();
+  const { toggle: toggleTheme } = useTheme();
 
   const { recentCommands, addToHistory } = useCommandPaletteStore();
 
@@ -58,9 +55,9 @@ export function CommandPalette() {
         defaultCreateTask,
         defaultStartLoop,
         defaultCancelLoop,
-        defaultToggleTheme
+        toggleTheme
       ),
-    [navigate]
+    [navigate, toggleTheme]
   );
 
   // Global keyboard shortcut (Cmd/Ctrl+K)

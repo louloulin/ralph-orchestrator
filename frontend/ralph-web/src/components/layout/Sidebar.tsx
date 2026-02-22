@@ -9,6 +9,7 @@
 import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3 } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { useUIStore } from "@/store";
+import { ThemeToggleMinimal } from "@/components/shared/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 /** Ralph hat logo matching favicon */
@@ -103,11 +104,20 @@ export function Sidebar() {
             <PanelLeft className="h-5 w-5 flex-shrink-0" />
           )}
         </button>
+
+        {/* Theme toggle - only in collapsed mode */}
+        {!sidebarOpen && (
+          <ThemeToggleMinimal className="w-full mt-1" />
+        )}
       </div>
 
-      {/* Command palette hint */}
+      {/* Footer with theme toggle (expanded mode) and command palette hint */}
       {sidebarOpen && (
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Theme</span>
+            <ThemeToggleMinimal />
+          </div>
           <div className="text-xs text-muted-foreground text-center">
             Press{" "}
             <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">

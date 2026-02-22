@@ -11,6 +11,9 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { Locale, LocaleInfo } from "@/types/i18n";
 
+// Re-export LocaleInfo for use in tests
+export type { LocaleInfo } from "@/types/i18n";
+
 /** Storage key for locale persistence */
 const LOCALE_STORAGE_KEY = "ralph-locale";
 

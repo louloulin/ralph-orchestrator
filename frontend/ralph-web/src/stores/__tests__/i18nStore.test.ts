@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useI18nStore, LOCALES, initializeLocale, getInitialLocale } from "./i18nStore";
+import { useI18nStore, LOCALES, initializeLocale, getInitialLocale, type LocaleInfo } from "../i18nStore";
 
 // Mock localStorage
 const localStorageMock = (() => {
@@ -46,15 +46,15 @@ describe("i18nStore", () => {
     });
 
     it("should include English", () => {
-      expect(LOCALES.find((l) => l.code === "en")).toBeDefined();
+      expect(LOCALES.find((l: LocaleInfo) => l.code === "en")).toBeDefined();
     });
 
     it("should include Simplified Chinese", () => {
-      expect(LOCALES.find((l) => l.code === "zh-CN")).toBeDefined();
+      expect(LOCALES.find((l: LocaleInfo) => l.code === "zh-CN")).toBeDefined();
     });
 
     it("each locale should have code, name, and nativeName", () => {
-      LOCALES.forEach((locale) => {
+      LOCALES.forEach((locale: LocaleInfo) => {
         expect(locale).toHaveProperty("code");
         expect(locale).toHaveProperty("name");
         expect(locale).toHaveProperty("nativeName");

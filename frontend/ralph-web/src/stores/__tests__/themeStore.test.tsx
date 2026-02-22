@@ -9,7 +9,6 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { act } from "@testing-library/react";
 import { useThemeStore, applyTheme, getResolvedTheme } from "@/stores/themeStore";
 import { ThemeToggle, ThemeToggleMinimal } from "@/components/shared/ThemeToggle";
-import * as React from "react";
 
 // Mock localStorage
 const localStorageMock = (() => {

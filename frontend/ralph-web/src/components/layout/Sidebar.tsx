@@ -47,6 +47,7 @@ export function Sidebar() {
 
   return (
     <aside
+      aria-label="Main navigation"
       className={cn(
         "flex flex-col h-full bg-card border-r border-border transition-all duration-200",
         sidebarOpen ? "w-56" : "w-14"
@@ -71,7 +72,7 @@ export function Sidebar() {
       </div>
 
       {/* Navigation items */}
-      <nav className="flex-1 p-2 space-y-1">
+      <nav aria-label="Primary" className="flex-1 p-2 space-y-1">
         {NAV_ITEMS.map((item) => (
           <NavItem
             key={item.to}
@@ -87,6 +88,8 @@ export function Sidebar() {
       <div className="p-2 border-t border-border">
         <button
           onClick={toggleSidebar}
+          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          aria-expanded={sidebarOpen}
           className={cn(
             "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
             "text-muted-foreground hover:bg-accent hover:text-accent-foreground",

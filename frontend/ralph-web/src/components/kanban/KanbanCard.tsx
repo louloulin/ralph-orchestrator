@@ -202,6 +202,7 @@ const KanbanCardComponent = forwardRef<HTMLDivElement, KanbanCardProps>(
         onClick={handleClick}
         role="button"
         tabIndex={0}
+        aria-label={`Task: ${task.title}. Status: ${statusConfig.label}. Priority: ${task.priority}`}
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") {
             e.preventDefault();

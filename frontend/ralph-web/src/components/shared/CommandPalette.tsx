@@ -131,6 +131,7 @@ export function CommandPalette() {
     <div
       className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
       onClick={() => setOpen(false)}
+      role="presentation"
     >
       <Command
         className={cn(
@@ -138,11 +139,17 @@ export function CommandPalette() {
           "w-full max-w-xl rounded-lg border border-border bg-popover shadow-2xl"
         )}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-label="Command palette"
+        aria-modal="true"
       >
         {/* Mode Tabs */}
-        <div className="flex border-b border-border">
+        <div className="flex border-b border-border" role="tablist" aria-label="Mode selection">
           <button
             onClick={() => setMode("command")}
+            role="tab"
+            aria-selected={mode === "command"}
+            aria-controls="command-panel"
             className={cn(
               "flex items-center gap-2 flex-1 py-2.5 px-4 text-sm font-medium transition-colors",
               mode === "command"
@@ -150,11 +157,14 @@ export function CommandPalette() {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <Search className="h-4 w-4" />
+            <Search className="h-4 w-4" aria-hidden="true" />
             Commands
           </button>
           <button
             onClick={() => setMode("task")}
+            role="tab"
+            aria-selected={mode === "task"}
+            aria-controls="task-panel"
             className={cn(
               "flex items-center gap-2 flex-1 py-2.5 px-4 text-sm font-medium transition-colors",
               mode === "task"
@@ -162,20 +172,21 @@ export function CommandPalette() {
                 : "text-muted-foreground hover:text-foreground"
             )}
           >
-            <FileText className="h-4 w-4" />
+            <FileText className="h-4 w-4" aria-hidden="true" />
             New Task
           </button>
         </div>
 
         {mode === "command" ? (
-          <>
+          <div id="command-panel" role="tabpanel">
             {/* Search Input */}
             <div className="flex items-center border-b border-border px-3">
-              <Search className="h-4 w-4 text-muted-foreground mr-2" />
+              <Search className="h-4 w-4 text-muted-foreground mr-2" aria-hidden="true" />
               <Command.Input
                 placeholder="Type a command or search..."
                 className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 autoFocus
+                aria-label="Search commands"
               />
             </div>
 
@@ -235,10 +246,10 @@ export function CommandPalette() {
                 </Command.Group>
               ))}
             </Command.List>
-          </>
+          </div>
         ) : (
           /* Task Input Mode */
-          <div className="p-4">
+          <div id="task-panel" role="tabpanel" className="p-4">
             <textarea
               value={taskPrompt}
               onChange={(e) => setTaskPrompt(e.target.value)}
@@ -246,6 +257,7 @@ export function CommandPalette() {
               placeholder="Describe your task... (Press Enter to submit)"
               className="w-full h-24 bg-transparent text-sm outline-none resize-none placeholder:text-muted-foreground"
               autoFocus
+              aria-label="Task description"
             />
             <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">
               <span className="text-xs text-muted-foreground">
@@ -254,6 +266,7 @@ export function CommandPalette() {
               <button
                 onClick={handleTaskSubmit}
                 disabled={!taskPrompt.trim()}
+                aria-label="Create task"
                 className={cn(
                   "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
                   taskPrompt.trim()
@@ -262,7 +275,7 @@ export function CommandPalette() {
                 )}
               >
                 Create Task
-                <ArrowRight className="h-3 w-3" />
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
               </button>
             </div>
           </div>

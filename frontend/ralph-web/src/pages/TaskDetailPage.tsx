@@ -29,6 +29,7 @@ import {
   LoopBadge,
   type LoopDetailData,
 } from "@/components/tasks";
+import { ThinkingPanel } from "@/components/shared";
 import {
   AlertTriangle,
   Loader2,
@@ -294,7 +295,8 @@ export function TaskDetailPage() {
 
       {/* Log viewer (for running/completed/failed tasks) */}
       {showLogViewer && (
-        <div data-testid="log-viewer">
+        <div data-testid="log-viewer" className="space-y-4">
+          <ThinkingPanel taskId={task.id} maxHeight="300px" />
           <EnhancedLogViewer taskId={task.id} />
         </div>
       )}

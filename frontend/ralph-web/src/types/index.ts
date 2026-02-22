@@ -28,3 +28,18 @@ export {
   getDateRangeFromPreset,
   type DateRangePreset,
 } from "./search";
+
+// Thinking types for ThinkingPanel component
+export type {
+  ThinkingStepType,
+  ThinkingStepMetadata,
+  ThinkingStep,
+  ThinkingSession,
+} from "./thinking";
+
+export {
+  THINKING_TYPE_BADGE_VARIANTS,
+  THINKING_STEP_TYPES,
+  THINKING_TYPE_BORDER_COLORS,
+  THINKING_TYPE_LABELS,
+} from "./thinking";

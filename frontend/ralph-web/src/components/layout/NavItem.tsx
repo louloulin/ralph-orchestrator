@@ -25,6 +25,7 @@ export function NavItem({ icon: Icon, label, to, collapsed = false }: NavItemPro
   return (
     <NavLink
       to={to}
+      aria-label={collapsed ? label : undefined}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
@@ -37,7 +38,7 @@ export function NavItem({ icon: Icon, label, to, collapsed = false }: NavItemPro
       }
       title={collapsed ? label : undefined}
     >
-      <Icon className="h-5 w-5 flex-shrink-0" />
+      <Icon className="h-5 w-5 flex-shrink-0" aria-hidden="true" />
       {!collapsed && <span className="truncate">{label}</span>}
     </NavLink>
   );

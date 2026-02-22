@@ -8,7 +8,10 @@
  */
 
 import { useCallback, useEffect } from "react";
-import { useThemeStore, type ThemeMode } from "@/stores/themeStore";
+import { useThemeStore, type ThemeMode as ThemeModeType } from "@/stores/themeStore";
+
+// Re-export ThemeMode type for convenience
+export type ThemeMode = ThemeModeType;
 
 interface UseThemeReturn {
   /** Current theme mode preference (light, dark, or system) */
@@ -88,9 +91,6 @@ export function useThemeInit(): void {
   useEffect(() => {
     // Apply initial theme from store
     const { mode, updateResolved } = useThemeStore.getState();
-
-    // Get the store's update function and initial state
-    const resolved = useThemeStore.getState().resolved;
 
     // Apply theme immediately
     const { applyTheme, getResolvedTheme } = require("@/stores/themeStore");

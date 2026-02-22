@@ -1,10 +1,10 @@
 # Ralph Web Dashboard 开发计划
 
-> 基于全面代码分析、竞品研究（vibe-kanban、Cursor、Windsurf 等）制定的综合 UI 开发路线图
+> 基于全面代码分析、竞品研究（OpenClaw、Vibe Kanban、Cursor、Windsurf、Claude Code 等）制定的综合 UI 开发路线图
 >
-> **愿景：** 将 Ralph 打造成 7×24 小时运行的顶级智能体编排平台
+> **愿景：** 将 Ralph 打造成 7×24 小时运行的顶级智能体编排平台，支持 Agent Teams 多代理协作
 >
-> 创建时间: 2026-02-22 | 版本: 4.0 | 更新时间: 2026-02-22
+> 创建时间: 2026-02-22 | 版本: 5.0 | 更新时间: 2026-02-22
 
 ---
 
@@ -128,7 +128,93 @@ POST   /api/v1/tasks/{id}/run  # 执行任务
 
 ## 二、竞品研究与最佳实践（2025-2026）
 
-### 2.1 Vibe Kanban (15k+ Stars)
+### 2.0 OpenClaw (170k+ Stars) 🔥 2026年现象级项目
+
+**项目定位：** 开源个人 AI 助手，从"对话交互"到"代理行动"的范式转变
+
+**项目背景：**
+- **开发者：** 奥地利工程师 Peter Steinberger
+- **命名历史：** Clawdbot → Moltbot → OpenClaw（商标问题）
+- **重大事件：** 2026年2月创始人加入 OpenAI，OpenClaw 转为独立基金会运营
+- **影响力：** 一周内网站访问量超过 200 万次，Mac mini 交付期延长至 6 周
+
+**核心架构（4 大模块）：**
+| 模块 | 功能 | 说明 |
+|------|------|------|
+| **Gateway** | 通信接口 | 多渠道消息接入 |
+| **Agent** | 智能实体 | 核心决策引擎 |
+| **Skills** | 任务能力 | 可学习新技能（包括从 YouTube 视频） |
+| **Memory** | 知识存储 | 跨会话持久记忆，跨代理共享上下文 |
+
+**核心特性：**
+| 特性 | 描述 |
+|------|------|
+| **Local-First** | 本地优先运行，用户拥有 OS 级权限 |
+| **7×24 自主运行** | 持续自主执行任务 |
+| **多渠道支持** | WhatsApp、iMessage、飞书、微信、Telegram 等 10+ 平台 |
+| **持久记忆** | 跨会话记忆，跨代理共享上下文 |
+| **个性化定制** | 通过 `SOUL.md` 文件定义 AI 人格 |
+| **自学习技能** | 可从 YouTube 视频学习新工作流 |
+
+**实际能力（从"顾问"到"执行者"）：**
+- ✅ 文件系统操作（读写文件）
+- ✅ 执行 Shell 命令
+- ✅ 在安全沙箱中运行代码
+- ✅ 浏览网页、填写表单、提取数据
+- ✅ 预订机票、安排日程、处理报销
+
+**快速部署：**
+```bash
+# 一行安装（推荐配置：2核2GB，Ubuntu 22.04+）
+npx openclaw
+```
+
+**安全关注：**
+- 已发现数百个漏洞
+- 2026年2月发布免费开源安全扫描器检测企业环境中的 OpenClaw 实例
+
+**来源：** [行业研报](https://data.eastmoney.com/report/zw_industry.jshtml?infocode=AP202602211819975835), [掘金专题](https://juejin.cn/post/7607358297457278976), [2026完全指南](https://juejin.cn/post/7606923064946065448)
+
+---
+
+### 2.1 Claude Code (Anthropic) - 2026年突破性产品
+
+**项目定位：** Anthropic 的终端"代理式编程"工具，AI 从"代码生成"到"开发伙伴"
+
+**版本历程：**
+| 版本 | 发布时间 | 关键特性 |
+|------|----------|---------|
+| Claude Code 首发 | 2025.02 | 基于 Claude 3.7 Sonnet |
+| Claude Skills | 2025.10 | 智能代理功能、工作流自动化 |
+| Cowork GUI | 2026.01 | 非技术用户可用的图形界面版本 |
+| **Claude Opus 4.6** | **2026.02.05** | **100万 Token 上下文窗口**、Agent Teams 多代理协作 |
+
+**核心技术能力：**
+| 能力 | 描述 |
+|------|------|
+| **深度代码感知** | 全局扫描项目结构和依赖，自动提出跨模块修改建议 |
+| **多文件一致编辑** | 一次性生成补丁、重构或功能，实现 "Issue to PR" 闭环 |
+| **终端 & IDE 原生** | 通过 CLI 直接运行或集成 VS Code / JetBrains |
+| **安全控制** | 文件写入或命令执行需确认；可定制白名单 |
+| **Agent Teams** | 多代理协作，可并行处理复杂任务 |
+
+**性能指标：**
+- **100万 Token 上下文** - 首个测试此功能的旗舰模型
+- **99.9% 代码准确率** 声称
+- **10x 开发效率提升**
+- Google Trends 数据显示 Claude Code 在 2026 年超越 Codex
+- 据报道"终结了编程竞赛"并发现了 **500 个零日漏洞**
+
+**典型用例：**
+1. **代码入职**：几秒钟内为整个仓库生成模块图、依赖说明、重要脚本描述
+2. **Bug 分类**：粘贴 Issue 链接，Claude 自动定位相关文件、编写测试、生成修复补丁、提交 PR
+3. **大规模重构**：迁移到 TypeScript、批量 API 版本升级 - 逐文件修改并运行本地测试
+
+**来源：** [Claude Code 官网介绍](https://k.sina.cn/article_7879848900_1d5acf3c401902p59g.html), [深度测评](https://m.blog.csdn.net/2501_93058131/article/details/150697715)
+
+---
+
+### 2.2 Vibe Kanban (15k+ Stars)
 
 **项目定位：** 专为编排多个 AI 编码代理设计的开源看板平台
 
@@ -136,22 +222,31 @@ POST   /api/v1/tasks/{id}/run  # 执行任务
 | 特性 | 描述 |
 |------|------|
 | Kanban看板视图 | To Do / In Progress / In Review / Done / Cancelled |
-| Git Worktree隔离 | 每个任务独立的工作树 |
+| Git Worktree隔离 | 每个任务独立的工作树，防止代码冲突 |
 | 多AI代理支持 | Claude Code, Codex, Gemini CLI, Cursor, Amp |
 | 实时日志流 | WebSocket实时通信 |
-| 代码差异查看 | 实时代码变更可视化 |
+| 代码差异查看 | 实时代码变更可视化（Diff渲染器） |
 | IDE图标系统 | VS Code, Cursor, Windsurf图标适配主题 |
+| 本地执行 | 不向外部服务器发送代码 |
+
+**设计理念：**
+> 当大多数代码由 AI 编写时，人的角色变成规划、审查和协调。Vibe Kanban 将 AI 编码代理视为"同事"——使用看板分配任务、并行运行多个代理、可视化审查变更、将结果合并回主分支。
+
+**未来计划：** 通过 MCP (Model Context Protocol) 服务器使编码代理能够自动创建任务工单
 
 **可借鉴：**
 - ✅ 响应式拖拽看板界面设计
 - ✅ 亮/暗主题自动检测
 - ✅ "在编辑器中打开"快捷按钮
-- ✅ Git worktree隔离状态可视化
+- ✅ Git worktree 隔离状态可视化
 - ✅ 实时代码差异显示
+- ✅ 本地执行保证代码安全
 
 **来源：** [Vibe Kanban GitHub](https://github.com/BloopAI/vibe-kanban), [掘金介绍](https://juejin.cn/post/7595028805159010314)
 
-### 2.2 Cursor IDE (2025-2026)
+---
+
+### 2.3 Cursor IDE (2025-2026)
 
 **项目定位：** AI原生代码编辑器，AI作为核心驱动力
 
@@ -181,7 +276,7 @@ POST   /api/v1/tasks/{id}/run  # 执行任务
 
 **来源：** [Cursor官网](https://cursor.com/cn), [DEV社区对比](https://dev.to/pockit_tools/cursor-vs-windsurf-vs-claude-code-in-2026-the-honest-comparison-after-using-all-three-3gof)
 
-### 2.3 Windsurf IDE (Cascade)
+### 2.4 Windsurf IDE (Cascade)
 
 **项目定位：** 世界首个基于 AI Flow 范式的 IDE
 
@@ -206,7 +301,7 @@ POST   /api/v1/tasks/{id}/run  # 执行任务
 - ✅ 多模态输入支持
 - ✅ 实时预览集成
 
-### 2.4 2025-2026 AI Agent 趋势
+### 2.5 2025-2026 AI Agent 趋势
 
 #### 市场规模
 - **全球市场：** $5.1B (2024) → **$11.3B (2025)** — 一年翻倍
@@ -231,7 +326,7 @@ POST   /api/v1/tasks/{id}/run  # 执行任务
 
 **来源：** [OpenAI Agent最佳实践白皮书](https://blog.csdn.net/m0_63171455/article/details/147366381), [ArXiv自主网络研究](https://arxiv.org/html/2509.08312v1)
 
-### 2.5 轻量化本地部署趋势
+### 2.6 轻量化本地部署趋势
 
 #### 本地LLM Agent方案
 
@@ -249,6 +344,192 @@ POST   /api/v1/tasks/{id}/run  # 执行任务
 - ✅ 100%隐私保护
 - ✅ 无服务器成本
 - ✅ 离线可用
+
+---
+
+## 二点五、Ralph 独特能力设计（借鉴竞品）
+
+### 2.8 Skill 技能系统设计（借鉴 OpenClaw）
+
+#### 设计理念
+借鉴 OpenClaw 的 Skills 模块，为 Ralph 设计可扩展的技能系统：
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Ralph Skills 架构                     │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │              Skill Registry（技能注册表）              ││
+│  ├─────────────────────────────────────────────────────┤│
+│  │  • 代码审查 (code-review)                            ││
+│  │  • 文档生成 (doc-gen)                                ││
+│  │  • 测试编写 (test-write)                             ││
+│  │  • 重构优化 (refactor)                               ││
+│  │  • Bug 修复 (bug-fix)                                ││
+│  │  • 自定义技能 (custom-*)                             ││
+│  └─────────────────────────────────────────────────────┘│
+│                         │                               │
+│                         ▼                               │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │              Skill Loader（技能加载器）               ││
+│  ├─────────────────────────────────────────────────────┤│
+│  │  • 从 .ralph/skills/ 加载                            ││
+│  │  • 从 YouTube 视频学习（未来）                         ││
+│  │  • 从现有代码推断（未来）                              ││
+│  └─────────────────────────────────────────────────────┘│
+│                         │                               │
+│                         ▼                               │
+│  ┌─────────────────────────────────────────────────────┐│
+│  │              Skill Executor（技能执行器）             ││
+│  ├─────────────────────────────────────────────────────┤│
+│  │  • 输入验证                                          ││
+│  │  • 上下文注入                                        ││
+│  │  • 执行监控                                          ││
+│  │  • 结果验证                                          ││
+│  └─────────────────────────────────────────────────────┘│
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+#### 技能文件格式
+```yaml
+# .ralph/skills/code-review.yaml
+name: code-review
+version: "1.0"
+description: "代码审查技能"
+triggers:
+  - "review this code"
+  - "check for issues"
+  - "代码审查"
+prompt_template: |
+  You are a code reviewer. Analyze the following code:
+  {{code}}
+
+  Focus on:
+  - Code quality
+  - Security issues
+  - Performance concerns
+  - Best practices
+input_schema:
+  type: object
+  properties:
+    code:
+      type: string
+    language:
+      type: string
+output_schema:
+  type: object
+  properties:
+    issues:
+      type: array
+    suggestions:
+      type: array
+```
+
+#### 与 Hat 系统集成
+Skills 可以作为 Hat 的能力补充：
+- Hat 定义工作流程
+- Skills 提供具体执行能力
+- 组合使用实现复杂任务
+
+---
+
+### 2.9 Agent Teams 多代理协作设计（借鉴 Claude Code）
+
+#### 协作模式实现
+
+```rust
+// Agent Teams 配置示例
+pub struct AgentTeam {
+    pub team_id: String,
+    pub coordinator: AgentRole,
+    pub members: Vec<AgentRole>,
+    pub context_sharing: ContextSharingMode,
+    pub task_distribution: TaskDistributionMode,
+}
+
+pub enum ContextSharingMode {
+    Full,           // 完全共享（100万Token上下文）
+    Selective,      // 选择性共享
+    Hierarchical,   // 层级共享（向上汇报）
+}
+
+pub enum TaskDistributionMode {
+    Parallel,       // 并行处理
+    Pipeline,       // 流水线处理
+    Expert,         // 专家分工
+    Voting,         // 投票决策
+}
+```
+
+#### Web UI 设计
+```
+┌─────────────────────────────────────────────────────────┐
+│  Agent Teams Dashboard                                   │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  Team: feature-auth                                      │
+│  ├─ Coordinator: Ralph (规划协调)                        │
+│  ├─ Agent 1: Coder (编码实现)        [运行中 ▶️]        │
+│  ├─ Agent 2: Tester (测试验证)        [等待中 ⏳]        │
+│  └─ Agent 3: Reviewer (代码审查)      [等待中 ⏳]        │
+│                                                          │
+│  共享上下文: 45,230 / 1,000,000 tokens                   │
+│  进度: ████████░░░░░░░░░░ 40%                           │
+│                                                          │
+│  [查看详细日志]  [暂停团队]  [调整配置]                   │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 2.7 Agent Teams 多代理协作趋势
+
+#### 2026年多代理架构演进
+
+| 平台 | 多代理能力 | 特点 |
+|------|-----------|------|
+| **Claude Code Agent Teams** | ✅ 并行处理复杂任务 | 100万Token上下文共享 |
+| **OpenClaw** | ✅ 跨代理共享记忆 | Gateway统一协调 |
+| **Vibe Kanban** | ✅ 多Agent编排 | 看板式任务分配 |
+| **Ralph (目标)** | 🎯 Hat系统 + Agent Teams | 可视化工作流构建 |
+
+#### 多代理协作模式
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                    Agent Teams 架构                      │
+├─────────────────────────────────────────────────────────┤
+│                                                          │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐          │
+│  │ Agent 1  │    │ Agent 2  │    │ Agent 3  │          │
+│  │ (规划)    │    │ (编码)    │    │ (测试)    │          │
+│  └────┬─────┘    └────┬─────┘    └────┬─────┘          │
+│       │               │               │                 │
+│       └───────────────┼───────────────┘                 │
+│                       ▼                                 │
+│              ┌────────────────┐                         │
+│              │  共享上下文层    │                         │
+│              │  Shared Context │                        │
+│              └────────┬───────┘                         │
+│                       │                                 │
+│       ┌───────────────┼───────────────┐                 │
+│       ▼               ▼               ▼                 │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐           │
+│  │  Memory  │   │  Skills  │   │  Events  │           │
+│  │  持久记忆  │   │  技能库   │   │  事件总线  │           │
+│  └──────────┘   └──────────┘   └──────────┘           │
+│                                                          │
+└─────────────────────────────────────────────────────────┘
+```
+
+**协作模式设计：**
+1. **并行模式**：多个 Agent 同时处理独立子任务
+2. **流水线模式**：Agent 按顺序处理（规划→编码→测试→审查）
+3. **专家模式**：不同 Agent 专注不同领域（前端/后端/安全）
+4. **投票模式**：多个 Agent 提供方案，择优或合并
 
 ---
 
@@ -516,6 +797,51 @@ POST   /api/v1/tasks/{id}/run  # 执行任务
 
 ---
 
+### 阶段四半：Agent Teams 与 Skills 系统（优先级：🔴 高）🔥 新增
+
+#### P4.5-1: Agent Teams 架构
+**目标：** 实现多代理协作能力（借鉴 Claude Code）
+
+- [ ] 设计 AgentTeam 数据结构
+- [ ] 实现协调器 (Coordinator) 角色
+- [ ] 实现上下文共享机制
+- [ ] 实现任务分发策略（并行/流水线/专家/投票）
+- [ ] Agent Teams Web UI
+- [ ] 团队状态监控面板
+- [ ] 团队配置管理
+
+**工作量：** 10-14 天
+**文件：** 新增 `backend/services/AgentTeamsService.ts`, `frontend/components/teams/`
+
+#### P4.5-2: Skills 技能系统
+**目标：** 可扩展的技能定义和执行（借鉴 OpenClaw）
+
+- [ ] 设计技能文件格式 (.yaml)
+- [ ] 实现 SkillRegistry 技能注册表
+- [ ] 实现 SkillLoader 技能加载器
+- [ ] 实现 SkillExecutor 技能执行器
+- [ ] 内置技能：代码审查、文档生成、测试编写
+- [ ] 技能市场 UI（浏览/安装/管理技能）
+- [ ] 技能与 Hat 系统集成
+
+**工作量：** 7-10 天
+**文件：** 新增 `crates/ralph-core/src/skill_system.rs`, `frontend/components/skills/`
+
+#### P4.5-3: 多渠道通信集成
+**目标：** 扩展 Human-in-Loop 通信渠道（借鉴 OpenClaw）
+
+- [ ] 抽象通信网关接口
+- [ ] 飞书机器人集成
+- [ ] 企业微信集成
+- [ ] Discord 集成（可选）
+- [ ] 统一消息路由
+- [ ] 渠道配置 UI
+
+**工作量：** 5-7 天
+**文件：** 新增 `crates/ralph-core/src/gateway/`
+
+---
+
 ### 阶段五：多项目管理（优先级：🟡 中）
 
 #### P5-1: 多项目架构
@@ -686,11 +1012,16 @@ Week 8-10:  阶段四（24/7 平台能力）
 ├── P4-3 监控告警系统
 └── P4-4 自愈机制
 
-Week 11-12: 阶段五（多项目管理）
+Week 11-13: 阶段四半（Agent Teams & Skills）🔥 新增
+├── P4.5-1 Agent Teams 架构
+├── P4.5-2 Skills 技能系统
+└── P4.5-3 多渠道通信集成
+
+Week 14-15: 阶段五（多项目管理）
 ├── P5-1 多项目架构
 └── P5-2 项目隔离
 
-Week 13-14: 阶段六（部署与扩展）
+Week 16-17: 阶段六（部署与扩展）
 ├── P6-1 Docker 部署
 ├── P6-2 任务调度系统
 └── P6-3 资源调度（可选）
@@ -703,9 +1034,10 @@ Week 13-14: 阶段六（部署与扩展）
 | v0.2.0 | 阶段一完成 | Week 2 |
 | v0.3.0 | 阶段二完成 | Week 5 |
 | v0.4.0 | 阶段三完成 | Week 7 |
-| v1.0.0 | 阶段四完成，24/7能力 | Week 10 |
-| v1.2.0 | 阶段五完成，多项目支持 | Week 12 |
-| v2.0.0 | 阶段六完成，企业级就绪 | Week 14 |
+| v0.5.0 | 阶段四完成，24/7能力 | Week 10 |
+| v0.6.0 | Agent Teams + Skills | Week 13 |
+| v1.0.0 | 阶段五完成，多项目支持 | Week 15 |
+| v2.0.0 | 阶段六完成，企业级就绪 | Week 17 |
 
 ---
 
@@ -773,29 +1105,51 @@ ralph web 命令
 
 ### 8.1 与主要竞品对比
 
-| 能力 | Ralph (目标) | Vibe Kanban | Cursor | Windsurf |
-|------|--------------|-------------|--------|----------|
-| **多代理编排** | ✅ 强 | ✅ 强 | ⚠️ 中 | ⚠️ 中 |
-| **24/7 自主运行** | ✅ 目标 | ❌ 无 | ❌ 无 | ❌ 无 |
-| **自愈能力** | ✅ 目标 | ❌ 无 | ❌ 无 | ❌ 无 |
-| **状态检查点** | ✅ 目标 | ❌ 无 | ❌ 无 | ⚠️ 有限 |
-| **多项目管理** | ✅ 目标 | ❌ 单项目 | ✅ 多项目 | ✅ 多项目 |
-| **Web Dashboard** | ✅ 强 | ✅ 强 | ❌ 无 | ❌ 无 |
-| **可视化构建器** | ✅ React Flow | ❌ 无 | ❌ 无 | ❌ 无 |
-| **Human-in-Loop** | ✅ Telegram | ❌ 无 | ✅ 聊天 | ✅ Cascade |
-| **嵌入式模式** | ✅ Rust | ❌ 无 | ❌ 无 | ❌ 无 |
-| **开源** | ✅ 是 | ✅ 是 | ❌ 否 | ❌ 否 |
-| **自托管** | ✅ 是 | ✅ 是 | ❌ 否 | ❌ 否 |
+| 能力 | Ralph (目标) | OpenClaw | Vibe Kanban | Claude Code | Cursor | Windsurf |
+|------|--------------|----------|-------------|-------------|--------|----------|
+| **多代理编排** | ✅ 强 | ✅ 强 | ✅ 强 | ✅ Agent Teams | ⚠️ 中 | ⚠️ 中 |
+| **24/7 自主运行** | ✅ 目标 | ✅ 原生 | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 |
+| **自愈能力** | ✅ 目标 | ✅ 有 | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 |
+| **状态检查点** | ✅ 目标 | ✅ 有 | ❌ 无 | ⚠️ 有限 | ⚠️ 有限 | ⚠️ 有限 |
+| **多项目管理** | ✅ 目标 | ✅ 有 | ❌ 单项目 | ✅ 多项目 | ✅ 多项目 | ✅ 多项目 |
+| **Web Dashboard** | ✅ 强 | ❌ CLI优先 | ✅ 强 | ❌ CLI | ❌ 无 | ❌ 无 |
+| **可视化构建器** | ✅ React Flow | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 |
+| **Human-in-Loop** | ✅ Telegram | ✅ 多渠道 | ❌ 无 | ✅ 聊天 | ✅ 聊天 | ✅ Cascade |
+| **嵌入式模式** | ✅ Rust | ✅ 本地 | ❌ 无 | ❌ 无 | ❌ 无 | ❌ 无 |
+| **技能系统** | 🎯 规划中 | ✅ Skills | ❌ 无 | ✅ Skills | ⚠️ 有限 | ⚠️ 有限 |
+| **持久记忆** | ✅ Memories | ✅ 跨会话 | ❌ 无 | ✅ 长上下文 | ⚠️ 中 | ⚠️ 中 |
+| **开源** | ✅ 是 | ✅ 是 | ✅ 是 | ❌ 否 | ❌ 否 | ❌ 否 |
+| **自托管** | ✅ 是 | ✅ 是 | ✅ 是 | ❌ 否 | ❌ 否 | ❌ 否 |
+| **成本** | 免费 | $5-20/月 | 免费 | $20-200/月 | $20/月 | $15/月 |
 
 ### 8.2 Ralph 的差异化优势
 
-1. **24/7 自主运行** - 市场上唯一专注于持续自主运行的代理编排平台
-2. **自愈架构** - 三层容错机制，最大限度减少人工干预
-3. **检查点系统** - 支持时间旅行、断点恢复
-4. **双模式部署** - 嵌入式轻量模式 + 服务模式
-5. **开放架构** - 完全开源，支持自托管
-6. **灵活的 Hat 系统** - 可视化构建代理工作流
-7. **多后端支持** - Claude、Gemini、Codex、Kiro 等
+| 优势 | 描述 |
+|------|------|
+| **1. 24/7 自主运行** | 市场上唯一专注于持续自主运行的代理编排平台（与 OpenClaw 并列） |
+| **2. 自愈架构** | 三层容错机制，最大限度减少人工干预 |
+| **3. 检查点系统** | 支持时间旅行、断点恢复 |
+| **4. 双模式部署** | 嵌入式轻量模式（Rust Axum）+ 服务模式（Bun + Fastify） |
+| **5. 开放架构** | 完全开源，支持自托管 |
+| **6. 灵活的 Hat 系统** | 可视化构建代理工作流（React Flow） |
+| **7. 多后端支持** | Claude、Gemini、Codex、Kiro 等 |
+| **8. Telegram RObot** | 原生 Human-in-the-Loop 通信 |
+| **9. 本地优先** | 嵌入式模式零外部依赖，~20MB 单一二进制 |
+| **10. 记忆系统** | 持久化学习，跨会话知识积累 |
+
+### 8.3 需要从竞品借鉴的能力
+
+| 来源 | 能力 | 优先级 | 说明 |
+|------|------|--------|------|
+| OpenClaw | Skills 技能系统 | 🔴 高 | 可扩展的技能定义和执行 |
+| OpenClaw | 多渠道通信 | 🟡 中 | WhatsApp/飞书/微信等接入 |
+| OpenClaw | SOUL.md 人格定制 | 🟢 低 | AI 助手个性配置 |
+| Claude Code | Agent Teams | 🔴 高 | 多代理协作架构 |
+| Claude Code | 100万Token上下文 | 🟡 中 | 超长上下文支持 |
+| Vibe Kanban | Diff 渲染器 | 🔴 高 | 代码差异可视化 |
+| Vibe Kanban | 看板视图 | 🔴 高 | 拖拽式任务管理 |
+| Windsurf | Cascade 面板 | 🟡 中 | 思考过程可视化 |
+| Cursor | 命令面板 (Cmd+K) | 🟡 中 | 快速操作入口 |
 
 ---
 
@@ -855,7 +1209,7 @@ ralph web 命令
 
 ### Ralph 的愿景
 
-> **"世界上第一个 7×24 小时自主运行的 AI 代理编排平台"**
+> **"世界上第一个 7×24 小时自主运行的 AI 代理编排平台，支持 Agent Teams 多代理协作"**
 
 ### 现有优势
 
@@ -865,20 +1219,35 @@ ralph web 命令
 - ✅ 可视化编排工具（React Flow 12.10）
 - ✅ 完善的后端架构（EventBus、Dispatcher、ProcessSupervisor）
 - ✅ 嵌入式轻量部署（Axum + rust-embed）
+- ✅ 持久记忆系统（Memories）
+- ✅ Hat 工作流系统（可视化构建）
+- ✅ Telegram RObot（Human-in-the-Loop）
 
 ### 关键改进方向
 
 1. **UI 完善：** Dashboard、Kanban、命令面板
 2. **透明度提升：** Agent 思考过程可视化、代码差异显示
 3. **24/7 能力：** 自愈架构、检查点系统、监控告警
-4. **多项目支持：** 项目隔离、统一管理
-5. **双模式部署：** 嵌入式轻量 + 服务模式
+4. **Agent Teams：** 多代理协作、上下文共享、任务分发 🔥 新增
+5. **Skills 系统：** 可扩展技能定义和执行 🔥 新增
+6. **多渠道通信：** 飞书/企业微信/Discord 集成 🔥 新增
+7. **多项目支持：** 项目隔离、统一管理
+8. **双模式部署：** 嵌入式轻量 + 服务模式
 
-通过系统性的开发计划，可以在 **14 周** 内完成一个功能完善、体验优秀的 Web Dashboard，为 Ralph Orchestrator 提供强大的 Web 界面支持，对标 Cursor、Windsurf 等顶级 AI 开发工具的用户体验，同时具备独特的 **7×24 自主运行** 能力。
+### 与竞品差异化
+
+| 维度 | Ralph 定位 |
+|------|-----------|
+| vs OpenClaw | Web Dashboard + 可视化编排 + 开源 |
+| vs Vibe Kanban | 24/7 自主运行 + Hat 系统 + 嵌入式模式 |
+| vs Claude Code | 自托管 + 多后端 + Web UI + 开源 |
+| vs Cursor/Windsurf | 开源 + 自托管 + 代理编排平台 |
+
+通过系统性的开发计划，可以在 **17 周** 内完成一个功能完善、体验优秀的 Web Dashboard，为 Ralph Orchestrator 提供强大的 Web 界面支持，对标 Cursor、Windsurf、Claude Code 等顶级 AI 开发工具的用户体验，同时具备独特的 **7×24 自主运行** 和 **Agent Teams 多代理协作** 能力。
 
 ---
 
-*文档版本: 4.0*
+*文档版本: 5.0*
 *创建时间: 2026-02-22*
 *更新时间: 2026-02-22*
 *作者: Ralph 编排系统分析*
@@ -887,11 +1256,28 @@ ralph web 命令
 
 ## 参考资料
 
-### 竞品研究
+### 竞品研究 - 2026年新增
+
+#### OpenClaw
+- [行业研报：OpenClaw带动AI Agent渗透提速](https://data.eastmoney.com/report/zw_industry.jshtml?infocode=AP202602211819975835)
+- [掘金 - OpenClaw 现象专题](https://juejin.cn/post/7607358297457278976)
+- [掘金 - 2026年OpenClaw 完全指南](https://juejin.cn/post/7606923064946065448)
+- [阿里云 - 部署OpenClaw镜像](https://www.alibabacloud.com/help/zh/simple-application-server/use-cases/quickly-deploy-and-use-openclaw)
+
+#### Claude Code
+- [Claude Code 官网介绍](https://k.sina.cn/article_7879848900_1d5acf3c401902p59g.html)
+- [CSDN - 从 Cursor 到 Claude Code 深度测评](https://m.blog.csdn.net/2501_93058131/article/details/150697715)
+- [Claude Code 专区 - 飞书文档](https://waytoagi.feishu.com/wiki/LJbiwATadi72LUklHpgcexeSnNh)
+
+#### Vibe Kanban
 - [Vibe Kanban GitHub](https://github.com/BloopAI/vibe-kanban)
+- [掘金 - 从AI程序员到AI项目经理：Vibe Kanban](https://juejin.cn/post/7596687697755324426)
+- [掘金 - Vibe Kanban：Rust构建的AI编程代理编排平台](https://juejin.cn/post/7592069432228020233)
+- [掘金 - Vibe Kanban 介绍](https://juejin.cn/post/7595028805159010314)
+
+#### Cursor & Windsurf
 - [Cursor 官网](https://cursor.com/cn)
 - [DEV社区 - Cursor vs Windsurf vs Claude Code](https://dev.to/pockit_tools/cursor-vs-windsurf-vs-claude-code-in-2026-the-honest-comparison-after-using-all-three-3gof)
-- [掘金 - Vibe Kanban 介绍](https://juejin.cn/post/7595028805159010314)
 
 ### AI Agent 趋势
 - [OpenAI Agent 最佳实践白皮书](https://blog.csdn.net/m0_63171455/article/details/147366381)

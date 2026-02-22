@@ -2,11 +2,11 @@
  * Tasks Page
  *
  * Main dashboard showing active tasks as collapsible threads.
- * Features TaskInput for creating new tasks and ThreadList for viewing
- * existing tasks with real-time polling updates.
+ * Features TaskInput for creating new tasks, TaskSearch for filtering,
+ * and ThreadList for viewing existing tasks with real-time polling updates.
  */
 
-import { TaskInput, ThreadList } from "@/components/tasks";
+import { TaskInput, ThreadList, TaskSearch } from "@/components/tasks";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export function TasksPage() {
@@ -26,6 +26,15 @@ export function TasksPage() {
         </CardHeader>
         <CardContent className="space-y-6">
           <TaskInput />
+
+          {/* Task Search with filters */}
+          <div className="mb-4">
+            <TaskSearch
+              showFilters={true}
+              showDateFilter={true}
+            />
+          </div>
+
           <ThreadList pollingInterval={5000} />
         </CardContent>
       </Card>

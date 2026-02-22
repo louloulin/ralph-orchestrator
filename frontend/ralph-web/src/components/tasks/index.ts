@@ -16,3 +16,4 @@ export { TaskDetailHeader, type TaskDetailHeaderProps, type TaskAction } from ".
 export { TaskStatusBar, type TaskStatusBarProps } from "./TaskStatusBar";
 export { TaskMetadataGrid, type TaskMetadataGridProps } from "./TaskMetadataGrid";
 export { WorktreeBadge } from "./WorktreeBadge";
+export { TaskSearch, type TaskSearchProps } from "./TaskSearch";

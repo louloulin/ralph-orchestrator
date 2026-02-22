@@ -14,16 +14,18 @@
 |------|------|------|------|
 | **前端框架** | React | 19.1.0 | 最新版本 |
 | **构建工具** | Vite | 7.0.0 | 极速构建 |
-| **语言** | TypeScript | 5.x | 类型安全 |
-| **状态管理** | Zustand | 轻量级 | 支持持久化 |
+| **语言** | TypeScript | 5.9.3 | 类型安全 |
+| **状态管理** | Zustand | 5.0.10 | 轻量级，支持持久化 |
 | **样式方案** | TailwindCSS | 4.1.18 | 最新版本 |
 | **路由** | React Router | 7.13.0 | 最新版本 |
 | **API通信** | tRPC | 11.8.1 | 类型安全RPC |
 | **实时通信** | WebSocket | - | 日志流、事件推送 |
-| **工作流可视化** | React Flow | @xyflow/react | Hat Collection构建器 |
-| **后端运行时** | Bun | - | 高性能JS运行时 |
+| **工作流可视化** | React Flow | 12.10.0 (@xyflow/react) | Hat Collection构建器 |
+| **后端运行时** | Bun | 1.3.9+ | 高性能JS运行时 |
 | **Web框架** | Fastify | 5.7.1 | 高性能Web服务器 |
-| **数据库** | SQLite + Drizzle ORM | - | 轻量级持久化 |
+| **数据库** | SQLite + Drizzle ORM | 0.45.1 | 轻量级持久化 |
+| **测试框架** | Vitest | 3.1.4 | 前端单元测试 |
+| **E2E测试** | Playwright | 1.58.0 | 端到端测试 |
 
 ### 1.2 项目架构
 
@@ -37,12 +39,79 @@ ralph/
 │   ├── ralph-telegram/  # Telegram 机器人集成
 │   └── ralph-e2e/       # 端到端测试
 ├── backend/             # Web 服务器
-│   └── ralph-web-server/  # Fastify + tRPC + SQLite
+│   └── ralph-web-server/
+│       ├── api/         # tRPC 路由、REST 端点、WebSocket 广播
+│       ├── db/          # SQLite 连接、Drizzle schema
+│       ├── queue/       # EventBus、Dispatcher、任务队列服务
+│       ├── repositories/# 数据访问层（Task、Settings、Collection）
+│       ├── runner/      # RalphRunner、ProcessSupervisor、日志流
+│       └── services/    # 业务逻辑（HatManager、LoopsManager、Planning）
 └── frontend/            # Web Dashboard
-    └── ralph-web/       # React + Vite + TailwindCSS
+    └── ralph-web/
+        ├── components/  # UI 组件（layout、tasks、builder、plan、ui）
+        ├── pages/       # 页面组件（Tasks、Builder、Plan、Settings）
+        ├── hooks/       # 自定义 Hooks（WebSocket、通知、键盘）
+        └── stores/      # Zustand 状态管理
 ```
 
-### 1.3 现有页面结构
+### 1.3 后端架构详解
+
+#### 1.3.1 API 层 (`api/`)
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| tRPC 路由 | `trpc.ts` | 类型安全的 API 路由（task、hat、loops、collection、presets、config、planning） |
+| REST API | `rest.ts` | 传统 HTTP 端点 |
+| 日志广播 | `LogBroadcaster.ts` | WebSocket 实时日志流推送 |
+| 服务器 | `server.ts` | Fastify 服务器配置 |
+
+#### 1.3.2 队列系统 (`queue/`)
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| EventBus | `EventBus.ts` | Pub/Sub 事件总线，解耦组件通信 |
+| Dispatcher | `Dispatcher.ts` | 任务执行队列，管理并发 |
+| TaskState | `TaskState.ts` | 任务状态机定义 |
+| TaskQueueService | `TaskQueueService.ts` | 任务队列接口 |
+| PersistentTaskQueueService | `PersistentTaskQueueService.ts` | 持久化任务队列实现 |
+
+#### 1.3.3 运行器系统 (`runner/`)
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| RalphRunner | `RalphRunner.ts` | 启动和管理 Ralph 进程 |
+| ProcessSupervisor | `ProcessSupervisor.ts` | 进程 detach 和重连支持 |
+| LogStream | `LogStream.ts` | 日志流处理 |
+| FileOutputStreamer | `FileOutputStreamer.ts` | 日志文件输出 |
+| RalphEventParser | `RalphEventParser.ts` | 解析 Ralph 事件输出 |
+| RalphTaskHandler | `RalphTaskHandler.ts` | 任务处理器 |
+| RunnerState | `RunnerState.ts` | 运行器状态管理 |
+| PromptWriter | `PromptWriter.ts` | 写入任务提示文件 |
+
+#### 1.3.4 服务层 (`services/`)
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| TaskBridge | `TaskBridge.ts` | 数据库与执行队列的桥接层 |
+| HatManager | `HatManager.ts` | Hat Collection 和预设管理 |
+| LoopsManager | `LoopsManager.ts` | 循环注册和状态管理 |
+| CollectionService | `CollectionService.ts` | Hat Collection 业务逻辑 |
+| PlanningService | `PlanningService.ts` | 规划会话管理 |
+| ConfigMerger | `ConfigMerger.ts` | 配置合并和验证 |
+| SettingsService | `SettingsService.ts` | 用户设置管理 |
+
+#### 1.3.5 数据层 (`db/`, `repositories/`)
+
+| 模块 | 文件 | 功能 |
+|------|------|------|
+| Schema | `db/schema.ts` | Drizzle ORM 表定义 |
+| TaskRepository | `repositories/TaskRepository.ts` | 任务数据访问 |
+| TaskLogRepository | `repositories/TaskLogRepository.ts` | 任务日志数据访问 |
+| QueuedTaskRepository | `repositories/QueuedTaskRepository.ts` | 队列任务持久化 |
+| CollectionRepository | `repositories/CollectionRepository.ts` | Hat Collection 存储 |
+| SettingsRepository | `repositories/SettingsRepository.ts` | 设置存储 |
+
+### 1.5 现有页面结构
 
 ```
 /                    → 重定向到 /tasks
@@ -53,26 +122,31 @@ ralph/
 /settings            → 设置页面 (SettingsPage)
 ```
 
-### 1.4 现有功能清单
+### 1.6 现有功能清单
 
 #### ✅ 已实现功能
 
-| 功能 | 组件 | 完成度 |
-|------|------|--------|
-| 任务列表展示 | ThreadList | 80% |
-| 任务创建和输入 | TaskInput | 85% |
-| 任务详情查看 | TaskDetailPage | 75% |
-| 实时日志流 | EnhancedLogViewer | 90% |
-| 实时状态更新 | LiveStatus | 85% |
-| Hat Collection可视化构建器 | CollectionBuilder | 70% |
-| YAML配置编辑器 | SettingsPage | 60% |
-| WebSocket连接和重连 | useTaskWebSocket | 85% |
-| 侧边栏导航 | Sidebar | 90% |
-| Loop状态徽章 | LoopBadge | 80% |
-| Worktree徽章 | WorktreeBadge | 80% |
-| 键盘导航 | useKeyboardShortcuts | 60% |
-| 浏览器通知 | useNotifications | 75% |
-| 日志持久化 | logStore | 85% |
+| 功能 | 组件 | 完成度 | 说明 |
+|------|------|--------|------|
+| 任务列表展示 | ThreadList | 80% | 支持状态过滤、骨架屏加载 |
+| 任务创建和输入 | TaskInput | 85% | 预设选择、提示词输入 |
+| 任务详情查看 | TaskDetailPage | 75% | 状态栏、元数据网格、操作按钮 |
+| 实时日志流 | EnhancedLogViewer | 90% | 自动滚动、语法高亮 |
+| 实时状态更新 | LiveStatus | 85% | 状态徽章、进度指示 |
+| Hat Collection可视化构建器 | CollectionBuilder | 75% | 拖拽节点、属性面板、连接管理 |
+| Hat 模板面板 | HatPalette | 85% | **已从后端 API 获取模板**，支持搜索 |
+| YAML配置编辑器 | SettingsPage | 60% | 配置文件读写 |
+| WebSocket连接和重连 | useTaskWebSocket | 85% | 自动重连、心跳检测 |
+| 侧边栏导航 | Sidebar | 90% | 响应式、活动状态 |
+| Loop状态徽章 | LoopBadge | 80% | 显示循环状态 |
+| Worktree徽章 | WorktreeBadge | 80% | 显示 worktree 信息 |
+| 键盘导航 | useKeyboardShortcuts | 60% | 基础快捷键支持 |
+| 浏览器通知 | useNotifications | 75% | 任务完成通知 |
+| 日志持久化 | logStore | 85% | IndexedDB 存储 |
+| 规划系统 | PlanLanding/PlanSession | 70% | 规划会话创建和管理 |
+| 循环操作 | LoopActions | 80% | 启动、停止、重启循环 |
+| 任务状态栏 | TaskStatusBar | 85% | 实时状态显示 |
+| 空状态展示 | EmptyState | 90% | 优雅的空列表提示 |
 
 #### ❌ 缺失/不完整功能
 
@@ -714,10 +788,12 @@ Week 11:   阶段五（测试和发布）
 Ralph Orchestrator 的 Web Dashboard 已经具备了良好的技术基础：
 
 **现有优势：**
-- 现代化的技术栈（React 19 + Vite 7 + TailwindCSS 4）
-- 类型安全的 API 层（tRPC）
+- 现代化的技术栈（React 19.1 + Vite 7 + TailwindCSS 4.1.18）
+- 类型安全的 API 层（tRPC 11.8.1）
 - 实时通信能力（WebSocket）
-- 可视化编排工具（React Flow）
+- 可视化编排工具（React Flow 12.10.0）
+- 完善的后端架构（EventBus、Dispatcher、ProcessSupervisor）
+- 规划系统支持（PlanningService、PlanSession）
 
 **主要改进方向：**
 1. **稳定性增强：** 实时通信稳定性、错误处理
@@ -730,6 +806,7 @@ Ralph Orchestrator 的 Web Dashboard 已经具备了良好的技术基础：
 
 ---
 
-*文档版本: 2.0*
+*文档版本: 2.1*
 *创建时间: 2026-02-22*
+*更新时间: 2026-02-22*
 *作者: Ralph 编排系统分析*

@@ -1,0 +1,331 @@
+/**
+ * Dashboard Page
+ *
+ * Main dashboard showing system status, task statistics, recent activity,
+ * and quick actions for the Ralph orchestrator.
+ */
+
+import { useNavigate } from "react-router-dom";
+import {
+  ListTodo,
+  Play,
+  Plus,
+  RefreshCw,
+  Workflow,
+  Loader2,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
+import { trpc } from "@/trpc";
+import {
+  StatCard,
+  ActivityTimeline,
+  QuickActionsGrid,
+  SystemStatus,
+  SystemStatusSkeleton,
+  type Activity,
+  type QuickActionItem,
+  type SystemHealth,
+} from "@/components/dashboard";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useMemo } from "react";
+
+export function DashboardPage() {
+  const navigate = useNavigate();
+
+  // Fetch tasks
+  const { data: tasksData, isLoading: tasksLoading } = trpc.task.list.useQuery();
+
+  // Fetch loops
+  const { data: loopsData, isLoading: loopsLoading } = trpc.loops.list.useQuery();
+
+  // Fetch manager status
+  const { data: managerStatus } = trpc.loops.managerStatus.useQuery();
+
+  // Calculate task statistics
+  const taskStats = useMemo(() => {
+    if (!tasksData) return { total: 0, open: 0, inProgress: 0, completed: 0, failed: 0 };
+
+    const tasks = tasksData;
+    return {
+      total: tasks.length,
+      open: tasks.filter((t) => t.status === "open").length,
+      inProgress: tasks.filter((t) => t.status === "in_progress" || t.status === "pending").length,
+      completed: tasks.filter((t) => t.status === "closed").length,
+      failed: tasks.filter((t) => t.status === "failed").length,
+    };
+  }, [tasksData]);
+
+  // Calculate loop statistics
+  const loopStats = useMemo(() => {
+    if (!loopsData) return { total: 0, running: 0, pending: 0, completed: 0 };
+
+    return {
+      total: loopsData.length,
+      running: loopsData.filter((l) => l.status === "running").length,
+      pending: loopsData.filter((l) => l.status === "queued").length,
+      completed: loopsData.filter((l) => l.status === "completed").length,
+    };
+  }, [loopsData]);
+
+  // Determine system health
+  const systemHealth: SystemHealth = useMemo(() => {
+    if (loopsLoading || tasksLoading) return "unknown";
+    if (loopStats.running > 0 && managerStatus?.running) return "healthy";
+    if (loopStats.pending > 0 || taskStats.failed > 0) return "degraded";
+    if (!managerStatus?.running && loopStats.total > 0) return "unhealthy";
+    return "healthy";
+  }, [loopsLoading, tasksLoading, loopStats, managerStatus, taskStats]);
+
+  // Build recent activities from tasks and loops
+  const activities: Activity[] = useMemo(() => {
+    const items: Activity[] = [];
+
+    // Add recent tasks
+    if (tasksData) {
+      tasksData.slice(0, 5).forEach((task) => {
+        items.push({
+          id: `task-${task.id}`,
+          title: task.title,
+          timestamp: task.updatedAt || task.createdAt,
+          status:
+            task.status === "closed" ? "success" :
+            task.status === "failed" ? "error" :
+            task.status === "in_progress" ? "info" : "neutral",
+          description: `Status: ${task.status}`,
+        });
+      });
+    }
+
+    // Add recent loops
+    if (loopsData) {
+      loopsData.slice(0, 3).forEach((loop) => {
+        items.push({
+          id: `loop-${loop.id}`,
+          title: loop.prompt?.slice(0, 50) || `Loop ${loop.id}`,
+          timestamp: new Date(),
+          status:
+            loop.status === "completed" ? "success" :
+            loop.status === "failed" ? "error" :
+            loop.status === "running" ? "info" : "neutral",
+          description: `Loop: ${loop.status}`,
+        });
+      });
+    }
+
+    // Sort by timestamp (most recent first)
+    return items.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeB - timeA;
+    }).slice(0, 10);
+  }, [tasksData, loopsData]);
+
+  // Quick actions
+  const quickActions: QuickActionItem[] = useMemo(() => [
+    {
+      id: "new-task",
+      label: "New Task",
+      description: "Create a new task",
+      icon: Plus,
+      variant: "primary",
+      onClick: () => navigate("/tasks"),
+    },
+    {
+      id: "run-all",
+      label: "Run Pending",
+      description: `${taskStats.open} tasks waiting`,
+      icon: Play,
+      variant: taskStats.open > 0 ? "success" : "default",
+      disabled: taskStats.open === 0,
+      onClick: () => navigate("/tasks"),
+    },
+    {
+      id: "loops",
+      label: "Loops",
+      description: `${loopStats.running} running`,
+      icon: RefreshCw,
+      variant: loopStats.running > 0 ? "primary" : "default",
+      onClick: () => navigate("/tasks"),
+    },
+    {
+      id: "builder",
+      label: "Builder",
+      description: "Create hat collection",
+      icon: Workflow,
+      onClick: () => navigate("/builder"),
+    },
+  ], [navigate, taskStats, loopStats]);
+
+  return (
+    <>
+      {/* Page header */}
+      <header className="mb-6">
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground text-sm mt-1">
+          Overview of your Ralph orchestrator
+        </p>
+      </header>
+
+      <div className="grid gap-6">
+        {/* Top row: System status */}
+        {tasksLoading || loopsLoading ? (
+          <SystemStatusSkeleton />
+        ) : (
+          <SystemStatus
+            health={systemHealth}
+            wsConnected={true}
+            activeLoops={loopStats.running}
+            managerRunning={managerStatus?.running}
+          />
+        )}
+
+        {/* Stats row */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            title="Total Tasks"
+            value={taskStats.total}
+            description="All time"
+            icon={ListTodo}
+            onClick={() => navigate("/tasks")}
+          />
+          <StatCard
+            title="Open Tasks"
+            value={taskStats.open}
+            description="Waiting to run"
+            icon={Play}
+            trend={taskStats.open > 0 ? "up" : "neutral"}
+            trendValue={taskStats.open > 0 ? `${taskStats.open} pending` : "All clear"}
+          />
+          <StatCard
+            title="Running Loops"
+            value={loopStats.running}
+            description="Active orchestration"
+            icon={RefreshCw}
+          />
+          <StatCard
+            title="Completed"
+            value={taskStats.completed}
+            description="Tasks finished"
+            icon={CheckCircle}
+          />
+        </div>
+
+        {/* Quick actions */}
+        <QuickActionsGrid
+          actions={quickActions}
+          columns={4}
+          title="Quick Actions"
+        />
+
+        {/* Activity timeline */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <ActivityTimeline
+            activities={activities}
+            title="Recent Activity"
+            description="Latest tasks and loops"
+            maxItems={6}
+            onViewAll={() => navigate("/tasks")}
+          />
+
+          {/* Task status breakdown */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Task Status</CardTitle>
+              <CardDescription>Breakdown by status</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {tasksLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : taskStats.total === 0 ? (
+                <div className="text-center py-8">
+                  <ListTodo className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-sm text-muted-foreground">No tasks yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Create your first task to get started
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {/* Open */}
+                  <StatusRow
+                    icon={Play}
+                    label="Open"
+                    count={taskStats.open}
+                    total={taskStats.total}
+                    color="bg-blue-500"
+                  />
+                  {/* In Progress */}
+                  <StatusRow
+                    icon={RefreshCw}
+                    label="In Progress"
+                    count={taskStats.inProgress}
+                    total={taskStats.total}
+                    color="bg-amber-500"
+                  />
+                  {/* Completed */}
+                  <StatusRow
+                    icon={CheckCircle}
+                    label="Completed"
+                    count={taskStats.completed}
+                    total={taskStats.total}
+                    color="bg-emerald-500"
+                  />
+                  {/* Failed */}
+                  {taskStats.failed > 0 && (
+                    <StatusRow
+                      icon={XCircle}
+                      label="Failed"
+                      count={taskStats.failed}
+                      total={taskStats.total}
+                      color="bg-red-500"
+                    />
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+
+/**
+ * StatusRow Component
+ *
+ * A single row in the task status breakdown.
+ */
+interface StatusRowProps {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  count: number;
+  total: number;
+  color: string;
+}
+
+function StatusRow({ icon: Icon, label, count, total, color }: StatusRowProps) {
+  const percentage = total > 0 ? (count / total) * 100 : 0;
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-sm">
+        <div className="flex items-center gap-2">
+          <Icon className="h-4 w-4 text-muted-foreground" />
+          <span>{label}</span>
+        </div>
+        <span className="font-medium">{count}</span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${color}`}
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export default DashboardPage;

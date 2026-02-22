@@ -13,6 +13,7 @@ import { App } from "./App";
 
 // Mock all page components to isolate routing tests
 vi.mock("./pages", () => ({
+  DashboardPage: () => <div data-testid="dashboard-page">Dashboard Page</div>,
   TasksPage: () => <div data-testid="tasks-page">Tasks Page</div>,
   PlanPage: () => <div data-testid="plan-page">Plan Page</div>,
   BuilderPage: () => <div data-testid="builder-page">Builder Page</div>,
@@ -83,11 +84,19 @@ describe("App routing", () => {
       });
     });
 
-    it("redirects root to /tasks", async () => {
+    it("renders DashboardPage for /dashboard route", async () => {
+      renderWithRoute("/dashboard");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
+      });
+    });
+
+    it("redirects root to /dashboard", async () => {
       renderWithRoute("/");
 
       await waitFor(() => {
-        expect(screen.getByTestId("tasks-page")).toBeInTheDocument();
+        expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
       });
     });
   });

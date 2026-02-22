@@ -12,10 +12,25 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Store mock functions at module level so we can access them in tests
 const mockMutate = vi.fn();
-const noop = () => {};
+
+// Mock usePreferences hook - must use factory function for hoisting
+vi.mock("@/hooks", () => ({
+  usePreferences: () => ({
+    presetSelection: "default",
+    setPresetSelection: vi.fn(),
+    preferences: { presetSelection: "default", notificationsEnabled: true, autoScrollLogs: true },
+    setNotificationsEnabled: vi.fn(),
+    setAutoScrollLogs: vi.fn(),
+    resetPreferences: vi.fn(),
+    clearPreferences: vi.fn(),
+  }),
+  clearAllRalphLocalStorage: vi.fn(),
+  getRalphLocalStorageInfo: () => [],
+}));
 
 // Mock tRPC hooks
 vi.mock("@/trpc", () => {
+  const noop = () => {};
   return {
     trpc: {
       task: {
@@ -66,7 +81,7 @@ function createTestWrapper() {
 describe("TaskInput preset dropdown", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   describe("rendering", () => {

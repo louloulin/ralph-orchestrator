@@ -6,3 +6,4 @@
 
 export { ErrorBoundary, InlineErrorFallback } from "./ErrorBoundary";
 export { CommandPalette } from "./CommandPalette";
+export { PageLoading } from "./PageLoading";

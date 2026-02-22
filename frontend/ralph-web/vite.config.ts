@@ -32,6 +32,22 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // React core
+          "vendor-react": ["react", "react-dom", "react-router-dom"],
+          // UI libraries
+          "vendor-ui": ["@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities", "@xyflow/react"],
+          // State and data
+          "vendor-data": ["zustand", "@trpc/client", "@trpc/react-query"],
+          // Utilities
+          "vendor-utils": ["date-fns", "clsx", "tailwind-merge"],
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: "jsdom",

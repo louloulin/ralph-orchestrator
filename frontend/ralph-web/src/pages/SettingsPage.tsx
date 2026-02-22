@@ -15,12 +15,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Save, AlertCircle, CheckCircle2, RefreshCw } from "lucide-react";
+import { Save, AlertCircle, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
+import { clearAllRalphLocalStorage, getRalphLocalStorageInfo } from "@/hooks";
 
 export function SettingsPage() {
   const [content, setContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
+  const [cacheCleared, setCacheCleared] = useState(false);
+  const [cacheInfo, setCacheInfo] = useState<{ key: string; size: number }[]>([]);
 
   const configQuery = trpc.config.get.useQuery();
   const presetsQuery = trpc.presets.list.useQuery();
@@ -35,6 +38,11 @@ export function SettingsPage() {
       setSaveStatus("error");
     },
   });
+
+  // Load cache info on mount
+  useEffect(() => {
+    setCacheInfo(getRalphLocalStorageInfo());
+  }, []);
 
   // Initialize content from query
   useEffect(() => {
@@ -60,6 +68,24 @@ export function SettingsPage() {
       setSaveStatus("idle");
     }
   };
+
+  const handleClearCache = () => {
+    clearAllRalphLocalStorage();
+    setCacheInfo([]);
+    setCacheCleared(true);
+    setTimeout(() => setCacheCleared(false), 3000);
+  };
+
+  // Format bytes to human readable
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  };
+
+  const totalCacheSize = cacheInfo.reduce((sum, item) => sum + item.size, 0);
 
   // Extract current hat collection from config
   const currentHatCollection = configQuery.data?.parsed?.hats
@@ -200,6 +226,53 @@ export function SettingsPage() {
               )}
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Clear Cache */}
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Trash2 className="h-5 w-5" />
+            Clear Local Cache
+          </CardTitle>
+          <CardDescription>
+            Clear all locally stored preferences and UI state. This will reset
+            your sidebar state, preset selection, and command history.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {cacheInfo.length > 0 && (
+              <div className="text-sm text-muted-foreground space-y-1">
+                <p className="font-medium">Stored data ({formatBytes(totalCacheSize)}):</p>
+                <ul className="list-disc list-inside pl-2">
+                  {cacheInfo.map((item) => (
+                    <li key={item.key}>
+                      {item.key} ({formatBytes(item.size)})
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="flex items-center gap-4">
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleClearCache}
+                disabled={cacheCleared}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                {cacheCleared ? "Cache Cleared" : "Clear Cache"}
+              </Button>
+              {cacheCleared && (
+                <span className="flex items-center gap-1 text-sm text-green-600">
+                  <CheckCircle2 className="h-4 w-4" />
+                  All cached data cleared. Refresh the page to see changes.
+                </span>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
     </>

@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/trpc";
+import { usePreferences } from "@/hooks";
 
 interface TaskInputProps {
   /** Callback fired after successful task creation */
@@ -40,15 +41,18 @@ export function TaskInput({
   className,
 }: TaskInputProps) {
   const [value, setValue] = useState("");
-  const [selectedPreset, setSelectedPreset] = useState<string | undefined>(() => {
-    // Restore session selection if available (resets on page refresh via sessionStorage)
-    return sessionStorage.getItem("ralph-preset-selection") ?? undefined;
-  });
+  const { presetSelection, setPresetSelection } = usePreferences();
+  const [selectedPreset, setSelectedPreset] = useState<string>(presetSelection);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const utils = trpc.useUtils();
   const presetsQuery = trpc.presets.list.useQuery();
 
-  // Default to "default" (from config) when no session selection and data is loaded
+  // Sync local state with hook when it changes (e.g., from other components)
+  useEffect(() => {
+    setSelectedPreset(presetSelection);
+  }, [presetSelection]);
+
+  // Default to "default" (from config) when no selection and data is loaded
   useEffect(() => {
     if (presetsQuery.data && !selectedPreset) {
       setSelectedPreset("default");
@@ -57,7 +61,7 @@ export function TaskInput({
 
   const handlePresetChange = (value: string) => {
     setSelectedPreset(value);
-    sessionStorage.setItem("ralph-preset-selection", value);
+    setPresetSelection(value);
   };
 
   const createMutation = trpc.task.create.useMutation({

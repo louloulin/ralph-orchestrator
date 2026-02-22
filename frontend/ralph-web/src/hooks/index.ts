@@ -22,3 +22,9 @@ export {
   clearAllRalphLocalStorage,
   getRalphLocalStorageInfo,
 } from "./usePreferences";
+
+export {
+  useTaskSearch,
+  useSearchFilters,
+} from "./useTaskSearch";
+

@@ -9,3 +9,4 @@ export { CommandPalette } from "./CommandPalette";
 export { PageLoading } from "./PageLoading";
 export { ThinkingPanel } from "./ThinkingPanel";
 export type { ThinkingPanelProps } from "./ThinkingPanel";
+export { ThemeToggle, ThemeToggleMinimal } from "./ThemeToggle";

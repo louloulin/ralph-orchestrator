@@ -5,11 +5,33 @@
  * Implements CRUD operations with proper typing and error handling.
  */
 
-import { eq, and, isNull, isNotNull } from "drizzle-orm";
+import { eq, and, isNull, isNotNull, like, or, inArray, gte, lte, desc, ne } from "drizzle-orm";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { tasks, Task, NewTask } from "../db/schema";
 import * as schema from "../db/schema";
 import { getRunResult } from "../db/connection";
+
+/**
+ * Search options for task queries
+ */
+export interface TaskSearchOptions {
+  /** Search query (searches in title and executionSummary) */
+  query?: string;
+  /** Filter by status values */
+  status?: string[];
+  /** Include archived tasks */
+  includeArchived?: boolean;
+  /** Include closed tasks */
+  includeClosed?: boolean;
+  /** Date range filter */
+  dateRange?: {
+    start?: Date;
+    end?: Date;
+    field: "createdAt" | "updatedAt" | "completedAt";
+  };
+  /** Maximum number of results */
+  limit?: number;
+}
 
 export class TaskRepository {
   private db: BunSQLiteDatabase<typeof schema>;
@@ -149,5 +171,70 @@ export class TaskRepository {
   deleteAll(): number {
     const result = getRunResult(this.db.delete(tasks).run());
     return result.changes;
+  }
+
+  /**
+   * Search tasks with flexible filtering options
+   * Supports full-text search, status filtering, date range, and archival options
+   */
+  search(options: TaskSearchOptions): Task[] {
+    const conditions = [];
+
+    // Full-text search on title and executionSummary
+    if (options.query && options.query.length >= 2) {
+      const searchPattern = `%${options.query}%`;
+      conditions.push(
+        or(
+          like(tasks.title, searchPattern),
+          like(tasks.executionSummary, searchPattern)
+        )
+      );
+    }
+
+    // Status filter (multi-select)
+    if (options.status && options.status.length > 0) {
+      conditions.push(inArray(tasks.status, options.status));
+    }
+
+    // Exclude archived tasks unless explicitly included
+    if (!options.includeArchived) {
+      conditions.push(isNull(tasks.archivedAt));
+    }
+
+    // Exclude closed tasks unless explicitly included or status filter includes "closed"
+    const closedInStatus = options.status && options.status.includes("closed");
+    if (!options.includeClosed && !closedInStatus) {
+      conditions.push(ne(tasks.status, "closed"));
+    }
+
+    // Date range filter
+    if (options.dateRange) {
+      const dateField = tasks[options.dateRange.field];
+      if (options.dateRange.start) {
+        conditions.push(gte(dateField, options.dateRange.start));
+      }
+      if (options.dateRange.end) {
+        conditions.push(lte(dateField, options.dateRange.end));
+      }
+    }
+
+    // Build and execute the query
+    if (conditions.length > 0) {
+      return this.db
+        .select()
+        .from(tasks)
+        .where(and(...conditions))
+        .orderBy(desc(tasks.updatedAt))
+        .limit(options.limit ?? 50)
+        .all();
+    }
+
+    // No conditions - return all tasks (with limit)
+    return this.db
+      .select()
+      .from(tasks)
+      .orderBy(desc(tasks.updatedAt))
+      .limit(options.limit ?? 50)
+      .all();
   }
 }

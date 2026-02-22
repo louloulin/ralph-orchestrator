@@ -84,6 +84,38 @@ export const taskRouter = router({
     }),
 
   /**
+   * Search tasks with flexible filtering
+   * Supports query string, status filtering, date range, and archival options
+   */
+  search: publicProcedure
+    .input(
+      z.object({
+        query: z.string().min(2),
+        status: z.array(z.string()).optional(),
+        includeArchived: z.boolean().optional(),
+        includeClosed: z.boolean().optional(),
+        dateRange: z
+          .object({
+            start: z.date().optional(),
+            end: z.date().optional(),
+            field: z.enum(["createdAt", "updatedAt", "completedAt"]),
+          })
+          .optional(),
+        limit: z.number().min(1).max(100).default(50).optional(),
+      })
+    )
+    .query(({ ctx, input }) => {
+      return ctx.taskRepository.search({
+        query: input.query,
+        status: input.status,
+        includeArchived: input.includeArchived,
+        includeClosed: input.includeClosed,
+        dateRange: input.dateRange,
+        limit: input.limit,
+      });
+    }),
+
+  /**
    * Get a single task by ID
    */
   get: publicProcedure.input(z.object({ id: z.string() })).query(({ ctx, input }) => {

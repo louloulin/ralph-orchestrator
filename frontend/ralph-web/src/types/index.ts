@@ -43,3 +43,11 @@ export {
   THINKING_TYPE_BORDER_COLORS,
   THINKING_TYPE_LABELS,
 } from "./thinking";
+
+// i18n types for internationalization
+export type {
+  Locale,
+  LocaleInfo,
+  TranslationKey,
+  TranslationFn,
+} from "./i18n";

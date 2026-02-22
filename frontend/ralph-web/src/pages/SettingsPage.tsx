@@ -15,10 +15,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Save, AlertCircle, CheckCircle2, RefreshCw, Trash2 } from "lucide-react";
-import { clearAllRalphLocalStorage, getRalphLocalStorageInfo } from "@/hooks";
+import { Save, AlertCircle, CheckCircle2, RefreshCw, Trash2, Globe } from "lucide-react";
+import { clearAllRalphLocalStorage, getRalphLocalStorageInfo, useTranslation } from "@/hooks";
+import { LocaleSwitcher } from "@/components/shared";
 
 export function SettingsPage() {
+  const { t } = useTranslation();
   const [content, setContent] = useState("");
   const [isDirty, setIsDirty] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
@@ -141,6 +143,30 @@ export function SettingsPage() {
           <p className="text-xs text-muted-foreground mt-2">
             The dropdown selection is read-only. Edit the YAML below to change the hat collection.
           </p>
+        </CardContent>
+      </Card>
+
+      {/* Appearance Settings */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Globe className="h-5 w-5" />
+            {t("settings.appearance")}
+          </CardTitle>
+          <CardDescription>
+            {t("settings.languageDescription")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>{t("settings.language")}</Label>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("settings.languageDescription")}
+              </p>
+            </div>
+            <LocaleSwitcher />
+          </div>
         </CardContent>
       </Card>
 

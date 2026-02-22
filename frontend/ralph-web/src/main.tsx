@@ -15,6 +15,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./App";
 import { CommandPalette, ErrorBoundary } from "./components/shared";
 import { useThemeStore, getResolvedTheme, applyTheme } from "./stores/themeStore";
+import { initializeLocale } from "./stores/i18nStore";
 
 /**
  * Theme initialization component.
@@ -26,6 +27,9 @@ function ThemeInit() {
     const { mode, updateResolved } = useThemeStore.getState();
     const resolved = getResolvedTheme(mode);
     applyTheme(resolved);
+
+    // Initialize locale
+    initializeLocale();
 
     // Listen for system theme changes
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");

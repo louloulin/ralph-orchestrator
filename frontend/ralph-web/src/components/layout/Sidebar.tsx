@@ -6,7 +6,7 @@
  * Navigation items use React Router NavLink for proper routing.
  */
 
-import { ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings } from "lucide-react";
+import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { useUIStore } from "@/store";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ function RalphLogo({ className }: { className?: string }) {
 
 /** Navigation items configuration with route paths */
 const NAV_ITEMS = [
+  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/tasks", icon: ListTodo, label: "Tasks" },
   { to: "/builder", icon: Workflow, label: "Builder" },
   { to: "/settings", icon: Settings, label: "Settings" },
@@ -102,6 +103,19 @@ export function Sidebar() {
           )}
         </button>
       </div>
+
+      {/* Command palette hint */}
+      {sidebarOpen && (
+        <div className="p-3 border-t border-border">
+          <div className="text-xs text-muted-foreground text-center">
+            Press{" "}
+            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">
+              ⌘K
+            </kbd>{" "}
+            to open command palette
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

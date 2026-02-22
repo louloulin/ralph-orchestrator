@@ -1,0 +1,17 @@
+/**
+ * PageLoading Component
+ *
+ * Loading state for lazy-loaded page components.
+ * Displays a centered spinner with subtle animation.
+ */
+
+export function PageLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-sm text-gray-400">Loading...</p>
+      </div>
+    </div>
+  );
+}

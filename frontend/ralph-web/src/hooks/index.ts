@@ -16,3 +16,9 @@ export {
 } from "./useNotifications";
 
 export { useKeyboardShortcuts } from "./useKeyboardShortcuts";
+
+export {
+  usePreferences,
+  clearAllRalphLocalStorage,
+  getRalphLocalStorageInfo,
+} from "./usePreferences";

@@ -10,3 +10,4 @@ export { BuilderPage } from "./BuilderPage";
 export { TaskDetailPage } from "./TaskDetailPage";
 export { SettingsPage } from "./SettingsPage";
 export { DashboardPage } from "./DashboardPage";
+export { KanbanPage } from "./KanbanPage";

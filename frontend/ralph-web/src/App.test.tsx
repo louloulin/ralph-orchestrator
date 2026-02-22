@@ -11,13 +11,33 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "./App";
 
-// Mock all page components to isolate routing tests
-vi.mock("./pages", () => ({
+// Mock lazy-loaded page components to isolate routing tests
+// Each mock returns a module with a default export (the component)
+vi.mock("./pages/DashboardPage", () => ({
   DashboardPage: () => <div data-testid="dashboard-page">Dashboard Page</div>,
+}));
+
+vi.mock("./pages/TasksPage", () => ({
   TasksPage: () => <div data-testid="tasks-page">Tasks Page</div>,
-  PlanPage: () => <div data-testid="plan-page">Plan Page</div>,
-  BuilderPage: () => <div data-testid="builder-page">Builder Page</div>,
+}));
+
+vi.mock("./pages/TaskDetailPage", () => ({
   TaskDetailPage: () => <div data-testid="task-detail-page">Task Detail Page</div>,
+}));
+
+vi.mock("./pages/KanbanPage", () => ({
+  KanbanPage: () => <div data-testid="kanban-page">Kanban Page</div>,
+}));
+
+vi.mock("./pages/BuilderPage", () => ({
+  BuilderPage: () => <div data-testid="builder-page">Builder Page</div>,
+}));
+
+vi.mock("./pages/PlanPage", () => ({
+  PlanPage: () => <div data-testid="plan-page">Plan Page</div>,
+}));
+
+vi.mock("./pages/SettingsPage", () => ({
   SettingsPage: () => <div data-testid="settings-page">Settings Page</div>,
 }));
 
@@ -97,6 +117,14 @@ describe("App routing", () => {
 
       await waitFor(() => {
         expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
+      });
+    });
+
+    it("renders KanbanPage for /kanban route", async () => {
+      renderWithRoute("/kanban");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("kanban-page")).toBeInTheDocument();
       });
     });
   });

@@ -14,6 +14,10 @@ interface UIState {
   toggleSidebar: () => void;
   setSidebarOpen: (open: boolean) => void;
 
+  // Mobile menu state
+  mobileMenuOpen: boolean;
+  setMobileMenuOpen: (open: boolean) => void;
+
   // Expanded tasks (for TaskThread component in future steps)
   expandedTasks: Set<string>;
   toggleTaskExpanded: (taskId: string) => void;
@@ -31,6 +35,10 @@ export const useUIStore = create<UIState>()(
       sidebarOpen: true,
       toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
+
+      // Mobile menu defaults to closed
+      mobileMenuOpen: false,
+      setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 
       // Task expansion state (Set serialized as array)
       expandedTasks: new Set<string>(),

@@ -27,7 +27,8 @@
     "previous": "Previous",
     "refresh": "Refresh",
     "copied": "Copied!",
-    "copy": "Copy"
+    "copy": "Copy",
+    "skipToContent": "Skip to main content"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -40,7 +41,14 @@
     "collapseSidebar": "Collapse sidebar",
     "expandSidebar": "Expand sidebar",
     "theme": "Theme",
-    "commandPaletteHint": "to open command palette"
+    "commandPaletteHint": "to open command palette",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu"
+  },
+  "a11y": {
+    "mainNavigation": "Main navigation",
+    "primaryNavigation": "Primary",
+    "mainContent": "Main content"
   },
   "theme": {
     "title": "Theme",
@@ -51,24 +59,46 @@
   },
   "dashboard": {
     "title": "Dashboard",
-    "welcome": "Welcome to Ralph",
+    "welcome": "Overview of your Ralph orchestrator",
     "overview": "Overview",
     "activeLoops": "Active Loops",
     "totalTasks": "Total Tasks",
-    "completedTasks": "Completed Tasks",
+    "openTasks": "Open Tasks",
+    "completedTasks": "Completed",
     "successRate": "Success Rate",
     "recentActivity": "Recent Activity",
+    "latestTasksAndLoops": "Latest tasks and loops",
     "quickActions": "Quick Actions",
     "systemStatus": "System Status",
+    "taskStatus": "Task Status",
+    "breakdownByStatus": "Breakdown by status",
     "noActivity": "No recent activity",
     "newTask": "New Task",
+    "newTaskDescription": "Create a new task",
+    "runPending": "Run Pending",
+    "tasksWaiting": "{{count}} tasks waiting",
+    "tasksWaiting_other": "{{count}} tasks waiting",
+    "loops": "Loops",
+    "loopsRunning": "{{count}} running",
+    "loopsRunning_other": "{{count}} running",
+    "builder": "Builder",
+    "builderDescription": "Create hat collection",
     "viewTasks": "View Tasks",
     "openBuilder": "Open Builder",
     "uptime": "Uptime",
-    "version": "Version"
+    "version": "Version",
+    "allTime": "All time",
+    "waitingToRun": "Waiting to run",
+    "pendingCount": "{{count}} pending",
+    "pendingCount_other": "{{count}} pending",
+    "allClear": "All clear",
+    "activeOrchestration": "Active orchestration",
+    "tasksFinished": "Tasks finished"
   },
   "tasks": {
     "title": "Tasks",
+    "subtitle": "Manage and monitor your Ralph tasks",
+    "activeAndRecent": "Active and recent task threads",
     "newTask": "New Task",
     "createTask": "Create Task",
     "taskDetails": "Task Details",
@@ -79,8 +109,8 @@
     "filterByPriority": "Filter by priority",
     "sortBy": "Sort by",
     "status": {
-      "pending": "Pending",
-      "running": "Running",
+      "pending": "Open",
+      "running": "In Progress",
       "completed": "Completed",
       "failed": "Failed",
       "cancelled": "Cancelled"
@@ -105,6 +135,9 @@
   },
   "kanban": {
     "title": "Kanban Board",
+    "subtitle": "Drag and drop tasks between columns to update their status",
+    "boardTitle": "Task Board",
+    "boardDescription": "Tasks organized by workflow stage. Drag cards to move between columns.",
     "todo": "To Do",
     "inProgress": "In Progress",
     "inReview": "In Review",
@@ -153,7 +186,8 @@
     "noResults": "No results found",
     "recentCommands": "Recent",
     "allCommands": "Commands",
-    "closeHint": "to close"
+    "closeHint": "to close",
+    "hint": "Press ⌘K to open command palette"
   },
   "errors": {
     "generic": "Something went wrong",

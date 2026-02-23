@@ -41,12 +41,18 @@ describe("useTranslation", () => {
 
     it("should translate nested keys", () => {
       const { result } = renderHook(() => useTranslation());
-      expect(result.current.t("tasks.status.running")).toBe("Running");
+      expect(result.current.t("tasks.status.running")).toBe("In Progress");
     });
 
-    it("should interpolate parameters", () => {
+    it("should interpolate parameters with pluralization", () => {
       const { result } = renderHook(() => useTranslation());
-      expect(result.current.t("time.minutesAgo", { count: 5 })).toBe("5 minute ago");
+      // count=5 triggers plural form (minutesAgo_other)
+      expect(result.current.t("time.minutesAgo", { count: 5 })).toBe("5 minutes ago");
+    });
+
+    it("should use singular form for count=1", () => {
+      const { result } = renderHook(() => useTranslation());
+      expect(result.current.t("time.minutesAgo", { count: 1 })).toBe("1 minute ago");
     });
 
     it("should return key if translation not found", () => {

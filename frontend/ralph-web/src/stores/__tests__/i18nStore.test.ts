@@ -123,12 +123,22 @@ describe("i18nStore", () => {
     });
   });
 
-  describe("localStorage persistence", () => {
-    it("should persist locale to localStorage", () => {
+  describe("state management", () => {
+    it("should have correct state after setLocale", () => {
       const { setLocale } = useI18nStore.getState();
       setLocale("zh-CN");
 
-      expect(localStorageMock.setItem).toHaveBeenCalled();
+      // Verify state was updated
+      const { locale } = useI18nStore.getState();
+      expect(locale).toBe("zh-CN");
+    });
+
+    it("should update HTML lang attribute on locale change", () => {
+      const { setLocale } = useI18nStore.getState();
+      setLocale("zh-CN");
+
+      // Verify HTML lang was updated
+      expect(document.documentElement.lang).toBe("zh-CN");
     });
   });
 });

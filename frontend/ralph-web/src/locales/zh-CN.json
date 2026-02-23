@@ -27,7 +27,8 @@
     "previous": "上一步",
     "refresh": "刷新",
     "copied": "已复制！",
-    "copy": "复制"
+    "copy": "复制",
+    "skipToContent": "跳转到主要内容"
   },
   "nav": {
     "dashboard": "仪表盘",
@@ -40,7 +41,14 @@
     "collapseSidebar": "收起侧边栏",
     "expandSidebar": "展开侧边栏",
     "theme": "主题",
-    "commandPaletteHint": "打开命令面板"
+    "commandPaletteHint": "打开命令面板",
+    "openMenu": "打开菜单",
+    "closeMenu": "关闭菜单"
+  },
+  "a11y": {
+    "mainNavigation": "主导航",
+    "primaryNavigation": "主要",
+    "mainContent": "主要内容"
   },
   "theme": {
     "title": "主题",
@@ -51,24 +59,46 @@
   },
   "dashboard": {
     "title": "仪表盘",
-    "welcome": "欢迎使用 Ralph",
+    "welcome": "Ralph 编排器概览",
     "overview": "概览",
     "activeLoops": "活跃循环",
     "totalTasks": "总任务数",
-    "completedTasks": "已完成任务",
+    "openTasks": "开放任务",
+    "completedTasks": "已完成",
     "successRate": "成功率",
     "recentActivity": "最近活动",
+    "latestTasksAndLoops": "最新任务和循环",
     "quickActions": "快捷操作",
     "systemStatus": "系统状态",
+    "taskStatus": "任务状态",
+    "breakdownByStatus": "按状态分类",
     "noActivity": "暂无最近活动",
     "newTask": "新建任务",
+    "newTaskDescription": "创建一个新任务",
+    "runPending": "运行待处理",
+    "tasksWaiting": "{{count}} 个任务等待中",
+    "tasksWaiting_other": "{{count}} 个任务等待中",
+    "loops": "循环",
+    "loopsRunning": "{{count}} 个运行中",
+    "loopsRunning_other": "{{count}} 个运行中",
+    "builder": "构建器",
+    "builderDescription": "创建 Hat 集合",
     "viewTasks": "查看任务",
     "openBuilder": "打开构建器",
     "uptime": "运行时间",
-    "version": "版本"
+    "version": "版本",
+    "allTime": "全部时间",
+    "waitingToRun": "等待运行",
+    "pendingCount": "{{count}} 个待处理",
+    "pendingCount_other": "{{count}} 个待处理",
+    "allClear": "全部完成",
+    "activeOrchestration": "活跃编排",
+    "tasksFinished": "已完成任务"
   },
   "tasks": {
     "title": "任务",
+    "subtitle": "管理和监控您的 Ralph 任务",
+    "activeAndRecent": "活跃和近期的任务线程",
     "newTask": "新建任务",
     "createTask": "创建任务",
     "taskDetails": "任务详情",
@@ -79,8 +109,8 @@
     "filterByPriority": "按优先级筛选",
     "sortBy": "排序方式",
     "status": {
-      "pending": "待处理",
-      "running": "运行中",
+      "pending": "开放",
+      "running": "进行中",
       "completed": "已完成",
       "failed": "失败",
       "cancelled": "已取消"
@@ -105,6 +135,9 @@
   },
   "kanban": {
     "title": "看板",
+    "subtitle": "在列之间拖放任务以更新其状态",
+    "boardTitle": "任务看板",
+    "boardDescription": "按工作流阶段组织的任务。拖动卡片在列之间移动。",
     "todo": "待办",
     "inProgress": "进行中",
     "inReview": "审核中",
@@ -153,7 +186,8 @@
     "noResults": "未找到结果",
     "recentCommands": "最近使用",
     "allCommands": "命令",
-    "closeHint": "关闭"
+    "closeHint": "关闭",
+    "hint": "按 ⌘K 打开命令面板"
   },
   "errors": {
     "generic": "出了点问题",

@@ -1,15 +1,19 @@
 /**
  * Sidebar Component
  *
- * Collapsible navigation sidebar with nav items and toggle button.
+ * Responsive navigation sidebar with nav items and toggle button.
  * Uses Zustand store for state persistence across page refreshes.
  * Navigation items use React Router NavLink for proper routing.
+ *
+ * Desktop: Collapsible sidebar with expand/collapse toggle
+ * Mobile: Hidden by default, slides in as overlay when toggled
  */
 
-import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3 } from "lucide-react";
+import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { useUIStore } from "@/store";
 import { ThemeToggleMinimal, LocaleSwitcherMinimal } from "@/components/shared";
+import { useTranslation } from "@/hooks";
 import { cn } from "@/lib/utils";
 
 /** Ralph hat logo matching favicon */
@@ -35,22 +39,63 @@ function RalphLogo({ className }: { className?: string }) {
 
 /** Navigation items configuration with route paths */
 const NAV_ITEMS = [
-  { to: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/tasks", icon: ListTodo, label: "Tasks" },
-  { to: "/kanban", icon: Columns3, label: "Kanban" },
-  { to: "/builder", icon: Workflow, label: "Builder" },
-  { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
+  { to: "/tasks", icon: ListTodo, labelKey: "nav.tasks" },
+  { to: "/kanban", icon: Columns3, labelKey: "nav.kanban" },
+  { to: "/builder", icon: Workflow, labelKey: "nav.builder" },
+  { to: "/settings", icon: Settings, labelKey: "nav.settings" },
 ] as const;
 
+/**
+ * Mobile menu button component - hamburger icon
+ */
+export function MobileMenuButton() {
+  const { mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const { t } = useTranslation();
+
+  return (
+    <button
+      onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+      aria-label={mobileMenuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
+      aria-expanded={mobileMenuOpen}
+      className={cn(
+        "flex items-center justify-center w-10 h-10 rounded-md",
+        "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "transition-colors"
+      )}
+    >
+      {mobileMenuOpen ? (
+        <X className="h-5 w-5" />
+      ) : (
+        <Menu className="h-5 w-5" />
+      )}
+    </button>
+  );
+}
+
 export function Sidebar() {
-  const { sidebarOpen, toggleSidebar } = useUIStore();
+  const { sidebarOpen, toggleSidebar, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const { t } = useTranslation();
+
+  // Close mobile menu when nav item is clicked
+  const handleNavClick = () => {
+    if (mobileMenuOpen) {
+      setMobileMenuOpen(false);
+    }
+  };
 
   return (
     <aside
-      aria-label="Main navigation"
+      aria-label={t("a11y.mainNavigation")}
       className={cn(
         "flex flex-col h-full bg-card border-r border-border transition-all duration-200",
-        sidebarOpen ? "w-56" : "w-14"
+        // Desktop: always visible with toggleable width
+        "hidden md:flex",
+        sidebarOpen ? "w-56" : "w-14",
+        // Mobile: overlay when open, hidden when closed
+        "fixed md:relative z-50 md:z-auto",
+        mobileMenuOpen && "flex w-64"
       )}
     >
       {/* Logo and brand */}
@@ -72,14 +117,15 @@ export function Sidebar() {
       </div>
 
       {/* Navigation items */}
-      <nav aria-label="Primary" className="flex-1 p-2 space-y-1">
+      <nav aria-label={t("a11y.primaryNavigation")} className="flex-1 p-2 space-y-1">
         {NAV_ITEMS.map((item) => (
           <NavItem
             key={item.to}
             to={item.to}
             icon={item.icon}
-            label={item.label}
+            label={t(item.labelKey)}
             collapsed={!sidebarOpen}
+            onClick={handleNavClick}
           />
         ))}
       </nav>
@@ -87,8 +133,11 @@ export function Sidebar() {
       {/* Toggle button at bottom */}
       <div className="p-2 border-t border-border">
         <button
-          onClick={toggleSidebar}
-          aria-label={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          onClick={() => {
+            toggleSidebar();
+            if (mobileMenuOpen) setMobileMenuOpen(false);
+          }}
+          aria-label={sidebarOpen ? t("nav.collapseSidebar") : t("nav.expandSidebar")}
           aria-expanded={sidebarOpen}
           className={cn(
             "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",
@@ -96,12 +145,12 @@ export function Sidebar() {
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             !sidebarOpen && "justify-center px-2"
           )}
-          title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
+          title={sidebarOpen ? t("nav.collapseSidebar") : t("nav.expandSidebar")}
         >
           {sidebarOpen ? (
             <>
               <PanelLeftClose className="h-5 w-5 flex-shrink-0" />
-              <span className="truncate">Collapse</span>
+              <span className="truncate">{t("nav.collapse")}</span>
             </>
           ) : (
             <PanelLeft className="h-5 w-5 flex-shrink-0" />
@@ -121,19 +170,15 @@ export function Sidebar() {
       {sidebarOpen && (
         <div className="p-3 border-t border-border space-y-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Theme</span>
+            <span className="text-xs text-muted-foreground">{t("theme.title")}</span>
             <ThemeToggleMinimal />
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Language</span>
+            <span className="text-xs text-muted-foreground">{t("settings.language")}</span>
             <LocaleSwitcherMinimal />
           </div>
           <div className="text-xs text-muted-foreground text-center">
-            Press{" "}
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-mono">
-              ⌘K
-            </kbd>{" "}
-            to open command palette
+            {t("commandPalette.hint")}
           </div>
         </div>
       )}

@@ -11,22 +11,25 @@
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { KanbanBoard } from "@/components/kanban";
+import { useTranslation } from "@/hooks";
 
 export function KanbanPage() {
+  const { t } = useTranslation();
+
   return (
     <>
       <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Kanban Board</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("kanban.title")}</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Drag and drop tasks between columns to update their status
+          {t("kanban.subtitle")}
         </p>
       </header>
 
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-lg">Task Board</CardTitle>
+          <CardTitle className="text-lg">{t("kanban.boardTitle")}</CardTitle>
           <CardDescription>
-            Tasks organized by workflow stage. Drag cards to move between columns.
+            {t("kanban.boardDescription")}
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0 pb-4 px-4">

@@ -8,7 +8,7 @@
  */
 
 import { useCallback, useMemo } from "react";
-import { useI18nStore } from "@/stores/i18nStore";
+import { useI18nStore, LOCALES } from "@/stores/i18nStore";
 import type { TranslationKey, TranslationFn } from "@/types/i18n";
 
 // Import translation files
@@ -148,10 +148,7 @@ export function useTranslation(): UseTranslationReturn {
     [locale]
   );
 
-  const availableLocales = useMemo(() => {
-    // Import LOCALES from store
-    return require("@/stores/i18nStore").LOCALES;
-  }, []);
+  const availableLocales = useMemo(() => LOCALES, []);
 
   return {
     locale,

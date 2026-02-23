@@ -4,8 +4,8 @@
  * Tests for the AI agent thinking display component.
  */
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ThinkingPanel } from "./ThinkingPanel";
 import type { ThinkingStep, ThinkingStepType } from "@/types/thinking";
 
@@ -62,6 +62,10 @@ function mockStore(
 describe("ThinkingPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    cleanup();
   });
 
   describe("Rendering", () => {

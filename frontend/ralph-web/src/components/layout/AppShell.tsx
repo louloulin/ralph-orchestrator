@@ -1,15 +1,25 @@
 /**
  * AppShell Component
  *
- * Main application layout with fixed sidebar and scrollable content area.
+ * Main application layout with responsive sidebar and scrollable content area.
  * Uses React Router's Outlet for nested route rendering.
  * Provides the structural shell for the entire application.
+ *
+ * Mobile behavior:
+ * - Sidebar is hidden by default, toggleable via hamburger menu
+ * - Overlay backdrop appears when sidebar is open on mobile
  */
 
 import { Outlet } from "react-router-dom";
-import { Sidebar } from "./Sidebar";
+import { Sidebar, MobileMenuButton } from "./Sidebar";
+import { useUIStore } from "@/store";
+import { useTranslation } from "@/hooks";
+import { cn } from "@/lib/utils";
 
 export function AppShell() {
+  const { mobileMenuOpen, setMobileMenuOpen } = useUIStore();
+  const { t } = useTranslation();
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {/* Skip to main content link for keyboard users */}
@@ -17,15 +27,39 @@ export function AppShell() {
         href="#main-content"
         className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-primary focus:text-primary-foreground focus:rounded-md focus:font-medium"
       >
-        Skip to main content
+        {t("common.skipToContent")}
       </a>
 
-      {/* Fixed sidebar */}
+      {/* Mobile header - visible on small screens */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-40 h-14 flex items-center justify-between px-4 bg-card border-b border-border">
+        <MobileMenuButton />
+        <span className="font-bold text-lg tracking-tight">Ralph</span>
+        <div className="w-10" /> {/* Spacer for centering */}
+      </header>
+
+      {/* Mobile overlay backdrop */}
+      {mobileMenuOpen && (
+        <div
+          className="md:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+          onClick={() => setMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar - fixed on desktop, overlay on mobile */}
       <Sidebar />
 
       {/* Main content area - renders active route via Outlet */}
-      <main id="main-content" className="flex-1 overflow-auto" role="main" aria-label="Main content">
-        <div className="p-6">
+      <main
+        id="main-content"
+        className={cn(
+          "flex-1 overflow-auto",
+          "pt-14 md:pt-0" // Add top padding on mobile for header
+        )}
+        role="main"
+        aria-label={t("a11y.mainContent")}
+      >
+        <div className="p-4 md:p-6">
           <Outlet />
         </div>
       </main>

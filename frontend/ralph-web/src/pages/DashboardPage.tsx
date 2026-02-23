@@ -29,9 +29,11 @@ import {
 } from "@/components/dashboard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useMemo } from "react";
+import { useTranslation } from "@/hooks";
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   // Fetch tasks
   const { data: tasksData, isLoading: tasksLoading } = trpc.task.list.useQuery();
@@ -92,7 +94,7 @@ export function DashboardPage() {
             task.status === "closed" ? "success" :
             task.status === "failed" ? "error" :
             task.status === "in_progress" ? "info" : "neutral",
-          description: `Status: ${task.status}`,
+          description: `${t("common.status")}: ${task.status}`,
         });
       });
     }
@@ -119,22 +121,22 @@ export function DashboardPage() {
       const timeB = new Date(b.timestamp).getTime();
       return timeB - timeA;
     }).slice(0, 10);
-  }, [tasksData, loopsData]);
+  }, [tasksData, loopsData, t]);
 
   // Quick actions
   const quickActions: QuickActionItem[] = useMemo(() => [
     {
       id: "new-task",
-      label: "New Task",
-      description: "Create a new task",
+      label: t("dashboard.newTask"),
+      description: t("dashboard.newTaskDescription"),
       icon: Plus,
       variant: "primary",
       onClick: () => navigate("/tasks"),
     },
     {
       id: "run-all",
-      label: "Run Pending",
-      description: `${taskStats.open} tasks waiting`,
+      label: t("dashboard.runPending"),
+      description: t("dashboard.tasksWaiting", { count: taskStats.open }),
       icon: Play,
       variant: taskStats.open > 0 ? "success" : "default",
       disabled: taskStats.open === 0,
@@ -142,28 +144,28 @@ export function DashboardPage() {
     },
     {
       id: "loops",
-      label: "Loops",
-      description: `${loopStats.running} running`,
+      label: t("dashboard.loops"),
+      description: t("dashboard.loopsRunning", { count: loopStats.running }),
       icon: RefreshCw,
       variant: loopStats.running > 0 ? "primary" : "default",
       onClick: () => navigate("/tasks"),
     },
     {
       id: "builder",
-      label: "Builder",
-      description: "Create hat collection",
+      label: t("dashboard.builder"),
+      description: t("dashboard.builderDescription"),
       icon: Workflow,
       onClick: () => navigate("/builder"),
     },
-  ], [navigate, taskStats, loopStats]);
+  ], [navigate, taskStats, loopStats, t]);
 
   return (
     <>
       {/* Page header */}
       <header className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{t("dashboard.title")}</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Overview of your Ralph orchestrator
+          {t("dashboard.welcome")}
         </p>
       </header>
 
@@ -183,30 +185,30 @@ export function DashboardPage() {
         {/* Stats row */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
-            title="Total Tasks"
+            title={t("dashboard.totalTasks")}
             value={taskStats.total}
-            description="All time"
+            description={t("dashboard.allTime")}
             icon={ListTodo}
             onClick={() => navigate("/tasks")}
           />
           <StatCard
-            title="Open Tasks"
+            title={t("dashboard.openTasks")}
             value={taskStats.open}
-            description="Waiting to run"
+            description={t("dashboard.waitingToRun")}
             icon={Play}
             trend={taskStats.open > 0 ? "up" : "neutral"}
-            trendValue={taskStats.open > 0 ? `${taskStats.open} pending` : "All clear"}
+            trendValue={taskStats.open > 0 ? t("dashboard.pendingCount", { count: taskStats.open }) : t("dashboard.allClear")}
           />
           <StatCard
-            title="Running Loops"
+            title={t("dashboard.activeLoops")}
             value={loopStats.running}
-            description="Active orchestration"
+            description={t("dashboard.activeOrchestration")}
             icon={RefreshCw}
           />
           <StatCard
-            title="Completed"
+            title={t("dashboard.completedTasks")}
             value={taskStats.completed}
-            description="Tasks finished"
+            description={t("dashboard.tasksFinished")}
             icon={CheckCircle}
           />
         </div>
@@ -215,15 +217,15 @@ export function DashboardPage() {
         <QuickActionsGrid
           actions={quickActions}
           columns={4}
-          title="Quick Actions"
+          title={t("dashboard.quickActions")}
         />
 
         {/* Activity timeline */}
         <div className="grid md:grid-cols-2 gap-6">
           <ActivityTimeline
             activities={activities}
-            title="Recent Activity"
-            description="Latest tasks and loops"
+            title={t("dashboard.recentActivity")}
+            description={t("dashboard.latestTasksAndLoops")}
             maxItems={6}
             onViewAll={() => navigate("/tasks")}
           />
@@ -231,8 +233,8 @@ export function DashboardPage() {
           {/* Task status breakdown */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Task Status</CardTitle>
-              <CardDescription>Breakdown by status</CardDescription>
+              <CardTitle className="text-base">{t("dashboard.taskStatus")}</CardTitle>
+              <CardDescription>{t("dashboard.breakdownByStatus")}</CardDescription>
             </CardHeader>
             <CardContent>
               {tasksLoading ? (
@@ -242,9 +244,9 @@ export function DashboardPage() {
               ) : taskStats.total === 0 ? (
                 <div className="text-center py-8">
                   <ListTodo className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">No tasks yet</p>
+                  <p className="text-sm text-muted-foreground">{t("tasks.noTasks")}</p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Create your first task to get started
+                    {t("tasks.noTasksDescription")}
                   </p>
                 </div>
               ) : (
@@ -252,7 +254,7 @@ export function DashboardPage() {
                   {/* Open */}
                   <StatusRow
                     icon={Play}
-                    label="Open"
+                    label={t("tasks.status.pending")}
                     count={taskStats.open}
                     total={taskStats.total}
                     color="bg-blue-500"
@@ -260,7 +262,7 @@ export function DashboardPage() {
                   {/* In Progress */}
                   <StatusRow
                     icon={RefreshCw}
-                    label="In Progress"
+                    label={t("tasks.status.running")}
                     count={taskStats.inProgress}
                     total={taskStats.total}
                     color="bg-amber-500"
@@ -268,7 +270,7 @@ export function DashboardPage() {
                   {/* Completed */}
                   <StatusRow
                     icon={CheckCircle}
-                    label="Completed"
+                    label={t("tasks.status.completed")}
                     count={taskStats.completed}
                     total={taskStats.total}
                     color="bg-emerald-500"
@@ -277,7 +279,7 @@ export function DashboardPage() {
                   {taskStats.failed > 0 && (
                     <StatusRow
                       icon={XCircle}
-                      label="Failed"
+                      label={t("tasks.status.failed")}
                       count={taskStats.failed}
                       total={taskStats.total}
                       color="bg-red-500"

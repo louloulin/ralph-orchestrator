@@ -4,7 +4,7 @@
  * Tests for the global command palette component.
  */
 
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BrowserRouter } from "react-router-dom";
 import { CommandPalette } from "./CommandPalette";
@@ -41,6 +41,7 @@ describe("CommandPalette", () => {
 
   afterEach(() => {
     vi.clearAllTimers();
+    cleanup();
   });
 
   it("is hidden by default", () => {
@@ -120,8 +121,8 @@ describe("CommandPalette", () => {
       expect(screen.getByPlaceholderText("Type a command or search...")).toBeInTheDocument();
     });
 
-    // Click on "New Task" tab
-    const taskTab = screen.getByRole("button", { name: /new task/i });
+    // Click on "New Task" tab (using role="tab" for specificity)
+    const taskTab = screen.getByRole("tab", { name: /new task/i });
     fireEvent.click(taskTab);
 
     await waitFor(() => {
@@ -129,7 +130,7 @@ describe("CommandPalette", () => {
     });
 
     // Click back on "Commands" tab
-    const commandsTab = screen.getByRole("button", { name: /commands/i });
+    const commandsTab = screen.getByRole("tab", { name: /commands/i });
     fireEvent.click(commandsTab);
 
     await waitFor(() => {

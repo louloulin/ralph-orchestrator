@@ -19,13 +19,16 @@ interface NavItemProps {
   to: string;
   /** Whether the sidebar is collapsed (icon-only mode) */
   collapsed?: boolean;
+  /** Optional click handler (for closing mobile menu) */
+  onClick?: () => void;
 }
 
-export function NavItem({ icon: Icon, label, to, collapsed = false }: NavItemProps) {
+export function NavItem({ icon: Icon, label, to, collapsed = false, onClick }: NavItemProps) {
   return (
     <NavLink
       to={to}
       aria-label={collapsed ? label : undefined}
+      onClick={onClick}
       className={({ isActive }) =>
         cn(
           "flex items-center gap-3 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors",

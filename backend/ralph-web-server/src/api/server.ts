@@ -14,7 +14,8 @@ import Fastify, { FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import { fastifyTRPCPlugin, FastifyTRPCPluginOptions } from "@trpc/server/adapters/fastify";
-import { appRouter, createContext, AppRouter } from "./trpc";
+import { appRouter, createContext } from "./trpc";
+import type { AppRouter } from "./trpc";
 import { getDatabase } from "../db/connection";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
@@ -184,4 +185,5 @@ export async function startServer(options: ServerOptions = {}): Promise<FastifyI
 }
 
 // Export for direct CLI usage
-export { appRouter, AppRouter } from "./trpc";
+export { appRouter } from "./trpc";
+export type { AppRouter } from "./trpc";

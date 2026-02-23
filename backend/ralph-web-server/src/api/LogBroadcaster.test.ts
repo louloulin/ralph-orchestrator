@@ -3,28 +3,31 @@
  *
  * Unit tests for WebSocket log broadcasting functionality.
  * Focuses on backlog delivery when subscribing to completed tasks.
+ *
+ * Uses Bun's native test runner with mock functions.
  */
 
-import { test, describe, beforeEach, afterEach, mock, Mock } from "node:test";
-import assert from "node:assert";
+import { test, describe, beforeEach, afterEach, expect, spyOn, jest } from "bun:test";
 import { LogBroadcaster, resetLogBroadcaster } from "./LogBroadcaster.js";
 import { TaskLogRepository } from "../repositories/TaskLogRepository.js";
 import { WebSocket, OPEN } from "ws";
 
-// Helper type for mock function extraction
-type MockFn = Mock<(...args: unknown[]) => unknown>;
-
 /**
  * Create a mock WebSocket for testing.
  */
-function createMockWebSocket(): WebSocket {
+function createMockWebSocket(): { socket: WebSocket; sendMock: ReturnType<typeof jest.fn> } {
+  const sendMock = jest.fn();
+  const onMock = jest.fn();
+  const closeMock = jest.fn();
+
   const mockSocket = {
     readyState: OPEN,
-    send: mock.fn(),
-    on: mock.fn(),
-    close: mock.fn(),
+    send: sendMock,
+    on: onMock,
+    close: closeMock,
   } as unknown as WebSocket;
-  return mockSocket;
+
+  return { socket: mockSocket, sendMock };
 }
 
 /**
@@ -37,16 +40,21 @@ function createMockLogRepository(logs: Array<{
   timestamp: Date;
   source: "stdout" | "stderr";
 }>): TaskLogRepository {
+  const listByTaskIdMock = jest.fn((taskId: string, options?: { afterId?: number }) => {
+    return logs.filter((log) => {
+      if (log.taskId !== taskId) return false;
+      if (options?.afterId !== undefined && log.id <= options.afterId) return false;
+      return true;
+    });
+  });
+
+  const appendMock = jest.fn();
+
   const mockRepo = {
-    listByTaskId: mock.fn((taskId: string, options?: { afterId?: number }) => {
-      return logs.filter((log) => {
-        if (log.taskId !== taskId) return false;
-        if (options?.afterId !== undefined && log.id <= options.afterId) return false;
-        return true;
-      });
-    }),
-    append: mock.fn(),
+    listByTaskId: listByTaskIdMock,
+    append: appendMock,
   } as unknown as TaskLogRepository;
+
   return mockRepo;
 }
 
@@ -70,34 +78,34 @@ describe("LogBroadcaster", () => {
       const mockRepo = createMockLogRepository(persistedLogs);
       broadcaster = new LogBroadcaster({ logRepository: mockRepo });
 
-      const mockSocket = createMockWebSocket();
+      const { socket: mockSocket, sendMock } = createMockWebSocket();
       const clientId = broadcaster.addClient(mockSocket);
 
       // When: Subscribing with no sinceId (first time viewing completed task)
       broadcaster.subscribe(clientId, taskId, {}); // No sinceId
 
       // Then: All 4 backlog logs should be sent to client
-      const sendMock = mockSocket.send as unknown as MockFn;
-      const sentMessages = sendMock.mock.calls.map((call) => JSON.parse(call.arguments[0] as string));
+      const calls = sendMock.mock.calls;
+      const sentMessages = calls.map((call) => JSON.parse(call[0] as string));
 
       // First message is status: subscribed
-      assert.strictEqual(sentMessages[0].type, "status");
-      assert.strictEqual(sentMessages[0].data.status, "subscribed");
+      expect(sentMessages[0].type).toBe("status");
+      expect(sentMessages[0].data.status).toBe("subscribed");
 
       // Then 4 log messages should follow
       const logMessages = sentMessages.filter((msg) => msg.type === "log");
-      assert.strictEqual(logMessages.length, 4, "Expected 4 backlog log entries to be sent");
+      expect(logMessages.length).toBe(4);
 
       // Verify log content and order
-      assert.strictEqual(logMessages[0].data.line, "Starting task...");
-      assert.strictEqual(logMessages[0].data.id, 1);
-      assert.strictEqual(logMessages[1].data.line, "Processing...");
-      assert.strictEqual(logMessages[1].data.id, 2);
-      assert.strictEqual(logMessages[2].data.line, "Warning: something");
-      assert.strictEqual(logMessages[2].data.id, 3);
-      assert.strictEqual(logMessages[2].data.source, "stderr");
-      assert.strictEqual(logMessages[3].data.line, "Task complete");
-      assert.strictEqual(logMessages[3].data.id, 4);
+      expect(logMessages[0].data.line).toBe("Starting task...");
+      expect(logMessages[0].data.id).toBe(1);
+      expect(logMessages[1].data.line).toBe("Processing...");
+      expect(logMessages[1].data.id).toBe(2);
+      expect(logMessages[2].data.line).toBe("Warning: something");
+      expect(logMessages[2].data.id).toBe(3);
+      expect(logMessages[2].data.source).toBe("stderr");
+      expect(logMessages[3].data.line).toBe("Task complete");
+      expect(logMessages[3].data.id).toBe(4);
     });
 
     test("sends partial backlog when subscribing with sinceId", () => {
@@ -111,20 +119,20 @@ describe("LogBroadcaster", () => {
       const mockRepo = createMockLogRepository(persistedLogs);
       broadcaster = new LogBroadcaster({ logRepository: mockRepo });
 
-      const mockSocket = createMockWebSocket();
+      const { socket: mockSocket, sendMock } = createMockWebSocket();
       const clientId = broadcaster.addClient(mockSocket);
 
       // When: Subscribing with sinceId=1 (client already has log 1)
       broadcaster.subscribe(clientId, taskId, { sinceId: 1 });
 
       // Then: Only logs after id=1 should be sent (logs 2 and 3)
-      const sendMock = mockSocket.send as unknown as MockFn;
-      const sentMessages = sendMock.mock.calls.map((call) => JSON.parse(call.arguments[0] as string));
+      const calls = sendMock.mock.calls;
+      const sentMessages = calls.map((call) => JSON.parse(call[0] as string));
 
       const logMessages = sentMessages.filter((msg) => msg.type === "log");
-      assert.strictEqual(logMessages.length, 2, "Expected 2 backlog log entries (after sinceId=1)");
-      assert.strictEqual(logMessages[0].data.id, 2);
-      assert.strictEqual(logMessages[1].data.id, 3);
+      expect(logMessages.length).toBe(2);
+      expect(logMessages[0].data.id).toBe(2);
+      expect(logMessages[1].data.id).toBe(3);
     });
 
     test("sends no backlog when task has no persisted logs", () => {
@@ -133,37 +141,37 @@ describe("LogBroadcaster", () => {
       const mockRepo = createMockLogRepository([]);
       broadcaster = new LogBroadcaster({ logRepository: mockRepo });
 
-      const mockSocket = createMockWebSocket();
+      const { socket: mockSocket, sendMock } = createMockWebSocket();
       const clientId = broadcaster.addClient(mockSocket);
 
       // When: Subscribing with no sinceId
       broadcaster.subscribe(clientId, taskId, {});
 
       // Then: Only the status message should be sent (no logs)
-      const sendMock = mockSocket.send as unknown as MockFn;
-      const sentMessages = sendMock.mock.calls.map((call) => JSON.parse(call.arguments[0] as string));
+      const calls = sendMock.mock.calls;
+      const sentMessages = calls.map((call) => JSON.parse(call[0] as string));
 
-      assert.strictEqual(sentMessages.length, 1, "Expected only status message");
-      assert.strictEqual(sentMessages[0].type, "status");
-      assert.strictEqual(sentMessages[0].data.status, "subscribed");
+      expect(sentMessages.length).toBe(1);
+      expect(sentMessages[0].type).toBe("status");
+      expect(sentMessages[0].data.status).toBe("subscribed");
     });
 
     test("sends no backlog when logRepository is not configured", () => {
       // Given: Broadcaster without a log repository
       broadcaster = new LogBroadcaster(); // No logRepository
 
-      const mockSocket = createMockWebSocket();
+      const { socket: mockSocket, sendMock } = createMockWebSocket();
       const clientId = broadcaster.addClient(mockSocket);
 
       // When: Subscribing
       broadcaster.subscribe(clientId, "task-no-repo", {});
 
       // Then: Only the status message should be sent
-      const sendMock = mockSocket.send as unknown as MockFn;
-      const sentMessages = sendMock.mock.calls.map((call) => JSON.parse(call.arguments[0] as string));
+      const calls = sendMock.mock.calls;
+      const sentMessages = calls.map((call) => JSON.parse(call[0] as string));
 
-      assert.strictEqual(sentMessages.length, 1);
-      assert.strictEqual(sentMessages[0].type, "status");
+      expect(sentMessages.length).toBe(1);
+      expect(sentMessages[0].type).toBe("status");
     });
   });
 
@@ -184,20 +192,20 @@ describe("LogBroadcaster", () => {
 
       // When: A client subscribes via the singleton (as server.ts would do)
       const singleton = getLogBroadcaster();
-      const mockSocket = createMockWebSocket();
+      const { socket: mockSocket, sendMock } = createMockWebSocket();
       const clientId = singleton.addClient(mockSocket);
       singleton.subscribe(clientId, taskId, {}); // No sinceId = new client
 
       // Then: Backlog should be sent from the repository
-      const sendMock = mockSocket.send as unknown as MockFn;
-      const sentMessages = sendMock.mock.calls.map((call) => JSON.parse(call.arguments[0] as string));
+      const calls = sendMock.mock.calls;
+      const sentMessages = calls.map((call) => JSON.parse(call[0] as string));
 
       // Status + 3 log messages
       const logMessages = sentMessages.filter((msg) => msg.type === "log");
-      assert.strictEqual(logMessages.length, 3, "Expected 3 backlog entries from DB for completed task");
-      assert.strictEqual(logMessages[0].data.line, "Task started");
-      assert.strictEqual(logMessages[1].data.line, "Work in progress...");
-      assert.strictEqual(logMessages[2].data.line, "Task complete");
+      expect(logMessages.length).toBe(3);
+      expect(logMessages[0].data.line).toBe("Task started");
+      expect(logMessages[1].data.line).toBe("Work in progress...");
+      expect(logMessages[2].data.line).toBe("Task complete");
     });
 
     test("singleton broadcaster sends NO backlog when logRepository is NOT configured", async () => {
@@ -207,17 +215,17 @@ describe("LogBroadcaster", () => {
       const singleton = getLogBroadcaster();
 
       // When: A client subscribes to a task that should have backlog
-      const mockSocket = createMockWebSocket();
+      const { socket: mockSocket, sendMock } = createMockWebSocket();
       const clientId = singleton.addClient(mockSocket);
       singleton.subscribe(clientId, "some-completed-task", {});
 
       // Then: Only the status message is sent (no backlog!)
-      const sendMock = mockSocket.send as unknown as MockFn;
-      const sentMessages = sendMock.mock.calls.map((call) => JSON.parse(call.arguments[0] as string));
+      const calls = sendMock.mock.calls;
+      const sentMessages = calls.map((call) => JSON.parse(call[0] as string));
 
       // BUG: This would pass even if there are logs in DB, because repo is undefined
-      assert.strictEqual(sentMessages.length, 1);
-      assert.strictEqual(sentMessages[0].type, "status");
+      expect(sentMessages.length).toBe(1);
+      expect(sentMessages[0].type).toBe("status");
     });
   });
 
@@ -255,31 +263,26 @@ describe("LogBroadcaster", () => {
       broadcaster = new LogBroadcaster({ logRepository: logRepo });
 
       // When: A new client subscribes (simulating user opening completed task page)
-      const mockSocket = createMockWebSocket();
+      const { socket: mockSocket, sendMock } = createMockWebSocket();
       const clientId = broadcaster.addClient(mockSocket);
       broadcaster.subscribe(clientId, taskId, {}); // No sinceId = first time viewing
 
       // Then: Client should receive ALL 5 log entries as backlog
-      const sendMock = mockSocket.send as unknown as MockFn;
-      const sentMessages = sendMock.mock.calls.map((call) => JSON.parse(call.arguments[0] as string));
+      const calls = sendMock.mock.calls;
+      const sentMessages = calls.map((call) => JSON.parse(call[0] as string));
 
       const logMessages = sentMessages.filter((msg) => msg.type === "log");
 
       // THIS IS THE ASSERTION THAT SHOULD FAIL IF BACKLOG ISN'T WORKING
-      assert.strictEqual(
-        logMessages.length,
-        5,
-        `Expected 5 log entries for completed task, got ${logMessages.length}. ` +
-          "This indicates the LogBroadcaster is not fetching backlog from the database."
-      );
+      expect(logMessages.length).toBe(5);
 
       // Verify log order and content
-      assert.strictEqual(logMessages[0].data.line, "Starting task execution...");
-      assert.strictEqual(logMessages[4].data.line, "Task completed successfully!");
+      expect(logMessages[0].data.line).toBe("Starting task execution...");
+      expect(logMessages[4].data.line).toBe("Task completed successfully!");
 
       // Verify stderr log is included
       const stderrLog = logMessages.find((msg) => msg.data.source === "stderr");
-      assert.ok(stderrLog, "Expected stderr log entry to be included in backlog");
+      expect(stderrLog).toBeDefined();
 
       // Cleanup
       closeTestDatabase();

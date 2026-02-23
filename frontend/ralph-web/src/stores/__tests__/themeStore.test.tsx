@@ -287,7 +287,7 @@ describe("ThemeToggleMinimal", () => {
   it("renders minimal toggle with correct icon", () => {
     useThemeStore.setState({ mode: "dark", resolved: "dark" });
     render(<ThemeToggleMinimal />);
-    const button = screen.getByRole("button");
+    const button = screen.getByRole("button", { name: /Current theme: dark/ });
     expect(button).toBeInTheDocument();
     expect(button.querySelector("svg")).toBeInTheDocument();
   });
@@ -297,7 +297,7 @@ describe("ThemeToggleMinimal", () => {
     const { rerender } = render(<ThemeToggleMinimal />);
 
     // Sun for light mode
-    let button = screen.getByRole("button");
+    let button = screen.getByRole("button", { name: /Current theme: light/ });
     expect(button.querySelector("svg")).toBeInTheDocument();
     expect(button).toHaveAttribute("aria-label", expect.stringContaining("light"));
 
@@ -306,7 +306,7 @@ describe("ThemeToggleMinimal", () => {
       useThemeStore.setState({ mode: "dark", resolved: "dark" });
     });
     rerender(<ThemeToggleMinimal />);
-    button = screen.getByRole("button");
+    button = screen.getByRole("button", { name: /Current theme: dark/ });
     expect(button.querySelector("svg")).toBeInTheDocument();
     expect(button).toHaveAttribute("aria-label", expect.stringContaining("dark"));
 
@@ -315,7 +315,7 @@ describe("ThemeToggleMinimal", () => {
       useThemeStore.setState({ mode: "system", resolved: "dark" });
     });
     rerender(<ThemeToggleMinimal />);
-    button = screen.getByRole("button");
+    button = screen.getByRole("button", { name: /Current theme: system/ });
     expect(button.querySelector("svg")).toBeInTheDocument();
     expect(button).toHaveAttribute("aria-label", expect.stringContaining("system"));
   });

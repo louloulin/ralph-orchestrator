@@ -9,18 +9,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ThinkingPanel } from "./ThinkingPanel";
 import type { ThinkingStep, ThinkingStepType } from "@/types/thinking";
 
-// Create a mock store state that will be used by the mock implementation
-let mockStoreState: {
-  getSteps: () => ThinkingStep[];
-  getSessionDuration: () => number | null;
-  getTotalTokens: () => number;
-  hasSession: () => boolean;
+// Use a mutable object for mock state to work around vi.mock hoisting
+const mockData = {
+  steps: [] as ThinkingStep[],
+  sessionDuration: null as number | null,
+  totalTokens: 0,
+  hasSession: false,
 };
-
-// Mock the Zustand store
-vi.mock("@/stores/thinkingStore", () => ({
-  useThinkingStore: vi.fn((selector) => selector(mockStoreState)),
-}));
 
 // Helper to create mock thinking steps
 function createMockStep(
@@ -44,24 +39,43 @@ function mockStore(
   steps: ThinkingStep[] = [],
   overrides?: { sessionDuration?: number | null; totalTokens?: number; hasSession?: boolean }
 ) {
-  const mockGetSteps = vi.fn(() => steps);
-  const mockGetSessionDuration = vi.fn(() => overrides?.sessionDuration ?? null);
-  const mockGetTotalTokens = vi.fn(() => overrides?.totalTokens ?? 0);
-  const mockHasSession = vi.fn(() => overrides?.hasSession ?? steps.length > 0);
-
-  mockStoreState = {
-    getSteps: mockGetSteps,
-    getSessionDuration: mockGetSessionDuration,
-    getTotalTokens: mockGetTotalTokens,
-    hasSession: mockHasSession,
-  };
-
-  return { mockGetSteps, mockGetSessionDuration, mockGetTotalTokens, mockHasSession };
+  mockData.steps = steps;
+  mockData.sessionDuration = overrides?.sessionDuration ?? null;
+  mockData.totalTokens = overrides?.totalTokens ?? 0;
+  mockData.hasSession = overrides?.hasSession ?? steps.length > 0;
 }
+
+// Mock the Zustand store with proper selector support
+vi.mock("@/stores/thinkingStore", () => ({
+  useThinkingStore: vi.fn((selector) => {
+    // Create a mock state that matches the real store structure
+    const mockState = {
+      sessions: {},
+      addStep: vi.fn(),
+      addSteps: vi.fn(),
+      completeSession: vi.fn(),
+      clearSession: vi.fn(),
+      getSession: vi.fn(() => undefined),
+      getSteps: vi.fn(() => mockData.steps),
+      hasSession: vi.fn(() => mockData.hasSession),
+      getStepCount: vi.fn(() => mockData.steps.length),
+      getStepsByType: vi.fn(() => mockData.steps),
+      searchSteps: vi.fn(() => mockData.steps),
+      getSessionDuration: vi.fn(() => mockData.sessionDuration),
+      getTotalTokens: vi.fn(() => mockData.totalTokens),
+    };
+    return selector(mockState);
+  }),
+}));
 
 describe("ThinkingPanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset mock state
+    mockData.steps = [];
+    mockData.sessionDuration = null;
+    mockData.totalTokens = 0;
+    mockData.hasSession = false;
   });
 
   afterEach(() => {

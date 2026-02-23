@@ -46,3 +46,16 @@ export {
 export { CollectionService } from "./CollectionService";
 
 export { ConfigMerger, type MergeResult } from "./ConfigMerger";
+
+export {
+  HealthMonitor,
+  DEFAULT_HEALTH_MONITOR_CONFIG,
+  type HealthMonitorConfig,
+} from "./HealthMonitor";
+
+export {
+  RestartManager,
+  DEFAULT_RESTART_MANAGER_CONFIG,
+  type RestartManagerConfig,
+  type RestartDecision,
+} from "./RestartManager";

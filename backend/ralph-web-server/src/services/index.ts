@@ -72,3 +72,15 @@ export {
   DEFAULT_METRIC_STORE_CONFIG,
   type MetricStoreConfig,
 } from "./MetricStore";
+
+export {
+  AgentTeamsService,
+  DEFAULT_AGENT_TEAMS_CONFIG,
+  type AgentTeamsServiceConfig,
+} from "./AgentTeamsService";
+
+export {
+  AlertEngine,
+  DEFAULT_ALERT_ENGINE_CONFIG,
+  type AlertEngineConfig,
+} from "./AlertEngine";

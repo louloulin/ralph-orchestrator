@@ -19,6 +19,7 @@ const BuilderPage = lazy(() => import("./pages/BuilderPage").then(m => ({ defaul
 const PlanPage = lazy(() => import("./pages/PlanPage").then(m => ({ default: m.PlanPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const MonitoringPage = lazy(() => import("./pages/MonitoringPage").then(m => ({ default: m.MonitoringPage })));
+const TeamsPage = lazy(() => import("./pages/TeamsPage").then(m => ({ default: m.TeamsPage })));
 
 /**
  * Wrapper component for lazy-loaded routes with Suspense
@@ -40,6 +41,7 @@ export function App() {
         <Route path="/plan" element={<LazyPage><PlanPage /></LazyPage>} />
         <Route path="/settings" element={<LazyPage><SettingsPage /></LazyPage>} />
         <Route path="/monitoring" element={<LazyPage><MonitoringPage /></LazyPage>} />
+        <Route path="/teams" element={<LazyPage><TeamsPage /></LazyPage>} />
         {/* Redirect root to dashboard */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         {/* Catch-all redirect to dashboard */}

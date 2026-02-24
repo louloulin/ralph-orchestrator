@@ -34,6 +34,7 @@
     "dashboard": "仪表盘",
     "tasks": "任务",
     "kanban": "看板",
+    "teams": "团队",
     "monitoring": "监控",
     "builder": "构建器",
     "settings": "设置",
@@ -226,5 +227,64 @@
     "hoursAgo_other": "{{count}} 小时前",
     "daysAgo": "{{count}} 天前",
     "daysAgo_other": "{{count}} 天前"
+  },
+  "teams": {
+    "title": "代理团队",
+    "description": "用于复杂任务的多代理协作",
+    "createTeam": "创建团队",
+    "newTeam": "新建团队",
+    "noTeams": "暂无团队",
+    "noTeamsDescription": "创建您的第一个代理团队以开始多代理协作",
+    "totalTeams": "总团队数",
+    "activeTeams": "活跃",
+    "completedTeams": "已完成",
+    "failedTeams": "失败",
+    "totalIterations": "总迭代次数",
+    "teamName": "团队名称",
+    "teamDescription": "描述",
+    "taskPrompt": "任务提示",
+    "coordinator": "协调员",
+    "members": "团队成员",
+    "addAgent": "添加代理",
+    "agentName": "代理名称",
+    "agentDescription": "代理描述",
+    "contextSharing": "上下文共享",
+    "taskDistribution": "任务分发",
+    "progress": "进度",
+    "sharedContext": "共享上下文",
+    "status": {
+      "idle": "空闲",
+      "running": "运行中",
+      "paused": "已暂停",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "actions": {
+      "start": "开始",
+      "pause": "暂停",
+      "resume": "继续",
+      "stop": "停止",
+      "delete": "删除"
+    },
+    "contextModes": {
+      "full": "完全共享",
+      "fullDescription": "完全上下文共享（100万令牌）",
+      "selective": "选择性共享",
+      "selectiveDescription": "代理共享选定的上下文",
+      "hierarchical": "层级共享",
+      "hierarchicalDescription": "通过协调员向上汇报"
+    },
+    "distributionModes": {
+      "parallel": "并行",
+      "parallelDescription": "多个代理同时工作",
+      "pipeline": "流水线",
+      "pipelineDescription": "顺序处理（规划 → 编码 → 测试 → 审查）",
+      "expert": "专家",
+      "expertDescription": "专业代理（前端/后端/安全）",
+      "voting": "投票",
+      "votingDescription": "多个代理提供解决方案，投票/合并"
+    },
+    "activityLog": "活动日志",
+    "noActivity": "暂无活动日志"
   }
 }

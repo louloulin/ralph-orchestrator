@@ -13,7 +13,7 @@ import { TaskQueueService, EventBus, Dispatcher } from "./queue";
 import { PersistentTaskQueueService } from "./queue/PersistentTaskQueueService";
 import { createRalphTaskHandler } from "./runner/RalphTaskHandler";
 import { createTestLogTaskHandler } from "./runner/TestLogTaskHandler";
-import { TaskBridge, LoopsManager, PlanningService, CollectionService, ConfigMerger } from "./services";
+import { TaskBridge, LoopsManager, PlanningService, CollectionService, ConfigMerger, AgentTeamsService } from "./services";
 import { TaskRepository, TaskLogRepository, QueuedTaskRepository, CollectionRepository } from "./repositories";
 import { ProcessSupervisor } from "./runner/ProcessSupervisor";
 import { FileOutputStreamer } from "./runner/FileOutputStreamer";
@@ -137,6 +137,15 @@ const planningService = new PlanningService({
 // Make PlanningService available globally
 (globalThis as Record<string, unknown>).__planningService = planningService;
 
+// Create AgentTeamsService for multi-agent collaboration
+const agentTeamsService = new AgentTeamsService({
+  maxActiveTeams: 10,
+  maxSharedContextTokens: 1_000_000,
+});
+
+// Make AgentTeamsService available globally
+(globalThis as Record<string, unknown>).__agentTeamsService = agentTeamsService;
+
 // Graceful shutdown handler
 let isShuttingDown = false;
 
@@ -202,7 +211,7 @@ if (process.env.RALPH_FRONTEND_DIST && fs.existsSync(process.env.RALPH_FRONTEND_
   }
 }
 
-startServer({ port: PORT, host: HOST, db, taskBridge, loopsManager, planningService, frontendDist })
+startServer({ port: PORT, host: HOST, db, taskBridge, loopsManager, planningService, agentTeamsService, frontendDist })
   .then(() => {
     // Restore pending tasks from database
     const restoredCount = taskQueue.hydrate();

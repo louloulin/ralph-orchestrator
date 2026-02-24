@@ -26,6 +26,7 @@ mod presets;
 mod skill_cli;
 mod sop_runner;
 mod task_cli;
+mod test_tools;
 #[cfg(test)]
 mod test_support;
 mod tools;

@@ -2319,6 +2319,7 @@ dependencies = [
  "open",
  "ralph-adapters",
  "ralph-core",
+ "ralph-e2e",
  "ralph-proto",
  "ralph-telegram",
  "ralph-tui",

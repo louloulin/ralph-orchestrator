@@ -58,6 +58,73 @@ ralph tools skill load <name>
 
 List available skills or load a specific skill by name.
 
+## Test Tools Commands
+
+Agent-driven E2E testing tools for validating Ralph Orchestrator behavior.
+
+```bash
+# Create isolated test workspace with fixtures and scratchpad
+ralph tools test setup --workspace-id <id> --scratchpad "content" --fixtures "file=path=content"
+
+# Execute Ralph and record session (not yet implemented)
+ralph tools test run --workspace-id <id> --task "prompt" --backend mock
+
+# Validate test outcomes with assertions (not yet implemented)
+ralph tools test assert --workspace-id <id>
+
+# Query session recordings (not yet implemented)
+ralph tools test inspect --workspace-id <id> --format json
+
+# Remove test workspace
+ralph tools test cleanup --workspace-id <id> [--preserve-session]
+
+# Record real LLM interactions to cassette (not yet implemented)
+ralph tools test record --workspace-id <id> --cassette-name <name> --task "prompt" --backend claude
+
+# Replay recorded cassettes deterministically (not yet implemented)
+ralph tools test replay --workspace-id <id> --cassette-name <name> --task "prompt"
+
+# LLM-as-judge evaluation (not yet implemented)
+ralph tools test evaluate --workspace-id <id> --evaluations '[{...}]'
+
+# Generate CI/CD reports (not yet implemented)
+ralph tools test report --workspace-id <id> --format junit --test-name "test"
+```
+
+**Test Workspace:**
+- Base path: `.ralph-test/` (configurable with `--base-path`)
+- Structure: `{base_path}/{workspace_id}/.agent/scratchpad.md`
+- Fixtures: Comma-separated `path=content` format
+- Scratchpad: Literal `\n` converted to actual newlines automatically
+
+**Test Tools Status:**
+- ✅ `test_setup`: Implemented - creates workspace with fixtures and scratchpad
+- ✅ `test_cleanup`: Implemented - removes workspace with optional session preservation
+- 🚧 `test_run`: Placeholder - execute Ralph and record session
+- 🚧 `test_assert`: Placeholder - validate outcomes with 14 assertion types
+- 🚧 `test_inspect`: Placeholder - query session recordings
+- 🚧 `test_record`: Placeholder - record real LLM interactions (VCR pattern)
+- 🚧 `test_replay`: Placeholder - replay cassettes deterministically
+- 🚧 `test_evaluate`: Placeholder - LLM-as-judge via meta preset
+- 🚧 `test_report`: Placeholder - generate JUnit/TAP for CI/CD
+
+**Example Workflow:**
+```bash
+# 1. Create test workspace
+ralph tools test setup --workspace-id auth_test \
+  --scratchpad "## Plan\n- Implement auth\n- Add tests" \
+  --fixtures "specs/auth.md=Spec content"
+
+# 2. Run test (when implemented)
+# ralph tools test run --workspace-id auth_test --task "Implement auth spec"
+
+# 3. Assert results (when implemented)
+# ralph tools test assert --workspace-id auth_test
+
+# 4. Cleanup
+ralph tools test cleanup --workspace-id auth_test
+```
+
 ## Memory Commands
 
 ```bash

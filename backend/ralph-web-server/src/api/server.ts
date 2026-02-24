@@ -26,6 +26,8 @@ import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
 import { LoopSupervisor } from "../services/LoopSupervisor";
 import { AgentTeamsService } from "../services/AgentTeamsService";
+import { MetricStore } from "../services/MetricStore";
+import { AlertEngine } from "../services/AlertEngine";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -48,6 +50,10 @@ export interface ServerOptions {
   loopSupervisor?: LoopSupervisor;
   /** AgentTeamsService for multi-agent operations (optional) */
   agentTeamsService?: AgentTeamsService;
+  /** MetricStore for metrics collection (optional) */
+  metricStore?: MetricStore;
+  /** AlertEngine for alert evaluation (optional) */
+  alertEngine?: AlertEngine;
   /** Frontend dist directory for serving static files */
   frontendDist?: string;
 }
@@ -56,7 +62,7 @@ export interface ServerOptions {
  * Create and configure a Fastify server with TRPC
  */
 export async function createServer(options: ServerOptions = {}): Promise<FastifyInstance> {
-  const { port = 3000, host = "0.0.0.0", db = getDatabase(), logger = true, taskBridge, loopsManager, planningService, loopSupervisor, agentTeamsService, frontendDist } = options;
+  const { port = 3000, host = "0.0.0.0", db = getDatabase(), logger = true, taskBridge, loopsManager, planningService, loopSupervisor, agentTeamsService, metricStore, alertEngine, frontendDist } = options;
 
   const server = Fastify({ logger });
 
@@ -158,7 +164,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
     prefix: "/trpc",
     trpcOptions: {
       router: appRouter,
-      createContext: () => createContext(db, taskBridge, loopsManager, planningService, loopSupervisor, agentTeamsService),
+      createContext: () => createContext(db, taskBridge, loopsManager, planningService, loopSupervisor, agentTeamsService, metricStore, alertEngine),
       onError: ({ path, error }) => {
         console.error(`TRPC Error on ${path}:`, error);
       },
@@ -166,7 +172,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
   });
 
   // Register REST API routes at /api/v1/*
-  const ctx = createContext(db, taskBridge, loopsManager, planningService, loopSupervisor, agentTeamsService);
+  const ctx = createContext(db, taskBridge, loopsManager, planningService, loopSupervisor, agentTeamsService, metricStore, alertEngine);
   await registerRestRoutes(server, ctx);
 
   return server;

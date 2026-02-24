@@ -12,7 +12,6 @@
 //! - `report`: Generate CI/CD reports
 
 use std::fs;
-use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
@@ -206,6 +205,84 @@ pub struct RunResult {
     pub events_count: usize,
     pub stdout: String,
     pub stderr: String,
+}
+
+/// Execute test run command.
+pub async fn execute_run(args: RunArgs) -> Result<RunResult> {
+    use ralph_e2e::executor::{PromptSource, RalphExecutor, ScenarioConfig};
+    use std::time::Duration;
+    use tokio::time::Instant;
+
+    let base_path = args.base_path.unwrap_or_else(|| DEFAULT_TEST_BASE.to_string());
+    let manager = WorkspaceManager::new(&base_path);
+
+    let workspace_path = manager.workspace_path(&args.workspace_id);
+    if !workspace_path.exists() {
+        anyhow::bail!("Workspace not found: {}", args.workspace_id);
+    }
+
+    // Create a minimal ralph.yml if it doesn't exist
+    let config_path = workspace_path.join("ralph.yml");
+    if !config_path.exists() {
+        let default_config = format!(
+            "cli:\n  backend: {}\n  max_iterations: 1\n",
+            args.backend
+        );
+        std::fs::write(&config_path, default_config)?;
+    }
+
+    let executor = RalphExecutor::new(workspace_path.clone());
+
+    let max_iterations = args.max_iterations.unwrap_or(5);
+    let timeout_secs = args.max_runtime_secs.unwrap_or(300);
+
+    let config = ScenarioConfig {
+        config_file: std::path::PathBuf::from("ralph.yml"),
+        prompt: PromptSource::Inline(args.task),
+        max_iterations,
+        timeout: Duration::from_secs(timeout_secs),
+        extra_args: vec![],
+    };
+
+    let start = Instant::now();
+    let result = executor.run(&config).await;
+    let elapsed = start.elapsed().as_secs_f64();
+
+    match result {
+        Ok(exec_result) => {
+            let session_file = workspace_path.join("session.jsonl").to_string_lossy().to_string();
+            let events_count = exec_result.events.len();
+
+            Ok(RunResult {
+                exit_code: exec_result.exit_code.unwrap_or(-1),
+                termination_reason: exec_result.termination_reason.unwrap_or_else(|| "Unknown".to_string()),
+                iterations: exec_result.iterations,
+                elapsed_secs: elapsed,
+                session_file,
+                events_count,
+                stdout: exec_result.stdout,
+                stderr: exec_result.stderr,
+            })
+        }
+        Err(e) => {
+            // Return partial result on error
+            let session_file = workspace_path.join("session.jsonl").to_string_lossy().to_string();
+            let events_count = std::fs::read_to_string(&session_file)
+                .map(|s| s.lines().count())
+                .unwrap_or(0);
+
+            Ok(RunResult {
+                exit_code: -1,
+                termination_reason: format!("Error: {}", e),
+                iterations: 0,
+                elapsed_secs: elapsed,
+                session_file,
+                events_count,
+                stdout: String::new(),
+                stderr: e.to_string(),
+            })
+        }
+    }
 }
 
 // ============================================================================
@@ -416,14 +493,15 @@ pub struct ReportArgs {
 // ============================================================================
 
 /// Execute a test tools command.
-pub fn execute(args: TestToolsArgs) -> Result<()> {
+pub async fn execute(args: TestToolsArgs) -> Result<()> {
     match args.command {
         TestToolsCommands::Setup(setup_args) => {
             let result = execute_setup(setup_args)?;
             println!("{}", serde_json::to_string(&result)?);
         }
-        TestToolsCommands::Run(_run_args) => {
-            println!("test_run not yet implemented");
+        TestToolsCommands::Run(run_args) => {
+            let result = execute_run(run_args).await?;
+            println!("{}", serde_json::to_string(&result)?);
         }
         TestToolsCommands::Assert(_assert_args) => {
             println!("test_assert not yet implemented");

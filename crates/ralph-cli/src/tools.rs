@@ -52,6 +52,6 @@ pub async fn execute(args: ToolsArgs, use_colors: bool) -> Result<()> {
         ToolsCommands::Task(task_args) => task_cli::execute(task_args, use_colors),
         ToolsCommands::Skill(skill_args) => skill_cli::execute(skill_args),
         ToolsCommands::Interact(interact_args) => interact::execute(interact_args).await,
-        ToolsCommands::Test(test_args) => test_tools::execute(test_args),
+        ToolsCommands::Test(test_args) => test_tools::execute(test_args).await,
     }
 }

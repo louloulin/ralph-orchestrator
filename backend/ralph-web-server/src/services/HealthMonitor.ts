@@ -93,26 +93,31 @@ export class HealthMonitor {
    */
   startMonitoring(
     getProcesses: () => LoopProcess[],
-    getHeartbeat: (loopId: string) => LoopHeartbeat | null,
+    getHeartbeat: (loopId: string) => LoopHeartbeat | null | Promise<LoopHeartbeat | null>,
     getProcessMetrics: (pid: number) => { cpuPercent: number; memoryMB: number } | null
   ): void {
     if (this.checkInterval) {
       this.stopMonitoring();
     }
 
-    this.checkInterval = setInterval(() => {
+    this.checkInterval = setInterval(async () => {
       const processes = getProcesses();
       for (const process of processes) {
         if (process.status === "stopped" || process.status === "crashed") {
           continue;
         }
 
-        const heartbeat = getHeartbeat(process.id);
-        const metrics = getProcessMetrics(process.pid);
-        const check = this.performHealthCheck(process, heartbeat, metrics);
+        try {
+          const heartbeat = await Promise.resolve(getHeartbeat(process.id));
+          const metrics = getProcessMetrics(process.pid);
+          const check = this.performHealthCheck(process, heartbeat, metrics);
 
-        if (this.onHealthChange) {
-          this.onHealthChange(process.id, check);
+          if (this.onHealthChange) {
+            this.onHealthChange(process.id, check);
+          }
+        } catch (error) {
+          // Log error but continue monitoring other processes
+          console.error(`[HealthMonitor] Error checking ${process.id}:`, error);
         }
       }
     }, this.config.checkIntervalMs);

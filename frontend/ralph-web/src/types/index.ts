@@ -52,3 +52,24 @@ export type {
   TranslationFn,
 } from "./i18n";
 
+// Process types for 24/7 Platform Daemon
+export type {
+  LoopStatus,
+  LoopConfig,
+  LoopProcess,
+  HealthIssueSeverity,
+  HealthIssue,
+  HealthCheckStatus,
+  HealthMetrics,
+  HealthCheck,
+  TerminationReason,
+  RestartEvent,
+  SupervisorStats,
+} from "./process";
+
+export {
+  STATUS_COLORS,
+  HEALTH_STATUS_COLORS,
+  STATUS_LABELS,
+} from "./process";
+

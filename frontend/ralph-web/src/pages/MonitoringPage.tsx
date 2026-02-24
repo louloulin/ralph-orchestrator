@@ -12,6 +12,7 @@ import { trpc } from "@/trpc";
 import {
   ProcessList,
   ProcessListHeader,
+  AlertList,
 } from "@/components/monitoring";
 import { type LoopStatus } from "@/types/process";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -286,8 +287,8 @@ export function MonitoringPage() {
         </Button>
       </div>
 
-      {/* Supervisor stats */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      {/* Supervisor stats and alerts */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <SupervisorStatsCard
           totalProcesses={stats.totalProcesses}
           runningProcesses={stats.runningProcesses}
@@ -295,6 +296,7 @@ export function MonitoringPage() {
           crashedProcesses={stats.crashedProcesses}
           isMonitoring={stats.isMonitoring}
         />
+        <AlertList className="md:col-span-2" />
       </div>
 
       {/* Process list header */}

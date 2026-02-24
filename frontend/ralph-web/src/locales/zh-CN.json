@@ -149,6 +149,7 @@
     "addTask": "添加任务",
     "moveTask": "移动任务"
   },
+  
   "monitoring": {
     "title": "进程监控",
     "subtitle": "监控和管理 24/7 平台守护进程",
@@ -156,15 +157,18 @@
     "totalProcesses": "总进程数",
     "running": "运行中",
     "stopped": "已停止",
-    "crashed": "已崩溃",
+    "crashed": "崩溃",
     "monitoringActive": "监控活跃",
-    "monitoringInactive": "监控未活跃",
+    "monitoringInactive": "监控未激活",
     "noProcesses": "未找到进程",
-    "noProcessesDescription": "启动循环以在此处查看",
+    "noProcessesDescription": "启动一个循环以在此处查看",
     "errorTitle": "无法加载进程",
     "unknownError": "发生未知错误",
-    "supervisorNotConfigured": "进程监控器未配置"
-  },
+    "supervisorNotConfigured": "进程监控器未配置",
+    "alerts": "活跃告警",
+    "noAlerts": "无活跃告警"
+  }
+,
   "builder": {
     "title": "Hat 构建器",
     "createCollection": "创建集合",

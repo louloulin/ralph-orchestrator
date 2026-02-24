@@ -149,6 +149,7 @@
     "addTask": "Add Task",
     "moveTask": "Move Task"
   },
+  
   "monitoring": {
     "title": "Process Monitoring",
     "subtitle": "Monitor and manage 24/7 platform daemon processes",
@@ -163,8 +164,11 @@
     "noProcessesDescription": "Start a loop to see it here",
     "errorTitle": "Unable to load processes",
     "unknownError": "An unknown error occurred",
-    "supervisorNotConfigured": "Process supervisor is not configured"
-  },
+    "supervisorNotConfigured": "Process supervisor is not configured",
+    "alerts": "Active Alerts",
+    "noAlerts": "No active alerts"
+  }
+,
   "builder": {
     "title": "Hat Builder",
     "createCollection": "Create Collection",

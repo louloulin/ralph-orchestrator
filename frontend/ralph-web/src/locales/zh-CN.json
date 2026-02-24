@@ -166,7 +166,16 @@
     "unknownError": "发生未知错误",
     "supervisorNotConfigured": "进程监控器未配置",
     "alerts": "活跃告警",
-    "noAlerts": "无活跃告警"
+    "noAlerts": "无活跃告警",
+    "metricsSnapshot": "指标快照",
+    "totalMetrics": "总指标数",
+    "collectionTime": "采集时间",
+    "lastCollected": "最后采集",
+    "searchMetrics": "搜索指标...",
+    "showingMetrics": "显示 {{count}} / {{total}} 个指标",
+    "noMatchingMetrics": "没有匹配的指标",
+    "noMetrics": "尚未注册任何指标",
+    "metricStoreNotConfigured": "指标存储未配置"
   }
 ,
   "builder": {

@@ -72,3 +72,24 @@ export {
   HEALTH_STATUS_COLORS,
   STATUS_LABELS,
 } from "./process";
+
+// Agent Teams types for multi-agent collaboration (P4.5-1)
+export type {
+  AgentRole,
+  AgentStatus,
+  ContextSharingMode,
+  TaskDistributionMode,
+  TeamStatus,
+  AgentTeam,
+  CreateTeamInput,
+  UpdateTeamInput,
+  TeamStats,
+  AgentActivityLog,
+} from "./teams";
+
+export {
+  CONTEXT_SHARING_MODES,
+  TASK_DISTRIBUTION_MODES,
+  AGENT_STATUS_COLORS,
+  TEAM_STATUS_COLORS,
+} from "./teams";

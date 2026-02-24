@@ -1,0 +1,190 @@
+/**
+ * Agent Teams Types
+ *
+ * Frontend types for multi-agent collaboration system (P4.5-1)
+ * Matches backend types in backend/ralph-web-server/src/types/teams.ts
+ */
+
+/**
+ * Agent role in a team
+ */
+export interface AgentRole {
+  id: string;
+  name: string;
+  description: string;
+  hatId: string;
+  status: AgentStatus;
+  iterationsCompleted: number;
+  lastActivityAt: string | null;
+}
+
+/**
+ * Agent status in the team
+ */
+export type AgentStatus =
+  | "idle"
+  | "running"
+  | "waiting"
+  | "completed"
+  | "failed";
+
+/**
+ * Context sharing mode for the team
+ */
+export type ContextSharingMode =
+  | "full"
+  | "selective"
+  | "hierarchical";
+
+/**
+ * Task distribution mode for the team
+ */
+export type TaskDistributionMode =
+  | "parallel"
+  | "pipeline"
+  | "expert"
+  | "voting";
+
+/**
+ * Team status
+ */
+export type TeamStatus =
+  | "idle"
+  | "running"
+  | "paused"
+  | "completed"
+  | "failed";
+
+/**
+ * Agent Team configuration
+ */
+export interface AgentTeam {
+  id: string;
+  name: string;
+  description: string;
+  coordinator: AgentRole;
+  members: AgentRole[];
+  contextSharing: ContextSharingMode;
+  taskDistribution: TaskDistributionMode;
+  status: TeamStatus;
+  prompt: string;
+  progress: number;
+  sharedContextTokens: number;
+  maxSharedContextTokens: number;
+  createdAt: string;
+  startedAt: string | null;
+  completedAt: string | null;
+  error: string | null;
+}
+
+/**
+ * Team configuration input for creation
+ */
+export interface CreateTeamInput {
+  name: string;
+  description?: string;
+  prompt: string;
+  coordinatorHatId: string;
+  members: Array<{
+    name: string;
+    description: string;
+    hatId: string;
+  }>;
+  contextSharing?: ContextSharingMode;
+  taskDistribution?: TaskDistributionMode;
+}
+
+/**
+ * Team update input
+ */
+export interface UpdateTeamInput {
+  name?: string;
+  description?: string;
+  taskDistribution?: TaskDistributionMode;
+  contextSharing?: ContextSharingMode;
+}
+
+/**
+ * Team statistics
+ */
+export interface TeamStats {
+  totalTeams: number;
+  activeTeams: number;
+  completedTeams: number;
+  failedTeams: number;
+  totalIterations: number;
+}
+
+/**
+ * Agent activity log entry
+ */
+export interface AgentActivityLog {
+  id: string;
+  teamId: string;
+  agentId: string;
+  activityType: "started" | "completed" | "error" | "waiting";
+  message: string;
+  timestamp: string;
+}
+
+/**
+ * Context sharing mode descriptions
+ */
+export const CONTEXT_SHARING_MODES: Record<ContextSharingMode, { label: string; description: string }> = {
+  full: {
+    label: "Full",
+    description: "Complete context sharing (1M tokens)"
+  },
+  selective: {
+    label: "Selective",
+    description: "Agents share selected context"
+  },
+  hierarchical: {
+    label: "Hierarchical",
+    description: "Report upward through coordinator"
+  }
+};
+
+/**
+ * Task distribution mode descriptions
+ */
+export const TASK_DISTRIBUTION_MODES: Record<TaskDistributionMode, { label: string; description: string }> = {
+  parallel: {
+    label: "Parallel",
+    description: "Multiple agents work simultaneously"
+  },
+  pipeline: {
+    label: "Pipeline",
+    description: "Sequential processing (plan → code → test → review)"
+  },
+  expert: {
+    label: "Expert",
+    description: "Specialized agents (frontend/backend/security)"
+  },
+  voting: {
+    label: "Voting",
+    description: "Multiple agents provide solutions, vote/merge"
+  }
+};
+
+/**
+ * Agent status colors for UI
+ */
+export const AGENT_STATUS_COLORS: Record<AgentStatus, string> = {
+  idle: "bg-gray-500",
+  running: "bg-blue-500",
+  waiting: "bg-yellow-500",
+  completed: "bg-green-500",
+  failed: "bg-red-500"
+};
+
+/**
+ * Team status colors for UI
+ */
+export const TEAM_STATUS_COLORS: Record<TeamStatus, string> = {
+  idle: "bg-gray-500",
+  running: "bg-blue-500",
+  paused: "bg-yellow-500",
+  completed: "bg-green-500",
+  failed: "bg-red-500"
+};

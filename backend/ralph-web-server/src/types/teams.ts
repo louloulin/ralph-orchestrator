@@ -171,3 +171,8 @@ export interface AgentActivityLog {
   /** Timestamp */
   timestamp: Date;
 }
+
+/**
+ * Default max shared context tokens (1M tokens)
+ */
+export const DEFAULT_MAX_SHARED_CONTEXT_TOKENS = 1_000_000;

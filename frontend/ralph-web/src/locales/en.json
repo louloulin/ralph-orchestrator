@@ -34,6 +34,7 @@
     "dashboard": "Dashboard",
     "tasks": "Tasks",
     "kanban": "Kanban",
+    "teams": "Teams",
     "monitoring": "Monitoring",
     "builder": "Builder",
     "settings": "Settings",
@@ -226,5 +227,64 @@
     "hoursAgo_other": "{{count}} hours ago",
     "daysAgo": "{{count}} day ago",
     "daysAgo_other": "{{count}} days ago"
+  },
+  "teams": {
+    "title": "Agent Teams",
+    "description": "Multi-agent collaboration for complex tasks",
+    "createTeam": "Create Team",
+    "newTeam": "New Team",
+    "noTeams": "No teams yet",
+    "noTeamsDescription": "Create your first agent team to start multi-agent collaboration",
+    "totalTeams": "Total Teams",
+    "activeTeams": "Active",
+    "completedTeams": "Completed",
+    "failedTeams": "Failed",
+    "totalIterations": "Total Iterations",
+    "teamName": "Team Name",
+    "teamDescription": "Description",
+    "taskPrompt": "Task Prompt",
+    "coordinator": "Coordinator",
+    "members": "Team Members",
+    "addAgent": "Add Agent",
+    "agentName": "Agent Name",
+    "agentDescription": "Agent Description",
+    "contextSharing": "Context Sharing",
+    "taskDistribution": "Task Distribution",
+    "progress": "Progress",
+    "sharedContext": "Shared Context",
+    "status": {
+      "idle": "Idle",
+      "running": "Running",
+      "paused": "Paused",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "actions": {
+      "start": "Start",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop",
+      "delete": "Delete"
+    },
+    "contextModes": {
+      "full": "Full",
+      "fullDescription": "Complete context sharing (1M tokens)",
+      "selective": "Selective",
+      "selectiveDescription": "Agents share selected context",
+      "hierarchical": "Hierarchical",
+      "hierarchicalDescription": "Report upward through coordinator"
+    },
+    "distributionModes": {
+      "parallel": "Parallel",
+      "parallelDescription": "Multiple agents work simultaneously",
+      "pipeline": "Pipeline",
+      "pipelineDescription": "Sequential processing (plan → code → test → review)",
+      "expert": "Expert",
+      "expertDescription": "Specialized agents (frontend/backend/security)",
+      "voting": "Voting",
+      "votingDescription": "Multiple agents provide solutions, vote/merge"
+    },
+    "activityLog": "Activity Log",
+    "noActivity": "No activity logs yet"
   }
 }

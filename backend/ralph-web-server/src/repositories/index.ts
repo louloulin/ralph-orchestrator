@@ -8,6 +8,7 @@ export { SettingsRepository } from "./SettingsRepository";
 export { TaskLogRepository } from "./TaskLogRepository";
 export { QueuedTaskRepository } from "./QueuedTaskRepository";
 export { CollectionRepository } from "./CollectionRepository";
+export { AlertRepository } from "./AlertRepository";
 export type {
   GraphNode,
   GraphEdge,

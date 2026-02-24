@@ -14,6 +14,7 @@ import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
 import { CollectionService } from "../services/CollectionService";
 import { LoopSupervisor } from "../services/LoopSupervisor";
+import { AgentTeamsService } from "../services/AgentTeamsService";
 import * as CheckpointRepo from "../services/CheckpointRepository";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
@@ -33,6 +34,7 @@ export interface Context {
   loopsManager?: LoopsManager;
   planningService?: PlanningService;
   loopSupervisor?: LoopSupervisor;
+  agentTeamsService?: AgentTeamsService;
 }
 
 /**
@@ -42,13 +44,15 @@ export interface Context {
  * @param loopsManager - Optional LoopsManager for loop operations
  * @param planningService - Optional PlanningService for planning sessions
  * @param loopSupervisor - Optional LoopSupervisor for process daemon operations
+ * @param agentTeamsService - Optional AgentTeamsService for multi-agent operations
  */
 export function createContext(
   db: BunSQLiteDatabase<typeof schema>,
   taskBridge?: TaskBridge,
   loopsManager?: LoopsManager,
   planningService?: PlanningService,
-  loopSupervisor?: LoopSupervisor
+  loopSupervisor?: LoopSupervisor,
+  agentTeamsService?: AgentTeamsService
 ): Context {
   const settingsRepository = new SettingsRepository(db);
   const collectionRepository = new CollectionRepository(db);
@@ -61,6 +65,7 @@ export function createContext(
     loopsManager,
     planningService,
     loopSupervisor,
+    agentTeamsService,
   };
 }
 
@@ -1425,6 +1430,296 @@ export const checkpointRouter = router({
 });
 
 /**
+ * Teams router - operations for managing multi-agent collaboration teams (P4.5-1)
+ * Provides API endpoints for AgentTeamsService.
+ */
+export const teamsRouter = router({
+  /**
+   * List all teams, optionally filtered by status
+   */
+  list: publicProcedure
+    .input(
+      z
+        .object({
+          status: z.enum(["idle", "running", "paused", "completed", "failed"]).optional(),
+        })
+        .optional()
+    )
+    .query(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+      return ctx.agentTeamsService.listTeams(input);
+    }),
+
+  /**
+   * Get a specific team by ID
+   */
+  get: publicProcedure.input(z.object({ id: z.string() })).query(({ ctx, input }) => {
+    if (!ctx.agentTeamsService) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "AgentTeamsService is not configured",
+      });
+    }
+    const team = ctx.agentTeamsService.getTeam(input.id);
+    if (!team) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Team with id '${input.id}' not found`,
+      });
+    }
+    return team;
+  }),
+
+  /**
+   * Create a new team
+   */
+  create: publicProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        description: z.string().optional(),
+        prompt: z.string().min(1),
+        coordinatorHatId: z.string(),
+        members: z.array(
+          z.object({
+            name: z.string().min(1),
+            description: z.string(),
+            hatId: z.string(),
+          })
+        ),
+        contextSharing: z.enum(["full", "selective", "hierarchical"]).optional(),
+        taskDistribution: z.enum(["parallel", "pipeline", "expert", "voting"]).optional(),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+      return ctx.agentTeamsService.createTeam(input);
+    }),
+
+  /**
+   * Update a team
+   */
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).optional(),
+        description: z.string().optional(),
+        taskDistribution: z.enum(["parallel", "pipeline", "expert", "voting"]).optional(),
+        contextSharing: z.enum(["full", "selective", "hierarchical"]).optional(),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+      const { id, ...updates } = input;
+      const team = ctx.agentTeamsService.updateTeam(id, updates);
+      if (!team) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Team with id '${id}' not found`,
+        });
+      }
+      return team;
+    }),
+
+  /**
+   * Start a team
+   */
+  start: publicProcedure.input(z.object({ id: z.string() })).mutation(({ ctx, input }) => {
+    if (!ctx.agentTeamsService) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "AgentTeamsService is not configured",
+      });
+    }
+    const team = ctx.agentTeamsService.startTeam(input.id);
+    if (!team) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Team with id '${input.id}' not found or cannot be started`,
+      });
+    }
+    return team;
+  }),
+
+  /**
+   * Pause a running team
+   */
+  pause: publicProcedure.input(z.object({ id: z.string() })).mutation(({ ctx, input }) => {
+    if (!ctx.agentTeamsService) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "AgentTeamsService is not configured",
+      });
+    }
+    const team = ctx.agentTeamsService.pauseTeam(input.id);
+    if (!team) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Team with id '${input.id}' not found or cannot be paused`,
+      });
+    }
+    return team;
+  }),
+
+  /**
+   * Stop a team
+   */
+  stop: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        reason: z.string().optional(),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+      const team = ctx.agentTeamsService.stopTeam(input.id, input.reason);
+      if (!team) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Team with id '${input.id}' not found or cannot be stopped`,
+        });
+      }
+      return team;
+    }),
+
+  /**
+   * Delete a team
+   */
+  delete: publicProcedure.input(z.object({ id: z.string() })).mutation(({ ctx, input }) => {
+    if (!ctx.agentTeamsService) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "AgentTeamsService is not configured",
+      });
+    }
+    const deleted = ctx.agentTeamsService.deleteTeam(input.id);
+    if (!deleted) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Team with id '${input.id}' not found`,
+      });
+    }
+    return { success: true };
+  }),
+
+  /**
+   * Update agent status
+   */
+  updateAgentStatus: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        agentId: z.string(),
+        status: z.enum(["idle", "running", "waiting", "completed", "failed"]),
+        message: z.string().optional(),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+      const team = ctx.agentTeamsService.updateAgentStatus(
+        input.teamId,
+        input.agentId,
+        input.status,
+        input.message
+      );
+      if (!team) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Team with id '${input.teamId}' not found or agent '${input.agentId}' not found`,
+        });
+      }
+      return team;
+    }),
+
+  /**
+   * Update shared context token count
+   */
+  updateSharedContext: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        tokenCount: z.number().int().min(0),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+      const team = ctx.agentTeamsService.updateSharedContext(input.teamId, input.tokenCount);
+      if (!team) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Team with id '${input.teamId}' not found`,
+        });
+      }
+      return team;
+    }),
+
+  /**
+   * Get activity logs for a team
+   */
+  getActivityLogs: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        limit: z.number().int().min(1).max(500).optional(),
+      })
+    )
+    .query(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+      return ctx.agentTeamsService.getActivityLogs(input.teamId, input.limit);
+    }),
+
+  /**
+   * Get team statistics
+   */
+  stats: publicProcedure.query(({ ctx }) => {
+    if (!ctx.agentTeamsService) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "AgentTeamsService is not configured",
+      });
+    }
+    return ctx.agentTeamsService.getStats();
+  }),
+});
+
+/**
  * Main app router combining all sub-routers
  */
 export const appRouter = router({
@@ -1436,6 +1731,7 @@ export const appRouter = router({
   config: configRouter,
   process: processRouter,
   checkpoint: checkpointRouter,
+  teams: teamsRouter,
   planning: router({
     /**
      * List all planning sessions.

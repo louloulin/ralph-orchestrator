@@ -34,6 +34,7 @@
     "dashboard": "仪表盘",
     "tasks": "任务",
     "kanban": "看板",
+    "monitoring": "监控",
     "builder": "构建器",
     "settings": "设置",
     "collapse": "收起",
@@ -146,6 +147,22 @@
     "noTasks": "暂无任务",
     "addTask": "添加任务",
     "moveTask": "移动任务"
+  },
+  "monitoring": {
+    "title": "进程监控",
+    "subtitle": "监控和管理 24/7 平台守护进程",
+    "supervisorStats": "监控器状态",
+    "totalProcesses": "总进程数",
+    "running": "运行中",
+    "stopped": "已停止",
+    "crashed": "已崩溃",
+    "monitoringActive": "监控活跃",
+    "monitoringInactive": "监控未活跃",
+    "noProcesses": "未找到进程",
+    "noProcessesDescription": "启动循环以在此处查看",
+    "errorTitle": "无法加载进程",
+    "unknownError": "发生未知错误",
+    "supervisorNotConfigured": "进程监控器未配置"
   },
   "builder": {
     "title": "Hat 构建器",

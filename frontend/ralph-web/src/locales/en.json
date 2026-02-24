@@ -34,6 +34,7 @@
     "dashboard": "Dashboard",
     "tasks": "Tasks",
     "kanban": "Kanban",
+    "monitoring": "Monitoring",
     "builder": "Builder",
     "settings": "Settings",
     "collapse": "Collapse",
@@ -146,6 +147,22 @@
     "noTasks": "No tasks",
     "addTask": "Add Task",
     "moveTask": "Move Task"
+  },
+  "monitoring": {
+    "title": "Process Monitoring",
+    "subtitle": "Monitor and manage 24/7 platform daemon processes",
+    "supervisorStats": "Supervisor Status",
+    "totalProcesses": "Total Processes",
+    "running": "Running",
+    "stopped": "Stopped",
+    "crashed": "Crashed",
+    "monitoringActive": "Monitoring active",
+    "monitoringInactive": "Monitoring inactive",
+    "noProcesses": "No processes found",
+    "noProcessesDescription": "Start a loop to see it here",
+    "errorTitle": "Unable to load processes",
+    "unknownError": "An unknown error occurred",
+    "supervisorNotConfigured": "Process supervisor is not configured"
   },
   "builder": {
     "title": "Hat Builder",

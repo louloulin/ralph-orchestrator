@@ -12,9 +12,9 @@ import { trpc } from "@/trpc";
 import {
   ProcessList,
   ProcessListHeader,
-  type LoopStatus,
 } from "@/components/monitoring";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { type LoopStatus } from "@/types/process";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useTranslation } from "@/hooks";
 import { cn } from "@/lib/utils";
@@ -311,8 +311,8 @@ export function MonitoringPage() {
         <EmptyState />
       ) : (
         <ProcessList
-          processes={processes}
-          healthChecks={healthChecks}
+          processes={processes as any}
+          healthChecks={healthChecks as any}
           onStop={handleStop}
           onRestart={handleRestart}
           onViewDetails={handleViewDetails}

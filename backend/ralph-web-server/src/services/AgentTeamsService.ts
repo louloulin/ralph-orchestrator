@@ -462,7 +462,5 @@ export class AgentTeamsService {
   }
 }
 
-/**
- * Default max shared context tokens (1M tokens)
- */
-export const DEFAULT_MAX_SHARED_CONTEXT_TOKENS = 1_000_000;
+// Re-export the constant for convenience
+export { DEFAULT_MAX_SHARED_CONTEXT_TOKENS } from "../types/teams";

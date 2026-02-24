@@ -59,3 +59,10 @@ export {
   type RestartManagerConfig,
   type RestartDecision,
 } from "./RestartManager";
+
+export {
+  LoopSupervisor,
+  DEFAULT_LOOP_SUPERVISOR_CONFIG,
+  type LoopSupervisorConfig,
+  type LoopSupervisorEvents,
+} from "./LoopSupervisor";

@@ -13,6 +13,7 @@ import { TaskBridge } from "../services/TaskBridge";
 import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
 import { CollectionService } from "../services/CollectionService";
+import { LoopSupervisor } from "../services/LoopSupervisor";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
 import * as fs from "fs";
@@ -30,6 +31,7 @@ export interface Context {
   taskBridge?: TaskBridge;
   loopsManager?: LoopsManager;
   planningService?: PlanningService;
+  loopSupervisor?: LoopSupervisor;
 }
 
 /**
@@ -38,12 +40,14 @@ export interface Context {
  * @param taskBridge - Optional TaskBridge for task execution
  * @param loopsManager - Optional LoopsManager for loop operations
  * @param planningService - Optional PlanningService for planning sessions
+ * @param loopSupervisor - Optional LoopSupervisor for process daemon operations
  */
 export function createContext(
   db: BunSQLiteDatabase<typeof schema>,
   taskBridge?: TaskBridge,
   loopsManager?: LoopsManager,
-  planningService?: PlanningService
+  planningService?: PlanningService,
+  loopSupervisor?: LoopSupervisor
 ): Context {
   const settingsRepository = new SettingsRepository(db);
   const collectionRepository = new CollectionRepository(db);
@@ -55,6 +59,7 @@ export function createContext(
     taskBridge,
     loopsManager,
     planningService,
+    loopSupervisor,
   };
 }
 
@@ -1087,6 +1092,165 @@ export const presetsRouter = router({
 });
 
 /**
+ * Process router - operations for managing loop processes (24/7 Platform Daemon)
+ * Provides API endpoints for the LoopSupervisor service.
+ */
+export const processRouter = router({
+  /**
+   * Get all loop processes being supervised
+   */
+  list: publicProcedure.query(({ ctx }) => {
+    if (!ctx.loopSupervisor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "LoopSupervisor is not configured",
+      });
+    }
+    return ctx.loopSupervisor.getAllProcesses();
+  }),
+
+  /**
+   * Get a specific loop process
+   */
+  get: publicProcedure.input(z.object({ id: z.string() })).query(({ ctx, input }) => {
+    if (!ctx.loopSupervisor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "LoopSupervisor is not configured",
+      });
+    }
+    const process = ctx.loopSupervisor.getProcess(input.id);
+    if (!process) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Loop process '${input.id}' not found`,
+      });
+    }
+    return process;
+  }),
+
+  /**
+   * Get health status for a loop
+   */
+  getHealth: publicProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+    if (!ctx.loopSupervisor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "LoopSupervisor is not configured",
+      });
+    }
+    const health = await ctx.loopSupervisor.getHealth(input.id);
+    if (!health) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: `Loop process '${input.id}' not found`,
+      });
+    }
+    return health;
+  }),
+
+  /**
+   * Start a new loop process
+   */
+  start: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        config: z.object({
+          maxIterations: z.number().optional(),
+          prompt: z.string().optional(),
+          backend: z.string().optional(),
+          hatCollection: z.string().optional(),
+          cwd: z.string().optional(),
+          env: z.record(z.string(), z.string()).optional(),
+          memoriesEnabled: z.boolean().optional(),
+          tasksEnabled: z.boolean().optional(),
+        }).optional(),
+      })
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!ctx.loopSupervisor) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "LoopSupervisor is not configured",
+        });
+      }
+      const process = await ctx.loopSupervisor.spawnLoop(input.id, input.config ?? {});
+      return { success: true, process };
+    }),
+
+  /**
+   * Stop a running loop process
+   */
+  stop: publicProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
+    if (!ctx.loopSupervisor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "LoopSupervisor is not configured",
+      });
+    }
+    await ctx.loopSupervisor.stopLoop(input.id, "manual");
+    return { success: true };
+  }),
+
+  /**
+   * Restart a loop process
+   */
+  restart: publicProcedure.input(z.object({ id: z.string() })).mutation(async ({ ctx, input }) => {
+    if (!ctx.loopSupervisor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "LoopSupervisor is not configured",
+      });
+    }
+    await ctx.loopSupervisor.restartLoop(input.id, "manual");
+    return { success: true };
+  }),
+
+  /**
+   * Get restart history for a loop
+   */
+  getRestartHistory: publicProcedure
+    .input(z.object({ id: z.string(), limit: z.number().optional() }))
+    .query(({ ctx, input }) => {
+      if (!ctx.loopSupervisor) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "LoopSupervisor is not configured",
+        });
+      }
+      return ctx.loopSupervisor.getRestartHistory(input.id, input.limit);
+    }),
+
+  /**
+   * Get supervisor statistics
+   */
+  stats: publicProcedure.query(({ ctx }) => {
+    if (!ctx.loopSupervisor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "LoopSupervisor is not configured",
+      });
+    }
+    return ctx.loopSupervisor.getStats();
+  }),
+
+  /**
+   * Reset circuit breaker for a loop
+   */
+  resetCircuitBreaker: publicProcedure.input(z.object({ id: z.string() })).mutation(({ ctx, input }) => {
+    if (!ctx.loopSupervisor) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "LoopSupervisor is not configured",
+      });
+    }
+    ctx.loopSupervisor.resetCircuitBreaker(input.id);
+    return { success: true };
+  }),
+});
+
+/**
  * Main app router combining all sub-routers
  */
 export const appRouter = router({
@@ -1096,6 +1260,7 @@ export const appRouter = router({
   collection: collectionRouter,
   presets: presetsRouter,
   config: configRouter,
+  process: processRouter,
   planning: router({
     /**
      * List all planning sessions.

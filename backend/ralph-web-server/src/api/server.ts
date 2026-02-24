@@ -24,6 +24,7 @@ import { registerRestRoutes } from "./rest";
 import { TaskBridge } from "../services/TaskBridge";
 import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
+import { LoopSupervisor } from "../services/LoopSupervisor";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -42,6 +43,8 @@ export interface ServerOptions {
   loopsManager?: LoopsManager;
   /** PlanningService for planning sessions (optional) */
   planningService?: PlanningService;
+  /** LoopSupervisor for process daemon operations (optional) */
+  loopSupervisor?: LoopSupervisor;
   /** Frontend dist directory for serving static files */
   frontendDist?: string;
 }
@@ -50,7 +53,7 @@ export interface ServerOptions {
  * Create and configure a Fastify server with TRPC
  */
 export async function createServer(options: ServerOptions = {}): Promise<FastifyInstance> {
-  const { port = 3000, host = "0.0.0.0", db = getDatabase(), logger = true, taskBridge, loopsManager, planningService, frontendDist } = options;
+  const { port = 3000, host = "0.0.0.0", db = getDatabase(), logger = true, taskBridge, loopsManager, planningService, loopSupervisor, frontendDist } = options;
 
   const server = Fastify({ logger });
 
@@ -152,7 +155,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
     prefix: "/trpc",
     trpcOptions: {
       router: appRouter,
-      createContext: () => createContext(db, taskBridge, loopsManager, planningService),
+      createContext: () => createContext(db, taskBridge, loopsManager, planningService, loopSupervisor),
       onError: ({ path, error }) => {
         console.error(`TRPC Error on ${path}:`, error);
       },
@@ -160,7 +163,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
   });
 
   // Register REST API routes at /api/v1/*
-  const ctx = createContext(db, taskBridge, loopsManager, planningService);
+  const ctx = createContext(db, taskBridge, loopsManager, planningService, loopSupervisor);
   await registerRestRoutes(server, ctx);
 
   return server;

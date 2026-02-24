@@ -2,17 +2,18 @@
  * Monitoring Page
  *
  * Dedicated page for monitoring loop processes with the 24/7 Platform Daemon.
- * Displays process list, health indicators, and allows process management actions.
+ * Displays process list, health indicators, metrics dashboard, and allows process management actions.
  */
 
 import * as React from "react";
 import { useNavigate } from "react-router-dom";
-import { Activity, Loader2, RefreshCw, AlertTriangle, Server } from "lucide-react";
+import { Activity, Loader2, RefreshCw, AlertTriangle, Server, BarChart3 } from "lucide-react";
 import { trpc } from "@/trpc";
 import {
   ProcessList,
   ProcessListHeader,
   AlertList,
+  MetricsDashboard,
 } from "@/components/monitoring";
 import { type LoopStatus } from "@/types/process";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -322,6 +323,22 @@ export function MonitoringPage() {
           statusFilter={statusFilter}
         />
       )}
+
+      {/* Metrics Dashboard Section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <BarChart3 className="h-5 w-5" />
+            {t("monitoring.metricsSnapshot")}
+          </h2>
+        </div>
+        <MetricsDashboard
+          showSearch={true}
+          showRefresh={true}
+          showTypeFilter={true}
+          refreshInterval={30000} // Auto-refresh every 30 seconds
+        />
+      </div>
     </div>
   );
 }

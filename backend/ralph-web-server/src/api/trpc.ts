@@ -1741,7 +1741,7 @@ export const monitoringRouter = router({
         message: "MetricStore is not configured",
       });
     }
-    return ctx.metricStore.getAllMetrics();
+    return ctx.metricStore.getSnapshot().metrics;
   }),
 
   /**
@@ -1832,7 +1832,7 @@ export const monitoringRouter = router({
         message: "AlertEngine is not configured",
       });
     }
-    return ctx.alertEngine.getActiveAlerts();
+    return ctx.alertEngine.getAlerts();
   }),
 
   /**
@@ -1847,7 +1847,7 @@ export const monitoringRouter = router({
           message: "AlertEngine is not configured",
         });
       }
-      return ctx.alertEngine.getAlertsByRule(input.ruleId);
+      return ctx.alertEngine.getAlerts({ ruleId: input.ruleId });
     }),
 
   /**
@@ -1862,7 +1862,7 @@ export const monitoringRouter = router({
           message: "AlertEngine is not configured",
         });
       }
-      return ctx.alertEngine.getAlertHistory(input.limit);
+      return ctx.alertEngine.getAlertHistory(undefined, input.limit);
     }),
 });
 

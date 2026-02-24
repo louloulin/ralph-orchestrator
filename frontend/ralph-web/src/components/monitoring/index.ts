@@ -10,3 +10,5 @@ export { ProcessList, ProcessListHeader, type ProcessListProps, type ProcessList
 export { RestartHistory, RestartHistoryCard, type RestartHistoryProps, type RestartHistoryCardProps } from "./RestartHistory";
 export { AlertBadge, type AlertBadgeProps } from "./AlertBadge";
 export { AlertList, type AlertListProps } from "./AlertList";
+export { MetricCard, type MetricCardProps } from "./MetricCard";
+export { MetricsDashboard, type MetricsDashboardProps } from "./MetricsDashboard";

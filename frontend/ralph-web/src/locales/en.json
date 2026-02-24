@@ -166,7 +166,16 @@
     "unknownError": "An unknown error occurred",
     "supervisorNotConfigured": "Process supervisor is not configured",
     "alerts": "Active Alerts",
-    "noAlerts": "No active alerts"
+    "noAlerts": "No active alerts",
+    "metricsSnapshot": "Metrics Snapshot",
+    "totalMetrics": "Total Metrics",
+    "collectionTime": "Collection Time",
+    "lastCollected": "Last collected",
+    "searchMetrics": "Search metrics...",
+    "showingMetrics": "Showing {{count}} of {{total}} metrics",
+    "noMatchingMetrics": "No metrics match your search",
+    "noMetrics": "No metrics have been registered yet",
+    "metricStoreNotConfigured": "MetricStore is not configured"
   }
 ,
   "builder": {

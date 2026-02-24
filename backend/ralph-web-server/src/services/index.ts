@@ -84,3 +84,9 @@ export {
   DEFAULT_ALERT_ENGINE_CONFIG,
   type AlertEngineConfig,
 } from "./AlertEngine";
+
+export {
+  TelegramAlertService,
+  DEFAULT_TELEGRAM_ALERT_CONFIG,
+  type TelegramAlertConfig,
+} from "./TelegramAlertService";

@@ -5,3 +5,4 @@
  */
 
 export * from "./process";
+export * from "./checkpoint";

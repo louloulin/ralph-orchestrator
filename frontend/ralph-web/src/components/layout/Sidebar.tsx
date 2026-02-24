@@ -9,7 +9,7 @@
  * Mobile: Hidden by default, slides in as overlay when toggled
  */
 
-import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X } from "lucide-react";
+import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X, Activity } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { useUIStore } from "@/store";
 import { ThemeToggleMinimal, LocaleSwitcherMinimal } from "@/components/shared";
@@ -42,6 +42,7 @@ const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
   { to: "/tasks", icon: ListTodo, labelKey: "nav.tasks" },
   { to: "/kanban", icon: Columns3, labelKey: "nav.kanban" },
+  { to: "/monitoring", icon: Activity, labelKey: "nav.monitoring" },
   { to: "/builder", icon: Workflow, labelKey: "nav.builder" },
   { to: "/settings", icon: Settings, labelKey: "nav.settings" },
 ] as const;

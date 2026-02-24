@@ -399,7 +399,7 @@ export class TelegramAlertService {
   /**
    * Get current configuration (without sensitive data).
    */
-  getConfig(): Omit<TelegramAlertConfig, "botToken"> & { botToken: string } {
+  getConfig(): Omit<TelegramAlertConfig, "botToken"> {
     const { botToken: _, ...safe } = this.config;
     return {
       ...safe,

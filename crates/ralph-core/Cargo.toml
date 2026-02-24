@@ -7,6 +7,7 @@ description = "Core orchestration loop, configuration, and state management for 
 
 [features]
 recording = []
+checkpoint-compression = ["flate2"]
 
 [lints]
 workspace = true
@@ -28,6 +29,8 @@ crossterm.workspace = true
 regex.workspace = true
 keyring.workspace = true
 reqwest.workspace = true
+sha2.workspace = true
+flate2 = { workspace = true, optional = true }
 
 # For Unix file locking (flock)
 [target.'cfg(unix)'.dependencies]

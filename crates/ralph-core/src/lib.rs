@@ -9,9 +9,12 @@
 //! - Message routing between agents
 //! - Terminal capture for session recording
 //! - Benchmark task definitions and workspace isolation
+//! - Checkpoint system for state persistence and crash recovery
 
 #[cfg(feature = "recording")]
 mod cli_capture;
+pub mod checkpoint;
+mod checkpoint_manager;
 mod config;
 pub mod diagnostics;
 mod event_logger;
@@ -112,6 +115,12 @@ pub use task_definition::{
     TaskDefinition, TaskDefinitionError, TaskSetup, TaskSuite, Verification,
 };
 pub use task_store::TaskStore;
+// Checkpoint exports
+pub use checkpoint::{
+    CheckpointConfig, CheckpointIndex, CheckpointMeta, CheckpointState, CheckpointType,
+    LoopCheckpoint, RestoreResult, SerializableLoopState,
+};
+pub use checkpoint_manager::{CheckpointError, CheckpointManager, CheckpointResult};
 pub use text::{floor_char_boundary, truncate_by_bytes, truncate_with_ellipsis};
 pub use workspace::{
     CleanupPolicy, TaskWorkspace, VerificationResult, WorkspaceError, WorkspaceInfo,

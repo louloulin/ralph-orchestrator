@@ -14,6 +14,7 @@ import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
 import { CollectionService } from "../services/CollectionService";
 import { LoopSupervisor } from "../services/LoopSupervisor";
+import * as CheckpointRepo from "../services/CheckpointRepository";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
 import * as fs from "fs";
@@ -1251,6 +1252,179 @@ export const processRouter = router({
 });
 
 /**
+ * Checkpoint router - operations for managing checkpoints (state persistence)
+ * Provides API endpoints for crash recovery and state restoration.
+ */
+export const checkpointRouter = router({
+  /**
+   * Create a checkpoint for a loop
+   */
+  create: publicProcedure
+    .input(
+      z.object({
+        loopId: z.string(),
+        iteration: z.number(),
+        type: z
+          .enum(["interval", "pre_task", "post_task", "manual", "pre_restart"])
+          .optional()
+          .default("manual"),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const { id, checkpoint, meta } = await CheckpointRepo.createCheckpoint(
+        input.loopId,
+        input.iteration,
+        input.type as "interval" | "pre_task" | "post_task" | "manual" | "pre_restart",
+        cwd
+      );
+
+      // Update index
+      const index = await CheckpointRepo.readIndex(cwd);
+      index.checkpoints.push(meta);
+      await CheckpointRepo.writeIndex(cwd, index);
+
+      return {
+        id,
+        loopId: checkpoint.loopId,
+        createdAt: checkpoint.createdAt,
+        iteration: checkpoint.iteration,
+        checkpointType: checkpoint.checkpointType,
+        size: checkpoint.size,
+        checksum: checkpoint.checksum,
+        compressed: checkpoint.compressed,
+      };
+    }),
+
+  /**
+   * List checkpoints for a loop
+   */
+  list: publicProcedure
+    .input(
+      z.object({
+        loopId: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const checkpoints = await CheckpointRepo.listCheckpoints(input.loopId, cwd);
+      return checkpoints.map((m) => ({
+        id: m.id,
+        loopId: m.loopId,
+        createdAt: m.createdAt,
+        checkpointType: m.checkpointType,
+        size: m.size,
+        compressed: m.compressed,
+        checksum: m.checksum,
+      }));
+    }),
+
+  /**
+   * Get a specific checkpoint
+   */
+  get: publicProcedure
+    .input(
+      z.object({
+        checkpointId: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const checkpoint = await CheckpointRepo.loadCheckpoint(input.checkpointId, cwd);
+      return {
+        id: checkpoint.id,
+        loopId: checkpoint.loopId,
+        createdAt: checkpoint.createdAt,
+        iteration: checkpoint.iteration,
+        checkpointType: checkpoint.checkpointType,
+        size: checkpoint.size,
+        checksum: checkpoint.checksum,
+        compressed: checkpoint.compressed,
+        state: checkpoint.state,
+      };
+    }),
+
+  /**
+   * Get the latest checkpoint for a loop
+   */
+  getLatest: publicProcedure
+    .input(
+      z.object({
+        loopId: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const checkpoints = await CheckpointRepo.listCheckpoints(input.loopId, cwd);
+      const latest = checkpoints[0];
+
+      if (!latest) {
+        return null;
+      }
+
+      return {
+        id: latest.id,
+        loopId: latest.loopId,
+        createdAt: latest.createdAt,
+        iteration: 0, // Would need to load checkpoint for actual iteration
+        checkpointType: latest.checkpointType,
+        size: latest.size,
+        checksum: latest.checksum,
+        compressed: latest.compressed,
+      };
+    }),
+
+  /**
+   * Restore from a checkpoint
+   */
+  restore: publicProcedure
+    .input(
+      z.object({
+        checkpointId: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      return CheckpointRepo.restoreCheckpoint(input.checkpointId, cwd);
+    }),
+
+  /**
+   * Delete a checkpoint
+   */
+  delete: publicProcedure
+    .input(
+      z.object({
+        checkpointId: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      await CheckpointRepo.deleteCheckpoint(input.checkpointId, cwd);
+      return { success: true };
+    }),
+
+  /**
+   * Get checkpoint statistics
+   */
+  stats: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      return CheckpointRepo.getCheckpointStats(cwd);
+    }),
+});
+
+/**
  * Main app router combining all sub-routers
  */
 export const appRouter = router({
@@ -1261,6 +1435,7 @@ export const appRouter = router({
   presets: presetsRouter,
   config: configRouter,
   process: processRouter,
+  checkpoint: checkpointRouter,
   planning: router({
     /**
      * List all planning sessions.

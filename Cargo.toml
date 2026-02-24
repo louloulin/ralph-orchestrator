@@ -111,6 +111,12 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 # Time/date
 chrono = { version = "0.4", features = ["serde"] }
 
+# Hashing for checkpoint integrity
+sha2 = "0.10"
+
+# Compression for checkpoints
+flate2 = "1.0"
+
 # Testing
 tempfile = "3"
 

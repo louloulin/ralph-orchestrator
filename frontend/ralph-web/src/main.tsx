@@ -14,7 +14,7 @@ import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { trpc, createTRPCClient } from "./trpc";
 import { App } from "./App";
-import { CommandPalette, ErrorBoundary } from "./components/shared";
+import { CommandPalette, ErrorBoundary, Toast } from "./components/shared";
 import { useThemeStore, getResolvedTheme, applyTheme } from "./stores/themeStore";
 import { initializeLocale } from "./stores/i18nStore";
 
@@ -62,6 +62,7 @@ function Root() {
               <ThemeInit />
               <App />
               <CommandPalette />
+              <Toast />
             </BrowserRouter>
           </QueryClientProvider>
         </trpc.Provider>

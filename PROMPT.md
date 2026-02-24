@@ -1,5 +1,5 @@
 # Ralph Web Dashboard 开发计划
-
+相关内容实用中文说明，并说明目前完成的进度百分比
 > 基于全面代码分析、竞品研究（OpenClaw、Vibe Kanban、Cursor、Windsurf、Claude Code 等）制定的综合 UI 开发路线图
 >
 > **愿景：** 将 Ralph 打造成 7×24 小时运行的顶级智能体编排平台，支持 Agent Teams 多代理协作

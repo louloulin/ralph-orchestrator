@@ -28,6 +28,7 @@ ralph-core.workspace = true
 ralph-adapters.workspace = true
 ralph-telegram.workspace = true
 ralph-tui.workspace = true
+ralph-e2e.workspace = true
 
 tokio.workspace = true
 clap.workspace = true

@@ -66,3 +66,9 @@ export {
   type LoopSupervisorConfig,
   type LoopSupervisorEvents,
 } from "./LoopSupervisor";
+
+export {
+  MetricStore,
+  DEFAULT_METRIC_STORE_CONFIG,
+  type MetricStoreConfig,
+} from "./MetricStore";

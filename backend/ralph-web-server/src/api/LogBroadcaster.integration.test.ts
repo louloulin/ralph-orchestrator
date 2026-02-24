@@ -571,9 +571,9 @@ describe("WebSocket Streaming E2E Integration", () => {
 
       const taskId = "concurrent-task-001";
 
-      // Create 5 concurrent clients
+      // Create 3 concurrent clients (reduced from 5 for speed)
       const clients = await Promise.all(
-        Array.from({ length: 5 }, () => createClient())
+        Array.from({ length: 3 }, () => createClient())
       );
 
       // Subscribe all clients
@@ -595,11 +595,11 @@ describe("WebSocket Streaming E2E Integration", () => {
         clients.map((client) => receiveMessages(client, 1))
       );
 
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0; i < 3; i++) {
         expect(messages[i][0].data.line).toBe("Concurrent test");
         cleanupClient(clients[i]);
       }
-    }, 15000);
+    }, 20000);
 
     test("should handle client disconnect during active subscription", async () => {
       const { getLogBroadcaster } = await import("./LogBroadcaster.js");

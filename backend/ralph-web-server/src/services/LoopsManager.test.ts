@@ -185,6 +185,13 @@ describe("LoopsManager.getMergeButtonState CLI integration", () => {
 describe("LoopsManager.retryMerge with steering input", () => {
   test("writes steering input to file when provided", async () => {
     // Given: A LoopsManager with mocked command runner
+    const fs = await import("fs/promises");
+    const path = await import("path");
+    const ralphDir = path.join(process.cwd(), ".ralph");
+
+    // Ensure .ralph directory exists
+    await fs.mkdir(ralphDir, { recursive: true });
+
     const manager = new LoopsManager({ ralphPath: "ralph" });
     let commandArgs: string[] = [];
 
@@ -205,6 +212,9 @@ describe("LoopsManager.retryMerge with steering input", () => {
       ["loops", "retry", "test-loop-006"],
       "Should call ralph loops retry <loop-id>"
     );
+
+    // Cleanup
+    await fs.rm(ralphDir, { recursive: true, force: true });
   });
 
   test("skips steering file when input is empty", async () => {

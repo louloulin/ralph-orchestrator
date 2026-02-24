@@ -1,15 +1,15 @@
-# Ralph 编程平台改进计划 v2.2
+# Ralph 编程平台改进计划 v2.1
 
 > **创建时间**: 2026-02-24
-> **更新时间**: 2026-02-25
+> **更新时间**: 2026-02-24 23:58
 > **基于**: 前后端真实验证（Playwright 测试）、1code/Vibe Kanban 参考分析、Ralph 核心理念
 > **目标**: 打造 Ralph 专属编程平台，融合 AI Agent 编排与现代看板管理
 
 ---
 
-## 一、现状分析（2026-02-25 更新）
+## 一、现状分析
 
-### 1.1 已完成功能（真实验证通过）
+### 1.1 已完成功能（2026-02-24 真实验证通过）
 
 #### 后端服务 (http://localhost:3000) - ✅ 完全正常
 - ✅ tRPC API 完整实现：task.list、loops.list、monitoring、checkpoint、teams 等 11 个路由
@@ -23,75 +23,77 @@
 - ✅ 循环管理器正常：每 30s 处理一次
 - ✅ 任务桥接正常：DB 任务 → 执行队列
 - ✅ 进程恢复：4 个任务成功重连
-- ✅ **AgentTeamsService 完整实现**（P4.5-1 后端）
-  - 团队创建/启动/暂停/停止
-  - 任务分发策略：parallel/pipeline/expert/voting
-  - 上下文共享：selective/full/none
-  - Agent 状态跟踪
-  - 活动日志记录
 
-#### 前端界面 - ✅ 全部验证通过
-- ✅ **仪表盘页面**：系统状态、活动时间线、快捷操作
-- ✅ **任务页面**：任务列表、创建任务、搜索过滤
-- ✅ **看板页面**：拖拽式任务管理（@dnd-kit）
-- ✅ **团队页面**：Agent Teams 基础 UI
-  - ✅ TeamsList 组件（列表视图）
-  - ✅ TeamCard 组件（卡片视图）
-  - ✅ TeamCreateDialog 组件（创建对话框）
-  - ✅ TeamDetail 组件（详情页）
-  - ❌ **缺少**：实时状态更新、Agent 可视化、Activity Timeline
-
-### 1.2 当前实现状态总结
-
-| 功能模块 | 后端状态 | 前端状态 | 优先级 |
-|---------|---------|---------|--------|
-| **P4.5-1 Agent Teams** | ✅ 完整 | 🟡 基础 | P1 |
-| P5-1 多项目管理 | ❌ 无 | ❌ 无 | P1 |
-| P4.5-2 Skills 系统 | ❌ 无 | ❌ 无 | P2 |
-| P4-2 检查点 UI | ❌ 无 | ❌ 无 | P2 |
-| P4-4 自愈机制 UI | ❌ 无 | ❌ 无 | P2 |
-
-### 1.3 P4.5-1 Agent Teams 待完成项
-
-#### 已实现（后端 + 基础前端）
-```typescript
-// AgentTeamsService.ts - 全部完成
-✅ createTeam() - 团队创建
-✅ getTeam() / listTeams() - 团队查询
-✅ updateTeam() - 团队更新
-✅ startTeam() / pauseTeam() / stopTeam() - 生命周期管理
-✅ updateAgentStatus() - Agent 状态更新
-✅ updateSharedContext() - 上下文管理
-✅ getActivityLogs() - 活动日志
-✅ getStats() - 统计信息
-✅ 任务分发策略: parallel/pipeline/expert/voting
-✅ 上下文共享模式: selective/full/none
+**启动日志验证:**
+```
+Server listening at http://127.0.0.1:3000
+Dispatcher configured: maxConcurrent=3, pollIntervalMs=100
+Reconnected to task test-task-1771947405616 (PID 26757)
+Reconnected to task test-stream-1771947405678 (PID 26758)
+Reconnected to task test-task-1771947474900 (PID 33442)
+Reconnected to task test-task-1771947970974 (PID 87668)
+Recovery complete: 4 reconnected, 0 failed
 ```
 
-#### 待实现（前端增强）
+#### 前端界面 (http://localhost:5175) - ✅ 全部验证通过
+- ✅ **仪表盘页面**：系统状态、活动时间线、快捷操作（25个任务、1个循环、系统健康）
+- ✅ **任务页面**：任务列表（24个任务）、创建任务、搜索过滤、Preset 选择
+- ✅ **看板页面**：拖拽式任务管理（@dnd-kit）- 4 列（To Do: 20, In Progress: 4, In Review: 0, Done: 1）
+- ✅ **团队页面**：Agent Teams 管理框架（P4.5-1 部分完成）- 空状态 + 创建按钮
+- ✅ **监控页面**：Process Daemon、指标展示（P4-1/P4-3.5）- LoopSupervisor 未配置（预期）
+- ✅ **构建器页面**：Hat Collection 可视化编辑器 - 空状态 + 创建按钮
+- ✅ **设置页面**：配置管理（YAML 编辑器）、语言切换（中/英）、缓存管理、Preset 选择
+- ✅ **主题系统**：暗色主题（默认）
+- ✅ **国际化**：中英文双语支持
+- ✅ **移动端优化**：响应式布局、汉堡菜单
 
-| 组件 | 说明 | 预计工作量 |
-|------|------|-----------|
-| **ActivityTimeline** | 活动时间线组件 | 0.5 天 |
-| **TeamVisualizer** | Agent 节点可视化 (@xyflow/react) | 1 天 |
-| **AgentStatusBadge** | Agent 状态徽章 | 0.25 天 |
-| **WebSocket 集成** | 实时状态推送 | 0.5 天 |
-| **teamsStore** | Zustand 状态管理 | 0.25 天 |
-
-### 1.4 发现的问题
+### 1.2 发现的问题
 
 #### 问题 1: WebSocket 连接警告（低 🟢）
 **现象**：
 - 控制台显示多个 "WebSocket connection to 'ws://localhost..." 警告
 - 可能是多个任务同时尝试建立连接
 
+**影响**：
+- 不影响功能正常使用
+- 控制台日志污染，影响调试
+
+**解决方案**：
+- 优化 WebSocket 连接池管理
+- 添加连接去重逻辑
+
 #### 问题 2: Settings 表单警告（低 🟢）
 **现象**：
 - React 19 新特性警告："You provided a `value` prop to a form field"
+- 影响设置页面的表单组件
+
+**影响**：
+- 不影响功能
+- 控制台警告
+
+**解决方案**：
+- 更新表单组件适配 React 19
+- 使用 defaultValue 或受控组件模式
 
 #### 问题 3: LoopSupervisor 未配置（预期行为）
+**现象**：
+- Monitoring 页面显示 "LoopSupervisor is not configured" 错误
+- process.list/process.stats API 返回 500
+
 **说明**：
-- 这是预期行为，LoopSupervisor 是 Phase 4 的可选功能
+- **这是预期行为**，不是 bug
+- LoopSupervisor 是 Phase 4 的可选功能
+- 需要在 ralph.yml 中配置才能启用
+
+#### 问题 4: 缺少关键功能模块（优先级不同）
+
+| 功能 | 状态 | 优先级 | 说明 |
+|------|------|--------|------|
+| 多项目管理 | ❌ 未实现 | P1 | Vibe Kanban 核心功能 |
+| Agent Teams 完整实现 | 🟡 部分 | P1 | 后端 API 完成，前端需完善 |
+| Skills 技能系统 | ❌ 未实现 | P1 | P4.5-2 |
+| 检查点恢复 UI | ❌ 未实现 | P2 | 后端 API 完成 |
+| 自愈机制 UI | ❌ 未实现 | P2 | 后端逻辑需完善 |
 
 ---
 
@@ -164,113 +166,7 @@
 
 ---
 
-## 二、改进计划：P4.5-1 Agent Teams 完善（2026-02-25 新增）
-
-### 2.1 ActivityTimeline 组件
-
-**目标**: 显示团队活动历史，时间戳 + 消息内容
-
-**UI 设计**:
-```
-┌─────────────────────────────────────────────────────────┐
-│ Recent Activity (Last 20)                              │
-├─────────────────────────────────────────────────────────┤
-│ [15:32:05] ✅ Coordinator: Team started execution     │
-│ [15:32:10] 🔄 Backend Dev: Agent started (phase 1)   │
-│ [15:32:15] ⏳ Frontend Dev: Waiting for task         │
-│ [15:31:58] 🔄 QA Engineer: Waiting for task          │
-└─────────────────────────────────────────────────────────┘
-```
-
-**实现步骤**:
-1. 创建 `frontend/ralph-web/src/components/teams/ActivityTimeline.tsx`
-2. 使用 tRPC `teams.activity` 端点获取日志
-3. 添加时间格式化、过滤功能
-
-### 2.2 AgentStatusBadge 组件
-
-**目标**: 清晰展示 Agent 状态
-
-**状态定义**:
-| 状态 | 颜色 | 说明 |
-|------|------|------|
-| idle | 灰色 | 等待中 |
-| running | 蓝色 | 执行中 |
-| waiting | 黄色 | 等待其他 Agent |
-| completed | 绿色 | 已完成 |
-| failed | 红色 | 失败 |
-
-**实现步骤**:
-1. 创建 `frontend/ralph-web/src/components/teams/AgentStatusBadge.tsx`
-2. 使用 AGENT_STATUS_COLORS 类型
-
-### 2.3 TeamVisualizer 组件（节点图）
-
-**目标**: 可视化展示 Agent 团队结构
-
-**UI 设计**:
-```
-         ┌──────────────┐
-         │  Coordinator │
-         │     (Planner)│
-         │      ●Running │
-         └──────┬───────┘
-                │
-        ┌───────┴───────┐
-        │               │
-   ┌────▼────┐    ┌────▼────┐
-   │ Backend │    │Frontend │
-   │ Developer│   │ Developer│
-   │  ●Running│   │ ○ Idle  │
-   └─────────┘    └─────────┘
-        │
-   ┌────▼────┐
-   │   QA    │
-   │ Engineer │
-   │ ○ Idle  │
-   └─────────┘
-```
-
-**实现步骤**:
-1. 安装 `@xyflow/react` 依赖
-2. 创建 `frontend/ralph-web/src/components/teams/TeamVisualizer.tsx`
-3. 使用 React Flow 绘制节点图
-
-### 2.4 WebSocket 实时更新
-
-**目标**: 团队状态实时推送
-
-**实现方案**:
-1. 扩展现有 WebSocket 消息类型
-2. 添加 `teams.update` 消息格式
-3. 在 teamsStore 中处理实时更新
-
-**消息格式**:
-```typescript
-interface TeamUpdateMessage {
-  type: 'team.update';
-  teamId: string;
-  data: {
-    status?: TeamStatus;
-    agents?: AgentRole[];
-    progress?: number;
-  };
-  timestamp: Date;
-}
-```
-
-### 2.5 teamsStore 状态管理
-
-**目标**: 统一管理团队状态
-
-**实现步骤**:
-1. 创建 `frontend/ralph-web/src/stores/teamsStore.ts`
-2. 管理团队列表、选中团队、活动日志
-3. 集成 WebSocket 实时更新
-
----
-
-## 三、改进计划（续）
+## 三、改进计划
 
 ### 3.1 优先级 P0：验证通过，确认无需修复
 
@@ -399,59 +295,17 @@ CREATE TABLE projects (
 
 **UI 参考**: Vibe Kanban 的项目切换器设计
 
-#### P1-2: Agent Teams 完整实现（P4.5-1）⭐ 进行中
+#### P1-2: Agent Teams 完整实现（P4.5-1）
 **目标**: 多 Agent 协作的可视化管理和监控
 
-**当前状态** (2026-02-25):
-- ✅ **后端 API 完整**: `teamsRouter` (12个端点)
-- ✅ **数据模型完整**: `types/teams.ts`
-- ✅ **服务层完整**: `AgentTeamsService.ts` (466 行)
-- ✅ **前端基础组件**: `TeamsList`, `TeamCard`, `TeamCreateDialog`, `TeamDetail`
-- ❌ **待实现**: 实时状态更新、Agent 节点可视化、Activity Timeline
+**当前状态**:
+- ✅ 后端 API 完整：`teamsRouter`
+- ✅ 数据模型完整：`types/teams.ts`
+- ✅ 服务层完整：`AgentTeamsService.ts`
+- 🟡 前端页面基础：`TeamsPage.tsx`
+- ❌ 缺少：实时状态更新、Agent 可视化、Activity Log 显示
 
-**后端已实现**:
-```typescript
-// AgentTeamsService.ts 全部完成
-✅ createTeam(input): AgentTeam
-✅ getTeam(id), listTeams(filter): AgentTeam[]
-✅ updateTeam(id, updates): AgentTeam
-✅ startTeam(id), pauseTeam(id), stopTeam(id, reason?)
-✅ updateAgentStatus(teamId, agentId, status, message?)
-✅ getActivityLogs(teamId, limit?): AgentActivityLog[]
-✅ getStats(): TeamStats
-✅ 任务分发策略: parallel | pipeline | expert | voting
-✅ 上下文共享模式: selective | full | none
-```
-
-**前端待实现** (参考第二章详细设计):
-
-1. **ActivityTimeline 组件** (0.5 天)
-   - 显示活动历史
-   - 时间戳 + 消息内容
-   - 可筛选日志级别
-
-2. **AgentStatusBadge 组件** (0.25 天)
-   - 状态指示器: idle/runnig/waiting/completed/failed
-   - 颜色编码
-
-3. **TeamVisualizer 组件** (1 天)
-   - 节点图展示团队结构
-   - 使用 @xyflow/react
-   - 实时状态更新
-
-4. **WebSocket 集成** (0.5 天)
-   - 实时状态推送
-   - teamsStore 状态管理
-
-5. **teamsStore** (0.25 天)
-   - Zustand store
-   - 团队列表、选中团队、活动日志
-
-**总计**: 约 2.5 天完成 P4.5-1
-
-**依赖**: 无阻塞，可立即开始
-
-**详细设计**: 参见第二章 "二、改进计划：P4.5-1 Agent Teams 完善"
+**增强方案**:
 
 1. **实时状态同步**
    - WebSocket 推送 Team 状态变化
@@ -1149,25 +1003,20 @@ ralph/
    - Vibe Kanban 看板功能分析
    - Ralph 独特优势确认
 
-### 本周执行（2026-02-25 更新）
+### 本周执行
 
-**优先级排序**:
-
-1. **🚀 P4.5-1 Agent Teams 前端完善** (P1 - 2.5 天)
-   - Day 1: ActivityTimeline + AgentStatusBadge
-   - Day 2: TeamVisualizer (节点图)
-   - Day 2.5: WebSocket 集成 + teamsStore
-
-2. **P5-1 多项目管理（后端）** (P1 - 2 天)
+1. **启动 P1-1 多项目管理**
    - 数据库迁移（projects 表）
-   - ProjectService, ProjectRepository
-   - projectRouter API
+   - 后端 API (ProjectService, projectRouter)
+   - 前端基础页面 (ProjectsPage, ProjectCard)
+   - 项目切换器组件 (ProjectSwitcher)
 
-3. **P5-1 多项目管理（前端基础）** (P1 - 2 天)
-   - ProjectsPage, ProjectCard
-   - ProjectSwitcher 组件
+2. **完善 P1-2 Agent Teams**
+   - 实时状态同步 (WebSocket + Zustand)
+   - Agent 可视化 (节点图)
+   - Activity 时间线组件
 
-4. **P1-3 Skills 系统设计** (P1 - 1 天)
+3. **设计 P1-3 Skills 系统**
    - 技能文件格式定义
    - 技能加载器架构
    - 技能市场 UI 设计

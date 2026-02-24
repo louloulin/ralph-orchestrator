@@ -15,6 +15,8 @@ import { PlanningService } from "../services/PlanningService";
 import { CollectionService } from "../services/CollectionService";
 import { LoopSupervisor } from "../services/LoopSupervisor";
 import { AgentTeamsService } from "../services/AgentTeamsService";
+import { MetricStore } from "../services/MetricStore";
+import { AlertEngine } from "../services/AlertEngine";
 import * as CheckpointRepo from "../services/CheckpointRepository";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
@@ -35,6 +37,8 @@ export interface Context {
   planningService?: PlanningService;
   loopSupervisor?: LoopSupervisor;
   agentTeamsService?: AgentTeamsService;
+  metricStore?: MetricStore;
+  alertEngine?: AlertEngine;
 }
 
 /**
@@ -52,7 +56,9 @@ export function createContext(
   loopsManager?: LoopsManager,
   planningService?: PlanningService,
   loopSupervisor?: LoopSupervisor,
-  agentTeamsService?: AgentTeamsService
+  agentTeamsService?: AgentTeamsService,
+  metricStore?: MetricStore,
+  alertEngine?: AlertEngine
 ): Context {
   const settingsRepository = new SettingsRepository(db);
   const collectionRepository = new CollectionRepository(db);
@@ -66,6 +72,8 @@ export function createContext(
     planningService,
     loopSupervisor,
     agentTeamsService,
+    metricStore,
+    alertEngine,
   };
 }
 
@@ -1720,6 +1728,145 @@ export const teamsRouter = router({
 });
 
 /**
+ * Monitoring router - metrics and alerts (P4-3.5)
+ */
+export const monitoringRouter = router({
+  /**
+   * Get all registered metrics
+   */
+  getMetrics: publicProcedure.query(({ ctx }) => {
+    if (!ctx.metricStore) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "MetricStore is not configured",
+      });
+    }
+    return ctx.metricStore.getAllMetrics();
+  }),
+
+  /**
+   * Get a metrics snapshot (all metrics at current time)
+   */
+  getSnapshot: publicProcedure.query(({ ctx }) => {
+    if (!ctx.metricStore) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "MetricStore is not configured",
+      });
+    }
+    return ctx.metricStore.getSnapshot();
+  }),
+
+  /**
+   * Get metrics for specific names
+   */
+  getMetricsByNames: publicProcedure
+    .input(z.object({ names: z.array(z.string()) }))
+    .query(({ ctx, input }) => {
+      if (!ctx.metricStore) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "MetricStore is not configured",
+        });
+      }
+      return ctx.metricStore.getSnapshot().metrics.filter(m =>
+        input.names.includes(m.name)
+      );
+    }),
+
+  /**
+   * Get Prometheus-formatted metrics
+   */
+  getPrometheusMetrics: publicProcedure.query(({ ctx }) => {
+    if (!ctx.metricStore) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "MetricStore is not configured",
+      });
+    }
+    return ctx.metricStore.exportPrometheus();
+  }),
+
+  /**
+   * Get all alert rules
+   */
+  getAlertRules: publicProcedure.query(({ ctx }) => {
+    if (!ctx.alertEngine) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "AlertEngine is not configured",
+      });
+    }
+    return ctx.alertEngine.getRules();
+  }),
+
+  /**
+   * Get a specific alert rule
+   */
+  getAlertRule: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ ctx, input }) => {
+      if (!ctx.alertEngine) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AlertEngine is not configured",
+        });
+      }
+      const rule = ctx.alertEngine.getRule(input.id);
+      if (!rule) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Alert rule with id '${input.id}' not found`,
+        });
+      }
+      return rule;
+    }),
+
+  /**
+   * Get all active alerts
+   */
+  getActiveAlerts: publicProcedure.query(({ ctx }) => {
+    if (!ctx.alertEngine) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "AlertEngine is not configured",
+      });
+    }
+    return ctx.alertEngine.getActiveAlerts();
+  }),
+
+  /**
+   * Get alerts for a specific rule
+   */
+  getAlertsByRule: publicProcedure
+    .input(z.object({ ruleId: z.string() }))
+    .query(({ ctx, input }) => {
+      if (!ctx.alertEngine) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AlertEngine is not configured",
+        });
+      }
+      return ctx.alertEngine.getAlertsByRule(input.ruleId);
+    }),
+
+  /**
+   * Get alert history
+   */
+  getAlertHistory: publicProcedure
+    .input(z.object({ limit: z.number().int().min(1).max(500).optional() }))
+    .query(({ ctx, input }) => {
+      if (!ctx.alertEngine) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AlertEngine is not configured",
+        });
+      }
+      return ctx.alertEngine.getAlertHistory(input.limit);
+    }),
+});
+
+/**
  * Main app router combining all sub-routers
  */
 export const appRouter = router({
@@ -1732,6 +1879,7 @@ export const appRouter = router({
   process: processRouter,
   checkpoint: checkpointRouter,
   teams: teamsRouter,
+  monitoring: monitoringRouter,
   planning: router({
     /**
      * List all planning sessions.

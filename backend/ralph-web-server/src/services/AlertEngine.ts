@@ -20,7 +20,7 @@ import type {
   AlertCondition,
   AnyMetric,
   ActiveAlert,
-  MetricLabel,
+  MetricLabel, AlertState,
 } from "../types/metrics.js";
 
 /**
@@ -32,6 +32,12 @@ export interface AlertEngineConfig {
   /** Maximum number of alerts to retain per rule */
   maxAlertsPerRule: number;
 }
+
+/**
+ * Alert notification callback type.
+ * Called when an alert fires or resolves.
+ */
+export type AlertNotificationCallback = (alert: ActiveAlert) => void | Promise<void>;
 
 /**
  * Default alert engine configuration.
@@ -75,6 +81,7 @@ export class AlertEngine {
   private metricStore: MetricStore;
   private repository: AlertRepository;
   private ruleStates: Map<string, RuleState> = new Map();
+  private notificationCallbacks: AlertNotificationCallback[] = [];
 
   constructor(
     metricStore: MetricStore,
@@ -84,6 +91,41 @@ export class AlertEngine {
     this.config = { ...DEFAULT_ALERT_ENGINE_CONFIG, ...config };
     this.metricStore = metricStore;
     this.repository = repository;
+  }
+
+  /**
+   * Register a notification callback to be called when alerts fire or resolve.
+   */
+  onAlert(callback: AlertNotificationCallback): void {
+    this.notificationCallbacks.push(callback);
+  }
+
+  /**
+   * Unregister a notification callback.
+   */
+  offAlert(callback: AlertNotificationCallback): void {
+    const index = this.notificationCallbacks.indexOf(callback);
+    if (index !== -1) {
+      this.notificationCallbacks.splice(index, 1);
+    }
+  }
+
+  /**
+   * Notify all registered callbacks of an alert event.
+   */
+  private async notifyAlert(alert: ActiveAlert): Promise<void> {
+    for (const callback of this.notificationCallbacks) {
+      try {
+        const result = callback(alert);
+        if (result instanceof Promise) {
+          await result;
+        }
+      } catch (error) {
+        if (this.config.verbose) {
+          console.error("[AlertEngine] Notification callback error:", error);
+        }
+      }
+    }
   }
 
   /**
@@ -97,7 +139,24 @@ export class AlertEngine {
 
     for (const rule of rules) {
       const result = this.evaluateRule(rule);
-      stateChanges += this.processEvaluationResult(result);
+      stateChanges += this.processEvaluationResultSync(result);
+    }
+
+    return stateChanges;
+  }
+
+  /**
+   * Evaluate all enabled rules and notify callbacks (async).
+   *
+   * Returns the number of alerts that changed state.
+   */
+  async evaluateAllAsync(): Promise<number> {
+    const rules = this.repository.getEnabledRules();
+    let stateChanges = 0;
+
+    for (const rule of rules) {
+      const result = this.evaluateRule(rule);
+      stateChanges += await this.processEvaluationResult(result);
     }
 
     return stateChanges;
@@ -138,11 +197,81 @@ export class AlertEngine {
   }
 
   /**
-   * Process evaluation result and update alert state.
+   * Process evaluation result and update alert state (async with notifications).
    *
    * Returns 1 if alert state changed, 0 otherwise.
    */
-  private processEvaluationResult(result: EvaluationResult): number {
+  private async processEvaluationResult(result: EvaluationResult): Promise<number> {
+    const { ruleId, ruleName, thresholdMet, durationMet, currentValue } = result;
+
+    // Get existing alert for this rule
+    const existingAlerts = this.repository.getAlertsByRule(ruleId);
+    const activeAlert = existingAlerts.find((a) => a.state === "firing");
+
+    if (durationMet) {
+      // Condition met for required duration → fire alert
+      if (!activeAlert) {
+        // No active alert → create new one
+        const rule = this.repository.getRule(ruleId);
+        if (rule) {
+          const newAlert = this.repository.createAlert({
+            ruleId,
+            ruleName,
+            state: "firing",
+            severity: rule.severity,
+            message: rule.message,
+            labels: rule.labels,
+            value: currentValue,
+          });
+
+          if (this.config.verbose) {
+            console.log(`[AlertEngine] Alert fired: ${ruleName} (value: ${currentValue})`);
+          }
+
+          // Notify callbacks
+          await this.notifyAlert(newAlert);
+
+          return 1;
+        }
+      } else {
+        // Alert already firing → update lastFiredAt
+        this.repository.updateAlert(activeAlert.id, {
+          lastFiredAt: new Date(),
+          value: currentValue,
+        });
+      }
+    } else {
+      // Condition not met → resolve any firing alert
+      if (activeAlert) {
+        const resolved = this.repository.resolveAlert(activeAlert.id);
+        if (resolved) {
+          // Get the updated alert with resolved state
+          const resolvedAlert = this.repository.getAlert(activeAlert.id);
+
+          if (this.config.verbose) {
+            console.log(`[AlertEngine] Alert resolved: ${ruleName}`);
+          }
+
+          // Notify callbacks
+          if (resolvedAlert) {
+            await this.notifyAlert(resolvedAlert);
+          }
+
+          return 1;
+        }
+      }
+    }
+
+    return 0;
+  }
+
+  /**
+   * Process evaluation result and update alert state (sync, no notifications).
+   * For backwards compatibility.
+   *
+   * Returns 1 if alert state changed, 0 otherwise.
+   */
+  private processEvaluationResultSync(result: EvaluationResult): number {
     const { ruleId, ruleName, thresholdMet, durationMet, currentValue } = result;
 
     // Get existing alert for this rule
@@ -327,8 +456,8 @@ export class AlertEngine {
   /**
    * Get all active alerts.
    */
-  getAlerts(filter?: { state?: string; severity?: string; ruleId?: string }): ActiveAlert[] {
-    return this.repository.getActiveAlerts(filter);
+  getAlerts(filter?: { state?: AlertState; severity?: string; ruleId?: string }): ActiveAlert[] {
+    return this.repository.getActiveAlerts(filter as any);
   }
 
   /**

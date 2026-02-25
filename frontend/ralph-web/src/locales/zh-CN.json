@@ -36,6 +36,7 @@
     "kanban": "看板",
     "teams": "团队",
     "monitoring": "监控",
+    "checkpoints": "检查点",
     "builder": "构建器",
     "settings": "设置",
     "collapse": "收起",
@@ -299,5 +300,31 @@
     },
     "activityLog": "活动日志",
     "noActivity": "暂无活动日志"
+  },
+  "checkpoints": {
+    "title": "检查点",
+    "description": "浏览和管理循环检查点，实现状态持久化和崩溃恢复",
+    "empty": {
+      "title": "暂无检查点",
+      "description": "未找到此循环的检查点。检查点会自动按间隔创建，也可以手动创建。"
+    },
+    "selectLoop": {
+      "title": "选择循环",
+      "description": "从筛选器中选择一个循环以查看其检查点"
+    },
+    "restore": "恢复",
+    "delete": "删除",
+    "restoreSuccess": "已成功从检查点 {{id}} 恢复",
+    "restoreError": "恢复检查点失败: {{error}}",
+    "deleteError": "删除检查点失败: {{error}}",
+    "confirmDelete": "确定要删除检查点 {{id}} 吗？",
+    "filterByLoop": "按循环筛选",
+    "allLoops": "所有循环",
+    "stats": {
+      "total": "检查点总数",
+      "totalSize": "总大小",
+      "loops": "循环数",
+      "latest": "最新"
+    }
   }
 }

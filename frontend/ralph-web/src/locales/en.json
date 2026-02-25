@@ -36,6 +36,7 @@
     "kanban": "Kanban",
     "teams": "Teams",
     "monitoring": "Monitoring",
+    "checkpoints": "Checkpoints",
     "builder": "Builder",
     "settings": "Settings",
     "collapse": "Collapse",
@@ -299,5 +300,31 @@
     },
     "activityLog": "Activity Log",
     "noActivity": "No activity logs yet"
+  },
+  "checkpoints": {
+    "title": "Checkpoints",
+    "description": "Browse and manage loop checkpoints for state persistence and crash recovery",
+    "empty": {
+      "title": "No Checkpoints",
+      "description": "No checkpoints found for this loop. Checkpoints are created automatically at intervals or can be created manually."
+    },
+    "selectLoop": {
+      "title": "Select a Loop",
+      "description": "Choose a loop from the filter to view its checkpoints"
+    },
+    "restore": "Restore",
+    "delete": "Delete",
+    "restoreSuccess": "Successfully restored from checkpoint {{id}}",
+    "restoreError": "Failed to restore checkpoint: {{error}}",
+    "deleteError": "Failed to delete checkpoint: {{error}}",
+    "confirmDelete": "Are you sure you want to delete checkpoint {{id}}?",
+    "filterByLoop": "Filter by loop",
+    "allLoops": "All Loops",
+    "stats": {
+      "total": "Total Checkpoints",
+      "totalSize": "Total Size",
+      "loops": "Loops",
+      "latest": "Latest"
+    }
   }
 }

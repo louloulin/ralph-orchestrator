@@ -40,6 +40,8 @@ mod memory_store;
 pub mod merge_queue;
 pub mod planning_session;
 pub mod preflight;
+mod recovery;
+mod state_serializer;
 #[cfg(feature = "recording")]
 mod session_player;
 #[cfg(feature = "recording")]
@@ -121,6 +123,16 @@ pub use checkpoint::{
     LoopCheckpoint, RestoreResult, SerializableLoopState,
 };
 pub use checkpoint_manager::{CheckpointError, CheckpointManager, CheckpointResult};
+// Recovery and serialization exports
+pub use recovery::{
+    create_recovery_manager, DefaultRecoveryManager, RecoveryError, RecoveryEvent,
+    RecoveryEventType, RecoveryManager, RecoveryOptions, RecoveredLoop,
+    RecoveryStatus, restore_result_to_recovered,
+};
+pub use state_serializer::{
+    create_serializer, DefaultStateSerializer, SerializationError, SerializationOptions,
+    SerializationResult, StateSerializer,
+};
 pub use text::{floor_char_boundary, truncate_by_bytes, truncate_with_ellipsis};
 pub use workspace::{
     CleanupPolicy, TaskWorkspace, VerificationResult, WorkspaceError, WorkspaceInfo,

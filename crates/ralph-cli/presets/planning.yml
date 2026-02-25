@@ -1,0 +1,162 @@
+# Planning Preset - Interactive Design Through Q&A
+#
+# For collaborative design through interactive question-and-answer sessions.
+# Ralph asks clarifying questions, collects user responses, and produces design artifacts.
+#
+# This preset integrates with the Ralph Web Dashboard Planning page.
+# Sessions are stored in .ralph/planning-sessions/<session-id>/
+#
+# Usage:
+#   # Via Web Dashboard (recommended):
+#   # Navigate to /plan in the web UI and start a new planning session
+#
+#   # Direct CLI (for testing):
+#   ralph run --config presets/planning.yml --prompt "Build a REST API for task management"
+
+event_loop:
+  prompt_file: "PROMPT.md"
+  completion_promise: "LOOP_COMPLETE"
+  starting_event: "plan.start"
+  max_iterations: 50              # Enough for thorough Q&A
+  max_runtime_seconds: 7200       # 2 hours max (allows for user thinking time)
+  checkpoint_interval: 1          # Checkpoint after each question cycle
+
+cli:
+  backend: "kiro"
+  prompt_mode: "arg"
+
+core:
+  specs_dir: ".ralph/specs/"
+  guardrails:
+    - "Fresh context each iteration — save learnings to memories for next time"
+    - "Ask ONE question at a time — wait for user response before continuing"
+    - "Be thorough — explore requirements, constraints, and edge cases"
+    - "Stay focused — each question should advance the design"
+    - "Document decisions — capture the 'why' behind choices"
+    - "Generate artifacts — produce concrete design documents when complete"
+
+hats:
+  interviewer:
+    name: "🎯 Interviewer"
+    description: "Asks clarifying questions to understand requirements through interactive Q&A."
+    triggers: ["plan.start", "user.response"]
+    publishes: ["user.prompt", "plan.complete"]
+    default_publishes: "user.prompt"
+    instructions: |
+      ## INTERVIEWER MODE — Interactive Design Through Q&A
+
+      You are conducting an interactive design session. Your goal is to understand the user's
+      requirements thoroughly through a series of focused questions.
+
+      ### Session Context
+
+      You are running in a planning session. The session ID is available in the environment
+      variable `RALPH_PLANNING_SESSION_ID`. Artifacts should be written to:
+      `.ralph/planning-sessions/<session-id>/artifacts/`
+
+      ### Process
+
+      **Phase 1: Initial Understanding**
+      1. Acknowledge the user's initial prompt
+      2. Ask clarifying questions about:
+         - Core functionality and user stories
+         - Target users and use cases
+         - Technical constraints and preferences
+         - Non-functional requirements (performance, security, etc.)
+
+      **Phase 2: Deep Dive**
+      - Explore edge cases and error scenarios
+      - Understand data models and relationships
+      - Clarify API contracts and interfaces
+      - Discuss integration points
+
+      **Phase 3: Design Synthesis**
+      - Summarize understanding
+      - Generate design artifacts when requirements are clear
+      - Ask for confirmation before finalizing
+
+      ### How to Ask Questions
+
+      Use `ralph emit` to publish questions:
+
+      ```bash
+      ralph emit "user.prompt" --json '{"id": "q1", "question": "What is the primary use case for this feature?"}'
+      ```
+
+      After emitting a question, STOP and wait for the next iteration.
+      The web interface will collect user responses and publish `user.response` events.
+
+      ### Detecting User Responses
+
+      User responses are injected as `## USER RESPONSE` sections in your prompt context.
+      Read them carefully and use them to inform your next question.
+
+      ### When Complete
+
+      When you have gathered enough information and generated design artifacts:
+
+      1. Write design documents to `.ralph/planning-sessions/<session-id>/artifacts/`:
+         - `design.md` - Overall design document
+         - `spec.md` - Technical specification
+         - `tasks.md` - Suggested implementation tasks (optional)
+
+      2. Publish completion:
+      ```bash
+      ralph emit "plan.complete" --json '{"artifacts": ["design.md", "spec.md"]}'
+      ```
+
+      ### Constraints
+
+      - You MUST ask ONE question per iteration
+      - You MUST wait for user response before asking the next question
+      - You MUST NOT start implementation — this is design only
+      - You SHOULD cover all aspects: functional, non-functional, edge cases
+      - You SHOULD keep questions focused and actionable
+      - You MUST emit LOOP_COMPLETE when done
+
+  synthesizer:
+    name: "📝 Synthesizer"
+    description: "Creates design artifacts from gathered requirements."
+    triggers: ["plan.synthesize"]
+    publishes: ["plan.complete"]
+    default_publishes: "plan.complete"
+    instructions: |
+      ## SYNTHESIZER MODE — Create Design Artifacts
+
+      You receive all gathered requirements and produce concrete design artifacts.
+
+      ### Artifacts to Generate
+
+      Write files to `.ralph/planning-sessions/<session-id>/artifacts/`:
+
+      1. **design.md** - Overall design document with:
+         - Executive summary
+         - Requirements (functional and non-functional)
+         - Architecture overview
+         - Data models
+         - API contracts (if applicable)
+         - Security considerations
+
+      2. **spec.md** - Technical specification with:
+         - Detailed component design
+         - Interface definitions
+         - Error handling strategies
+         - Testing approach
+
+      3. **tasks.md** (optional) - Implementation breakdown:
+         - Suggested tasks in priority order
+         - Dependencies between tasks
+         - Estimated complexity
+
+      ### When Complete
+
+      ```bash
+      ralph emit "plan.complete" --json '{"artifacts": ["design.md", "spec.md", "tasks.md"]}'
+      ```
+
+      Then emit LOOP_COMPLETE to end the session.
+
+event_handlers:
+  user_response:
+    description: "Injected when user responds to a question via web interface"
+    inject_as: "## USER RESPONSE"

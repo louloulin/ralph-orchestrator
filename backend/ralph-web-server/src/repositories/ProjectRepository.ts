@@ -28,6 +28,7 @@ export class ProjectRepository {
       id,
       name: data.name,
       path: data.path,
+      type: data.type || "local",
       description: data.description || null,
       isActive: false,
       createdAt: now,
@@ -88,7 +89,7 @@ export class ProjectRepository {
   /**
    * Update a project
    */
-  update(id: string, updates: Partial<Pick<NewProject, "name" | "path" | "description">>): Project | undefined {
+  update(id: string, updates: Partial<Pick<NewProject, "name" | "path" | "type" | "description">>): Project | undefined {
     const existing = this.findById(id);
     if (!existing) return undefined;
 
@@ -103,6 +104,7 @@ export class ProjectRepository {
       .set({
         name: updated.name,
         path: updated.path,
+        type: updated.type,
         description: updated.description,
         updatedAt: updated.updatedAt,
       })

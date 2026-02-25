@@ -56,10 +56,10 @@ const COLUMNS: KanbanColumnConfig[] = [
     color: "bg-blue-500/20",
   },
   {
-    id: "in-review",
-    title: "In Review",
+    id: "blocked",
+    title: "Blocked",
     statuses: ["blocked"],
-    color: "bg-yellow-500/20",
+    color: "bg-orange-500/20",
   },
   {
     id: "done",
@@ -133,7 +133,7 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
     const grouped: Record<string, Task[]> = {
       todo: [],
       "in-progress": [],
-      "in-review": [],
+      blocked: [],
       done: [],
     };
 

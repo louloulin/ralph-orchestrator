@@ -6,10 +6,10 @@
  */
 
 import { useState } from "react";
-import { Folder, Plus, Trash2, Edit2, Check, X, AlertCircle } from "lucide-react";
+import { Folder, Plus, Trash2, Edit2, Check, X, AlertCircle, GitBranch } from "lucide-react";
 import { trpc } from "../trpc";
 import { useProjectStore } from "../stores/projectStore";
-import type { Project } from "../types/project";
+import type { Project, ProjectType } from "../types/project";
 
 export function ProjectsPage() {
   const [isCreating, setIsCreating] = useState(false);
@@ -18,11 +18,13 @@ export function ProjectsPage() {
     name: "",
     path: "",
     description: "",
+    type: "local" as ProjectType,
   });
   const [editProject, setEditProject] = useState({
     name: "",
     path: "",
     description: "",
+    type: "local" as ProjectType,
   });
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -35,7 +37,7 @@ export function ProjectsPage() {
   const createMutation = trpc.project.create.useMutation({
     onSuccess: (project) => {
       setIsCreating(false);
-      setNewProject({ name: "", path: "", description: "" });
+      setNewProject({ name: "", path: "", description: "", type: "local" });
       setFormError(null);
       refetch();
       // Auto-activate new project
@@ -50,7 +52,7 @@ export function ProjectsPage() {
   const updateMutation = trpc.project.update.useMutation({
     onSuccess: () => {
       setEditingId(null);
-      setEditProject({ name: "", path: "", description: "" });
+      setEditProject({ name: "", path: "", description: "", type: "local" });
       refetch();
     },
     onError: (error) => {
@@ -91,6 +93,7 @@ export function ProjectsPage() {
       name: newProject.name,
       path: newProject.path,
       description: newProject.description || undefined,
+      type: newProject.type,
     });
   };
 
@@ -100,6 +103,7 @@ export function ProjectsPage() {
       name: editProject.name || undefined,
       path: editProject.path || undefined,
       description: editProject.description !== "" ? editProject.description : undefined,
+      type: editProject.type,
     });
   };
 
@@ -119,6 +123,7 @@ export function ProjectsPage() {
       name: project.name,
       path: project.path,
       description: project.description || "",
+      type: project.type || "local",
     });
   };
 
@@ -175,6 +180,44 @@ export function ProjectsPage() {
               />
             </div>
             <div>
+              <label className="block text-sm text-slate-400 mb-1">Project Type</label>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="projectType"
+                    value="local"
+                    checked={newProject.type === "local"}
+                    onChange={() => setNewProject({ ...newProject, type: "local" })}
+                    className="w-4 h-4 text-blue-600 bg-slate-900 border-slate-600 focus:ring-blue-500"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    <Folder className="w-4 h-4 text-slate-400" />
+                    Local
+                  </span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="projectType"
+                    value="worktree"
+                    checked={newProject.type === "worktree"}
+                    onChange={() => setNewProject({ ...newProject, type: "worktree" })}
+                    className="w-4 h-4 text-blue-600 bg-slate-900 border-slate-600 focus:ring-blue-500"
+                  />
+                  <span className="flex items-center gap-1.5">
+                    <GitBranch className="w-4 h-4 text-purple-400" />
+                    Worktree
+                  </span>
+                </label>
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                {newProject.type === "worktree"
+                  ? "Uses Git worktree for isolated development"
+                  : "Standard local project"}
+              </p>
+            </div>
+            <div>
               <label className="block text-sm text-slate-400 mb-1">
                 Description (optional)
               </label>
@@ -192,7 +235,7 @@ export function ProjectsPage() {
               <button
                 onClick={() => {
                   setIsCreating(false);
-                  setNewProject({ name: "", path: "", description: "" });
+                  setNewProject({ name: "", path: "", description: "", type: "local" });
                   setFormError(null);
                 }}
                 className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-white transition-colors"
@@ -255,6 +298,39 @@ export function ProjectsPage() {
                     </div>
                   </div>
                   <div>
+                    <label className="block text-sm text-slate-400 mb-2">Project Type</label>
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`projectType-${project.id}`}
+                          value="local"
+                          checked={editProject.type === "local"}
+                          onChange={() => setEditProject({ ...editProject, type: "local" })}
+                          className="w-4 h-4 text-blue-600 bg-slate-900 border-slate-600 focus:ring-blue-500"
+                        />
+                        <span className="flex items-center gap-1.5">
+                          <Folder className="w-4 h-4 text-slate-400" />
+                          Local
+                        </span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={`projectType-${project.id}`}
+                          value="worktree"
+                          checked={editProject.type === "worktree"}
+                          onChange={() => setEditProject({ ...editProject, type: "worktree" })}
+                          className="w-4 h-4 text-blue-600 bg-slate-900 border-slate-600 focus:ring-blue-500"
+                        />
+                        <span className="flex items-center gap-1.5">
+                          <GitBranch className="w-4 h-4 text-purple-400" />
+                          Worktree
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                  <div>
                     <label className="block text-sm text-slate-400 mb-1">Description</label>
                     <textarea
                       value={editProject.description}
@@ -269,7 +345,7 @@ export function ProjectsPage() {
                     <button
                       onClick={() => {
                         setEditingId(null);
-                        setEditProject({ name: "", path: "", description: "" });
+                        setEditProject({ name: "", path: "", description: "", type: "local" });
                       }}
                       className="flex items-center gap-2 px-3 py-1.5 text-slate-400 hover:text-white transition-colors"
                     >
@@ -299,6 +375,12 @@ export function ProjectsPage() {
                         {project.isActive && (
                           <span className="px-2 py-0.5 text-xs bg-green-900/50 text-green-400 rounded-full">
                             Active
+                          </span>
+                        )}
+                        {project.type === "worktree" && (
+                          <span className="px-2 py-0.5 text-xs bg-purple-900/50 text-purple-400 rounded-full flex items-center gap-1">
+                            <GitBranch className="w-3 h-3" />
+                            Worktree
                           </span>
                         )}
                       </div>

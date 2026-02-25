@@ -43,6 +43,7 @@ export class ProjectService {
     return this.repository.create({
       name: input.name,
       path: input.path,
+      type: input.type || "local",
       description: input.description || null,
     });
   }

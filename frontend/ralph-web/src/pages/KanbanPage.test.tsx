@@ -83,7 +83,7 @@ describe("KanbanPage", () => {
     renderWithRouter();
     expect(screen.getByText("To Do")).toBeInTheDocument();
     expect(screen.getByText("In Progress")).toBeInTheDocument();
-    expect(screen.getByText("In Review")).toBeInTheDocument();
+    expect(screen.getByText("Blocked")).toBeInTheDocument();
     expect(screen.getByText("Done")).toBeInTheDocument();
   });
 

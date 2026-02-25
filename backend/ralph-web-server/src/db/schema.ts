@@ -146,6 +146,7 @@ export type NewCollection = typeof collections.$inferInsert;
  * - id is a unique identifier (UUID)
  * - name is the display name shown in the UI
  * - path is the absolute filesystem path to the project directory
+ * - type区分项目模式: local(本地模式) 或 worktree(Git Worktree隔离)
  * - description provides context about the project
  * - isActive marks the currently selected project
  * - timestamps for audit trail
@@ -154,6 +155,7 @@ export const projects = sqliteTable("projects", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
   path: text("path").notNull(),
+  type: text("type", { enum: ["local", "worktree"] }).notNull().default("local"),
   description: text("description"),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),

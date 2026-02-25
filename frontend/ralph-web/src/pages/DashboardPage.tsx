@@ -176,7 +176,7 @@ export function DashboardPage() {
         ) : (
           <SystemStatus
             health={systemHealth}
-            wsConnected={true}
+            wsConnected={undefined}
             activeLoops={loopStats.running}
             managerRunning={managerStatus?.running}
           />

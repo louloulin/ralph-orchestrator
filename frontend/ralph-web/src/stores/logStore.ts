@@ -15,6 +15,9 @@ import type { LogEntry } from "@/hooks/useTaskWebSocket";
 /** Stable empty array to avoid creating new references in selectors */
 const EMPTY_LOGS: LogEntry[] = [];
 
+/** Maximum number of log entries per task to prevent memory leaks */
+const MAX_LOGS = 5000;
+
 interface LogStore {
   /**
    * Map of taskId → LogEntry[]
@@ -96,10 +99,15 @@ export const useLogStore = create<LogStore>()((set, get) => ({
       const nextLastId = entry.id !== undefined ? entry.id : lastId;
       const nextLastCursor = entry.cursor ?? meta.lastCursor;
 
+      // Trim to MAX_LOGS to prevent memory leaks
+      const trimmedLogs = newLogs.length > MAX_LOGS
+        ? newLogs.slice(-MAX_LOGS)
+        : newLogs;
+
       return {
         taskLogs: {
           ...state.taskLogs,
-          [taskId]: newLogs,
+          [taskId]: trimmedLogs,
         },
         taskLogMeta: {
           ...state.taskLogMeta,
@@ -138,10 +146,15 @@ export const useLogStore = create<LogStore>()((set, get) => ({
 
       const newLogs = [...existing, ...toAppend];
 
+      // Trim to MAX_LOGS to prevent memory leaks
+      const trimmedLogs = newLogs.length > MAX_LOGS
+        ? newLogs.slice(-MAX_LOGS)
+        : newLogs;
+
       return {
         taskLogs: {
           ...state.taskLogs,
-          [taskId]: newLogs,
+          [taskId]: trimmedLogs,
         },
         taskLogMeta: {
           ...state.taskLogMeta,

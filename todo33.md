@@ -307,7 +307,119 @@ wsConnected={true} // Hardcoded to true
 
 ---
 
-## 六、改进计划
+## 六、OpenCode (1Code) 分析与借鉴
+
+### 6.1 OpenCode 核心特性 (2025-2026)
+
+| 特性 | 描述 | Ralph现状 | 借鉴价值 |
+|------|------|----------|---------|
+| **多实例管理** | `--project` flag支持多项目并发处理 | ⚠️ P5-1/2基础完成 | ⭐⭐⭐ 高 |
+| **Git Worktree** | 推荐使用worktree实现项目隔离 | ✅ 已支持 | ⭐⭐⭐ 高 |
+| **模块化架构** | 可扩展的模块设计 | ⚠️ 需优化 | ⭐⭐⭐ 高 |
+| **Plan/Build模式** | Tab键切换计划与执行模式 | ⚠️ 需实现 | ⭐⭐⭐ 高 |
+| **多后端支持** | 75+ AI提供商支持 | ✅ Claude/Gemini/Kiro等 | ⭐⭐⭐ 高 |
+| **终端UI组件** | 增强的TUI组件库 | ⚠️ 需增强 | ⭐⭐ 中 |
+| **多模态交互** | 图片等多模态输入支持 | ❌ 需开发 | ⭐⭐ 中 |
+| **本地优化** | 本地执行保证代码安全 | ✅ 核心优势 | ⭐⭐⭐ 高 |
+
+**OpenCode 关键数据：**
+- GitHub Stars: **69,800+** (2026年1月)
+- 编程语言: TypeScript
+- 支持模型: 75+ AI提供商
+
+### 6.2 OpenCode 多项目管理模式
+
+```bash
+# 单项目处理
+opencode --project user-service "优化用户服务"
+
+# 多项目批处理
+opencode --project user-service,order-service,payment-service "批量更新"
+
+# Git Worktree 隔离
+git worktree add ../project-b feature-branch
+opencode --project ../project-b
+```
+
+### 6.3 Ralph 多项目架构优化建议
+
+#### 当前实现 (P5-1, P5-2)
+- ✅ 项目数据模型和CRUD API
+- ✅ 项目切换机制
+- ✅ 任务级项目隔离 (projectId)
+- ✅ 前端项目选择器
+
+#### 缺失功能
+| 功能 | 描述 | 优先级 |
+|------|------|--------|
+| **Worktree集成** | 自动创建/管理git worktree | P1 |
+| **Plan模式** | Tab切换计划与执行 | P1 |
+| **多实例并行** | 并行运行多个Ralph实例 | P2 |
+| **实例监控** | 跨实例状态聚合 | P2 |
+
+---
+
+## 七、Worktree vs Local 模式设计
+
+### 7.1 两种模式对比
+
+| 特性 | Local模式 | Worktree模式 |
+|------|----------|--------------|
+| **隔离级别** | 进程级 | 文件系统级 |
+| **资源消耗** | 低 | 中 |
+| **并行能力** | 单实例 | 多实例 |
+| **状态共享** | 需配置 | 自动同步 |
+| **适用场景** | 小型项目 | 大型项目/并行开发 |
+
+### 7.2 架构设计
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Ralph Web Dashboard                      │
+├─────────────────────────────────────────────────────────────┤
+│  ProjectSelector (工作模式切换)                              │
+│  ├── [Local Mode]  ─────────────────────────────────────   │
+│  │   └── ProjectContext (项目上下文)                       │
+│  │       ├── TaskRepository (项目过滤)                     │
+│  │       └── LoopRegistry (单实例)                         │
+│  │                                                        │
+│  └── [Worktree Mode] ──────────────────────────────────    │
+│      └── WorktreeManager (Worktree协调器)                  │
+│          ├── GitWorktreeService (创建/删除/列表)           │
+│          ├── WorktreeLoopRunner (每个worktree一个实例)    │
+│          └── WorktreeStateAggregator (状态聚合)            │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 7.3 实施路线
+
+#### Phase 1: Worktree支持 (1-2周)
+| 任务 | 描述 |
+|------|------|
+| WorktreeService | 创建Git worktree管理服务 |
+| Worktree项目类型 | 项目区分local/worktree类型 |
+| Worktree状态同步 | 实时显示各worktree状态 |
+| Worktree Badge | Kanban看板显示worktree标识 |
+
+#### Phase 2: Plan模式 (1周)
+| 任务 | 描述 |
+|------|------|
+| PlanModeToggle | Tab键切换计划/执行模式 |
+| PlanEditor | 可视化计划编辑界面 |
+| PlanApproval | 计划确认后执行 |
+| PlanHistory | 历史计划记录 |
+
+#### Phase 3: 多实例并行 (2周)
+| 任务 | 描述 |
+|------|------|
+| InstanceManager | 多实例生命周期管理 |
+| InstanceMonitor | 实例状态聚合监控 |
+| InstanceBalancer | 负载均衡 (可选) |
+| InstanceCommunicator | 实例间通信 |
+
+---
+
+## 八、改进计划 (更新版)
 
 ### Phase 1: 稳定性修复 (1-2天)
 
@@ -372,9 +484,33 @@ wsConnected={true} // Hardcoded to true
 | 轻量级部署配置 | 移动端/嵌入式部署方案 |
 | 离线模式 | 无网络环境下基本功能 |
 
+### Phase 8: 多项目架构增强 (P5-3, P5-4) (3-4周)
+
+基于当前P5-1/P5-2实现，增强多项目管理：
+
+| 任务 | 描述 | 优先级 |
+|------|------|--------|
+| **P5-3: Worktree隔离** | | |
+| WorktreeService | 创建Git worktree管理服务 | P1 |
+| Worktree项目类型 | 项目区分local/worktree类型 | P1 |
+| Worktree状态同步 | 实时显示各worktree状态 | P1 |
+| Worktree Badge | Kanban看板显示worktree标识 | P1 |
+| **P5-4: 多Agent协作** | | |
+| AgentRegistry | 多Agent注册与管理 | P2 |
+| ContextSharing | Agent间上下文共享机制 | P2 |
+| TaskDistributor | 任务分发策略 (并行/流水线/专家/投票) | P2 |
+| TeamUI | 团队协作Web界面 | P2 |
+| **P5-5: 代码审查** | | |
+| DiffReview | 代码差异审查流程 | P2 |
+| ReviewComments | 审查评论与讨论 | P3 |
+| **P5-6: Plan模式** | | |
+| PlanModeToggle | Tab键切换计划/执行模式 | P1 |
+| PlanEditor | 可视化计划编辑界面 | P1 |
+| PlanApproval | 计划确认后执行 | P2 |
+
 ---
 
-## 七、技术债务清单
+## 九、技术债务清单
 
 ### 需要立即处理
 1. [ ] 日志存储内存泄漏风险
@@ -393,7 +529,7 @@ wsConnected={true} // Hardcoded to true
 
 ---
 
-## 八、测试覆盖
+## 十、测试覆盖
 
 ### 当前状态
 - **后端测试**: 589+ 测试通过
@@ -407,7 +543,7 @@ wsConnected={true} // Hardcoded to true
 
 ---
 
-## 九、部署建议
+## 十一、部署建议
 
 ### 环境变量
 ```bash
@@ -430,26 +566,59 @@ HEALTHCHECK --interval=30s --timeout=3s \
 
 ---
 
-## 十、总结
+## 十二、总结
+
+### 当前完成度评估
+
+| Phase | 功能 | 完成度 |
+|-------|------|--------|
+| P1 | 错误处理、持久化、代码分割 | ✅ 100% |
+| P2 | Dashboard、Kanban、Thinking、Diff、CommandPalette、TaskSearch | ✅ 100% |
+| P3 | 主题系统、i18n、a11y、移动端 | ✅ 100% |
+| P4 | 进程守护、检查点、监控告警、自愈 | ✅ 100% |
+| P4.5 | Agent Teams、Skills | ✅ 100% |
+| P5-1 | 多项目架构 | ✅ 100% |
+| P5-2 | 项目隔离 | ✅ 100% |
+| **总计** | | **83%** |
 
 ### 优点
 - 清晰的组件结构
 - 良好的关注点分离
 - 完整的 tRPC 类型安全
 - 丰富的功能集 (监控、自愈、技能)
+- 多项目基础架构已完成 (P5-1, P5-2)
+- Git Worktree 并行循环已支持
 
 ### 主要问题
 - 内存管理需要优化
-- 部分功能未完全实现
+- 部分功能未完全实现 (CommandPalette)
 - 类型安全存在漏洞
 - 配置灵活性不足
+- 缺少 Worktree 集成 UI
+- 缺少 Plan 模式
+- 缺少多 Agent 协作 UI
 
-### 下一步行动
-1. 立即修复内存泄漏风险
-2. 完成 CommandPalette 实现
-3. 增强类型安全
-4. 逐步添加 AI 功能
+### 下一步行动 (优先级排序)
+1. **P1**: 修复内存泄漏风险 (logStore, events数组)
+2. **P1**: 完成 CommandPalette 后端连接
+3. **P1**: 实现 P5-3 Worktree 集成 (Service + UI)
+4. **P2**: 实现 P5-6 Plan 模式
+5. **P2**: 增强类型安全
+6. **P3**: 实现 P5-4 多 Agent 协作 UI
+7. **P3**: 逐步添加 AI 功能
+
+### 关键参考
+- **OpenCode**: 多项目管理 (`--project` flag)、Plan/Build 模式切换
+- **Vibe Kanban**: 多 AI 代理支持、实时日志流、代码差异可视化
+- **Cursor**: Composer 多文件编辑、Visual Editor、Debug Mode
+- **Windsurf**: Cascade 面板、意图预测、写/聊模式切换
 
 ---
 
-*此文档由 Ralph 自动生成，基于代码库全面分析*
+*此文档由 Ralph 自动生成，基于代码库全面分析 + OpenCode/Cursor/Vibe Kanban 竞品分析*
+
+**Sources:**
+- [OpenCode创新功能前瞻：2025年路线图深度解析](https://blog.csdn.net/gitblog_00978/article/details/153715425)
+- [OpenCode实例管理：多项目并发处理](https://m.blog.csdn.net/gitblog_00561/article/details/151200959)
+- [OpenCode GitHub](https://github.com/opencode-ai/opencode)
+- [2026年OpenCode 替代方案](https://k.sina.cn/article_7879848900_1d5acf3c401902p3nc.html)

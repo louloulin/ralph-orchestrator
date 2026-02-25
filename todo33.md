@@ -359,6 +359,55 @@ opencode --project ../project-b
 
 ---
 
+## 六、Vibe Kanban 核心功能与UI分析 (2025-2026)
+
+### 6.1 Vibe Kanban 概述
+- **GitHub Stars**: 18,000+ ⭐
+- **技术栈**: Rust高性能调度引擎 + MCP集成
+- **核心理念**: "AI编排时代" - 多智能体并行协作
+
+### 6.2 核心UI特性
+
+| 特性 | 描述 | Ralph现状 | 借鉴价值 |
+|------|------|----------|---------|
+| **可视化看板** | 拖放任务管理、实时状态跟踪 | ✅ 已实现 | 需优化 |
+| **多Agent支持** | Claude Code, Codex, Gemini CLI, Cursor等 | ⚠️ 需扩展 | ⭐⭐⭐ 高 |
+| **Git Worktree隔离** | 每个任务运行在独立worktree | ⚠️ 需增强UI | ⭐⭐⭐ 高 |
+| **代码审查UI** | 可视化diff比较、人工审批流程 | ⚠️ 需完善 | ⭐⭐⭐ 高 |
+| **并行执行** | 多Agent同时运行 | ✅ 已支持 | 需增强UI |
+| **实时日志流** | WebSocket实时通信 | ✅ 已实现 | 需优化 |
+
+### 6.3 Vibe Kanban UI设计模式
+
+**核心价值主张：**
+| 问题 | Vibe Kanban 解决方案 |
+|------|---------------------|
+| AI随意修改代码 | 隔离Git分支每个任务 |
+| 变更不清晰 | 可视化代码diff对比 |
+| 多任务混乱 | 看板管理 |
+| 失控风险 | 人工审批后再合并 |
+
+**可借鉴UI元素：**
+- ✅ 响应式拖拽看板界面设计
+- ✅ Worktree状态可视化Badge
+- ✅ 实时代码差异显示
+- ✅ "在编辑器中打开"快捷按钮
+- ✅ 任务依赖关系可视化
+- ✅ Agent状态指示器
+
+### 6.4 Ralph与Vibe Kanban差距分析
+
+| 功能 | Vibe Kanban | Ralph Web | 改进优先级 |
+|------|-------------|-----------|-----------|
+| 多AI后端支持 | 6+ | 4+ | P2 |
+| Worktree隔离UI | 完整 | 基础Badge | **P1** |
+| 代码审查流程 | 完整diff+审批 | 仅diff | P2 |
+| 任务依赖可视化 | 有 | 无 | P2 |
+| Agent状态面板 | 详细 | 基础 | P1 |
+| 人工审批流程 | 有 | 无 | P2 |
+
+---
+
 ## 七、Worktree vs Local 模式设计
 
 ### 7.1 两种模式对比
@@ -430,7 +479,18 @@ opencode --project ../project-b
 | WebSocket状态 | DashboardPage.tsx | 使用真实连接状态 |
 | 环境变量配置 | trpc.ts, useTaskWebSocket.ts | 支持 RALPH_BACKEND_URL |
 
-### Phase 2: 类型安全 (2-3天)
+### Phase 2: Worktree UI 增强 (P5-3) (3-5天)
+
+基于Vibe Kanban分析，增强Worktree可视化：
+
+| 任务 | 文件 | 描述 | 借鉴 |
+|------|------|------|------|
+| Worktree状态面板 | KanbanColumn.tsx | 实时显示各worktree状态 | Vibe Kanban |
+| Worktree Badge增强 | WorktreeBadge.tsx | 显示branch/commit/状态 | Vibe Kanban |
+| Worktree创建UI | ProjectsPage.tsx | 一键创建worktree | OpenCode |
+| Worktree监控 | MonitoringPage.tsx | 资源使用/健康状态 | Vibe Kanban |
+
+### Phase 3: 类型安全 (2-3天)
 
 | 任务 | 文件 | 描述 |
 |------|------|------|
@@ -438,7 +498,7 @@ opencode --project ../project-b
 | React Flow 类型 | CollectionBuilder.tsx | 消除 any 类型 |
 | 前后端类型同步 | types/ | 共享类型定义 |
 
-### Phase 3: 功能完善 (3-5天)
+### Phase 4: 功能完善 (3-5天)
 
 | 任务 | 文件 | 描述 |
 |------|------|------|
@@ -446,16 +506,31 @@ opencode --project ../project-b
 | 看板状态映射 | KanbanBoard.tsx | 添加 Blocked 列 |
 | 项目筛选同步 | TasksPage.tsx | 确保所有查询遵循项目 |
 
-### Phase 4: 体验提升 (5-7天)
+### Phase 5: Local/Worktree模式支持 (P5-3) (5-7天)
+
+支持两种项目模式：
+
+| 任务 | 描述 | 模式 |
+|------|------|------|
+| 项目类型字段 | 区分local/worktree类型 | Both |
+| 模式选择UI | 创建项目时选择模式 | UI |
+| WorktreeService | Git worktree管理 | Backend |
+| Local模式优化 | 单进程模式资源管理 | Backend |
+| 模式切换 | 项目可在两种模式间切换 | UI |
+
+### Phase 6: 体验提升 (5-7天)
 
 | 任务 | 文件 | 描述 |
 |------|------|------|
-| 任务悬停预览 | KanbanCard.tsx | 添加预览弹窗 |
+| CommandPalette | CommandPalette.tsx | 连接实际实现 |
+| 看板状态映射 | KanbanBoard.tsx | 添加 Blocked 列 |
+| 项目筛选同步 | TasksPage.tsx | 确保所有查询遵循项目 |
+| 任务悬放预览 | KanbanCard.tsx | 添加预览弹窗 |
 | 右键菜单 | TaskThread.tsx | 添加上下文菜单 |
 | 键盘导航 | KanbanBoard.tsx | 完整键盘支持 |
 | 进度可视化 | TaskThread.tsx | 添加进度条 |
 
-### Phase 5: AI 增强 (7-10天)
+### Phase 7: AI 增强 (7-10天)
 
 | 任务 | 描述 |
 |------|------|
@@ -463,7 +538,7 @@ opencode --project ../project-b
 | 智能分类建议 | AI 驱动的任务分类 |
 | 依赖分析 | 自动检测任务依赖关系 |
 
-### Phase 6: 竞争优势构建 (5-7天)
+### Phase 8: 竞争优势构建 (5-7天)
 
 基于竞品分析，构建差异化竞争优势：
 
@@ -476,7 +551,7 @@ opencode --project ../project-b
 | MCP任务自动创建 | MCP服务器自动创建任务 | Vibe Kanban未来计划 |
 | IDE集成增强 | "在编辑器中打开"功能 | Vibe Kanban |
 
-### Phase 7: 本地部署优化 (3-5天)
+### Phase 9: 本地部署优化 (3-5天)
 
 | 任务 | 描述 |
 |------|------|
@@ -484,7 +559,7 @@ opencode --project ../project-b
 | 轻量级部署配置 | 移动端/嵌入式部署方案 |
 | 离线模式 | 无网络环境下基本功能 |
 
-### Phase 8: 多项目架构增强 (P5-3, P5-4) (3-4周)
+### Phase 10: 多项目架构增强 (P5-3, P5-4) (3-4周)
 
 基于当前P5-1/P5-2实现，增强多项目管理：
 
@@ -588,30 +663,43 @@ HEALTHCHECK --interval=30s --timeout=3s \
 - 丰富的功能集 (监控、自愈、技能)
 - 多项目基础架构已完成 (P5-1, P5-2)
 - Git Worktree 并行循环已支持
+- WebSocket 实时日志流已实现
+- 差异查看器 (DiffViewer) 已完成
 
 ### 主要问题
-- 内存管理需要优化
+- 内存管理需要优化 (日志/事件数组)
 - 部分功能未完全实现 (CommandPalette)
 - 类型安全存在漏洞
 - 配置灵活性不足
-- 缺少 Worktree 集成 UI
-- 缺少 Plan 模式
-- 缺少多 Agent 协作 UI
+- **缺少 Worktree 集成 UI** (对标 Vibe Kanban - 重点)
+- **缺少 Plan 模式** (对标 OpenCode)
+- **缺少多 Agent 协作 UI**
+- **缺少人工审批流程**
+- 看板 UX 待优化 (Blocked列、拖放动画)
 
 ### 下一步行动 (优先级排序)
 1. **P1**: 修复内存泄漏风险 (logStore, events数组)
 2. **P1**: 完成 CommandPalette 后端连接
-3. **P1**: 实现 P5-3 Worktree 集成 (Service + UI)
-4. **P2**: 实现 P5-6 Plan 模式
+3. **P1**: 实现 P5-3 Worktree UI 增强 (对标 Vibe Kanban)
+4. **P2**: 实现 P5-6 Plan 模式 (对标 OpenCode)
 5. **P2**: 增强类型安全
-6. **P3**: 实现 P5-4 多 Agent 协作 UI
-7. **P3**: 逐步添加 AI 功能
+6. **P2**: 添加 Blocked 看板列
+7. **P3**: 实现 P5-4 多 Agent 协作 UI
+8. **P3**: 实现 P5-5 代码审查/审批流程
+9. **P3**: 逐步添加 AI 功能
 
 ### 关键参考
-- **OpenCode**: 多项目管理 (`--project` flag)、Plan/Build 模式切换
-- **Vibe Kanban**: 多 AI 代理支持、实时日志流、代码差异可视化
+- **OpenCode**: 多项目管理、Plan/Build 模式切换、UI/UX Pro Max
+- **Vibe Kanban**: 多 AI 代理支持、实时日志流、代码差异可视化、Git Worktree隔离
 - **Cursor**: Composer 多文件编辑、Visual Editor、Debug Mode
 - **Windsurf**: Cascade 面板、意图预测、写/聊模式切换
+
+### 核心差距分析 (vs Vibe Kanban)
+| 功能 | Ralph现状 | Vibe Kanban | 改进方向 |
+|------|----------|------------|----------|
+| Worktree UI | 基础Badge | 完整状态面板 | **重点** |
+| 代码审查 | 仅Diff | Diff+审批流程 | 需增强 |
+| 多Agent并行 | 后端支持 | 可视化调度 | UI需完善 |
 
 ---
 
@@ -622,3 +710,7 @@ HEALTHCHECK --interval=30s --timeout=3s \
 - [OpenCode实例管理：多项目并发处理](https://m.blog.csdn.net/gitblog_00561/article/details/151200959)
 - [OpenCode GitHub](https://github.com/opencode-ai/opencode)
 - [2026年OpenCode 替代方案](https://k.sina.cn/article_7879848900_1d5acf3c401902p3nc.html)
+- [Vibe Kanban – 开源的AI编程Agent任务管理工具](https://ai-bot.cn/vibe-kanban/)
+- [Vibe Kanban未来路线图：项目发展规划和功能演进计划](https://m.blog.csdn.net/gitblog_00075/article/details/139208240)
+- [Vibe Kanban：AI 编程时代的协作中枢](https://m.toutiao.com/a7599198952356905510/)
+- [AI 编程最大的风险：失控](https://www.appinn.com/vibe-kanban/feed/)

@@ -6,16 +6,26 @@
  *
  * Only shown for worktree (non-primary) loops. The memorable name is
  * extracted from the loop ID format "loop-<adjective>-<noun>-<hash>".
+ *
+ * Enhanced version shows branch name, commit hash, and status (clean/dirty).
  */
 
 import { memo, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { GitBranch } from "lucide-react";
+import { GitBranch, GitCommit, Circle } from "lucide-react";
 
 interface WorktreeBadgeProps {
   /** The loop ID to extract the memorable name from */
   loopId: string;
+  /** Show enhanced view with branch, commit, and status */
+  enhanced?: boolean;
+  /** Branch name (for enhanced view) */
+  branch?: string;
+  /** Commit hash (for enhanced view) */
+  commit?: string;
+  /** Worktree status: clean or dirty */
+  status?: "clean" | "dirty";
   /** Additional CSS classes */
   className?: string;
 }
@@ -35,8 +45,53 @@ function extractMemorableName(loopId: string): string {
   return loopId.slice(0, 12);
 }
 
-function WorktreeBadgeComponent({ loopId, className }: WorktreeBadgeProps) {
+function WorktreeBadgeComponent({
+  loopId,
+  enhanced = false,
+  branch,
+  commit,
+  status,
+  className,
+}: WorktreeBadgeProps) {
   const memorableName = useMemo(() => extractMemorableName(loopId), [loopId]);
+
+  if (enhanced) {
+    return (
+      <Badge
+        variant="outline"
+        className={cn(
+          "gap-1.5 px-2 py-0.5 text-xs font-medium border",
+          "bg-purple-500/10 border-purple-500/20 text-purple-400",
+          className
+        )}
+      >
+        <GitBranch className="h-3 w-3" aria-hidden="true" />
+        <span className="opacity-70">wt:</span>
+        <span>{memorableName}</span>
+        {branch && (
+          <>
+            <span className="text-purple-300/50">|</span>
+            <span className="text-purple-300">{branch}</span>
+          </>
+        )}
+        {commit && (
+          <>
+            <GitCommit className="h-3 w-3 opacity-70" aria-hidden="true" />
+            <span className="font-mono text-purple-300">{commit}</span>
+          </>
+        )}
+        {status && (
+          <Circle
+            className={cn(
+              "h-2 w-2",
+              status === "clean" ? "fill-green-500 text-green-500" : "fill-orange-500 text-orange-500"
+            )}
+            aria-hidden="true"
+          />
+        )}
+      </Badge>
+    );
+  }
 
   return (
     <Badge

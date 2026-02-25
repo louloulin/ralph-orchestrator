@@ -146,7 +146,7 @@
     "boardDescription": "Tasks organized by workflow stage. Drag cards to move between columns.",
     "todo": "To Do",
     "inProgress": "In Progress",
-    "inReview": "In Review",
+    "blocked": "Blocked",
     "done": "Done",
     "cancelled": "Cancelled",
     "noTasks": "No tasks",

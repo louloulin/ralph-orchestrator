@@ -7,12 +7,20 @@
 import { z } from "zod";
 
 /**
+ * Project type enum: local or worktree
+ */
+export const ProjectTypeSchema = z.enum(["local", "worktree"]);
+
+export type ProjectType = z.infer<typeof ProjectTypeSchema>;
+
+/**
  * Project data model
  */
 export const ProjectSchema = z.object({
   id: z.string(),
   name: z.string(),
   path: z.string(),
+  type: ProjectTypeSchema.default("local"),
   description: z.string().nullable(),
   isActive: z.boolean(),
   createdAt: z.date(),
@@ -27,6 +35,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export const CreateProjectInputSchema = z.object({
   name: z.string().min(1, "Project name is required"),
   path: z.string().min(1, "Project path is required"),
+  type: ProjectTypeSchema.default("local"),
   description: z.string().optional(),
 });
 
@@ -39,6 +48,7 @@ export const UpdateProjectInputSchema = z.object({
   id: z.string(),
   name: z.string().min(1).optional(),
   path: z.string().min(1).optional(),
+  type: ProjectTypeSchema.optional(),
   description: z.string().nullable().optional(),
 });
 

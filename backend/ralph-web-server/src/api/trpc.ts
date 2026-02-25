@@ -128,6 +128,7 @@ export const projectRouter = router({
       z.object({
         name: z.string().min(1, "Project name is required"),
         path: z.string().min(1, "Project path is required"),
+        type: z.enum(["local", "worktree"]).default("local"),
         description: z.string().optional(),
       })
     )
@@ -152,6 +153,7 @@ export const projectRouter = router({
         id: z.string(),
         name: z.string().min(1).optional(),
         path: z.string().min(1).optional(),
+        type: z.enum(["local", "worktree"]).optional(),
         description: z.string().nullable().optional(),
       })
     )
@@ -160,6 +162,7 @@ export const projectRouter = router({
       const project = projectService.updateProject(input.id, {
         name: input.name,
         path: input.path,
+        type: input.type,
         description: input.description,
       });
       if (!project) {
@@ -213,6 +216,103 @@ export const projectRouter = router({
     .query(async ({ input }) => {
       const { projectService } = await import("../services/ProjectService");
       return projectService.validatePath(input.path);
+    }),
+});
+
+/**
+ * Worktree router - Git worktree management
+ */
+export const worktreeRouter = router({
+  /**
+   * List all worktrees for a repository
+   */
+  list: publicProcedure
+    .input(z.object({ path: z.string() }))
+    .query(async ({ input }) => {
+      const { worktreeService } = await import("../services/WorktreeService");
+      try {
+        return worktreeService.listWorktrees(input.path);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to list worktrees",
+        });
+      }
+    }),
+
+  /**
+   * Get status of a specific worktree
+   */
+  status: publicProcedure
+    .input(
+      z.object({
+        repoPath: z.string(),
+        worktreePath: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { worktreeService } = await import("../services/WorktreeService");
+      try {
+        return worktreeService.getWorktreeStatus(input.repoPath, input.worktreePath);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to get worktree status",
+        });
+      }
+    }),
+
+  /**
+   * Create a new worktree
+   */
+  create: publicProcedure
+    .input(
+      z.object({
+        repoPath: z.string(),
+        worktreePath: z.string(),
+        branch: z.string(),
+        createBranch: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { worktreeService } = await import("../services/WorktreeService");
+      try {
+        return worktreeService.createWorktree(
+          input.repoPath,
+          input.worktreePath,
+          input.branch,
+          input.createBranch
+        );
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to create worktree",
+        });
+      }
+    }),
+
+  /**
+   * Remove a worktree
+   */
+  remove: publicProcedure
+    .input(
+      z.object({
+        repoPath: z.string(),
+        worktreePath: z.string(),
+        force: z.boolean().default(false),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { worktreeService } = await import("../services/WorktreeService");
+      try {
+        worktreeService.removeWorktree(input.repoPath, input.worktreePath, input.force);
+        return { success: true };
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to remove worktree",
+        });
+      }
     }),
 });
 
@@ -2272,6 +2372,7 @@ export const skillsRouter = router({
  */
 export const appRouter = router({
   project: projectRouter,
+  worktree: worktreeRouter,
   task: taskRouter,
   hat: hatRouter,
   loops: loopsRouter,

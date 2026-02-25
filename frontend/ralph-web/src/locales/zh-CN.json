@@ -146,7 +146,7 @@
     "boardDescription": "按工作流阶段组织的任务。拖动卡片在列之间移动。",
     "todo": "待办",
     "inProgress": "进行中",
-    "inReview": "审核中",
+    "blocked": "已阻塞",
     "done": "完成",
     "cancelled": "已取消",
     "noTasks": "暂无任务",

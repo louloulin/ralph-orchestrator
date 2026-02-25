@@ -78,6 +78,7 @@ export interface GraphData {
  * Collection with parsed graph data
  */
 export interface CollectionWithGraph extends Omit<Collection, "graphData"> {
+  projectId: string | null;
   graph: GraphData;
 }
 
@@ -101,6 +102,15 @@ export class CollectionRepository {
   }
 
   /**
+   * Get all collections for a specific project (without graph data for listing)
+   */
+  findByProjectId(projectId: string): Omit<Collection, "graphData">[] {
+    const rows = this.db.select().from(collections).where(eq(collections.projectId, projectId)).all();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    return rows.map(({ graphData, ...rest }) => rest);
+  }
+
+  /**
    * Get a single collection by ID with parsed graph data
    */
   findById(id: string): CollectionWithGraph | null {
@@ -109,6 +119,7 @@ export class CollectionRepository {
 
     return {
       id: row.id,
+      projectId: row.projectId,
       name: row.name,
       description: row.description,
       createdAt: row.createdAt,
@@ -123,6 +134,7 @@ export class CollectionRepository {
   create(data: {
     name: string;
     description?: string;
+    projectId?: string;
     graph?: GraphData;
   }): CollectionWithGraph {
     const id = uuidv4();
@@ -135,6 +147,7 @@ export class CollectionRepository {
 
     const newCollection: NewCollection = {
       id,
+      projectId: data.projectId ?? null,
       name: data.name,
       description: data.description ?? null,
       graphData: JSON.stringify(graph),
@@ -146,6 +159,7 @@ export class CollectionRepository {
 
     return {
       id,
+      projectId: data.projectId ?? null,
       name: data.name,
       description: data.description ?? null,
       createdAt: now,

@@ -3,12 +3,14 @@
  *
  * Provides task search functionality with debounced queries and tRPC integration.
  * Implements result highlighting for search matches.
+ * Supports project-scoped filtering (P5-2: Project Isolation)
  *
  * @see .ralph/specs/web-dashboard/task-search.spec.md
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { trpc } from "@/trpc";
+import { useProjectStore } from "@/stores/projectStore";
 import type {
   Task,
   TaskSearchFilters,
@@ -93,6 +95,9 @@ export function useTaskSearch(
 ): UseTaskSearchReturn {
   const [results, setResults] = useState<TaskSearchResult[]>([]);
 
+  // Get active project for project-scoped filtering (P5-2)
+  const { activeProject } = useProjectStore();
+
   // Debounce the search query
   const debouncedQuery = useDebounce(filters.query, debounceMs);
 
@@ -105,6 +110,7 @@ export function useTaskSearch(
     {
       query: debouncedQuery,
       status: filters.status.length > 0 ? filters.status : undefined,
+      projectId: activeProject?.id,
       includeArchived: filters.includeArchived,
       includeClosed: filters.includeClosed,
       dateRange: filters.dateRange,
@@ -117,7 +123,7 @@ export function useTaskSearch(
 
   // Fallback: list all tasks when not searching
   const { data: listData, isLoading: listLoading, isFetching: listFetching } = trpc.task.list.useQuery(
-    { status: filters.status[0], includeArchived: filters.includeArchived },
+    { status: filters.status[0], includeArchived: filters.includeArchived, projectId: activeProject?.id },
     {
       enabled: !shouldSearch,
       staleTime: 30000, // 30 seconds

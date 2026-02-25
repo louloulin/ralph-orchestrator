@@ -19,6 +19,8 @@ export interface TaskSearchOptions {
   query?: string;
   /** Filter by status values */
   status?: string[];
+  /** Filter by project ID */
+  projectId?: string;
   /** Include archived tasks */
   includeArchived?: boolean;
   /** Include closed tasks */
@@ -86,6 +88,24 @@ export class TaskRepository {
     }
 
     return query.all();
+  }
+
+  /**
+   * Find all tasks for a specific project
+   */
+  findByProjectId(projectId: string, status?: string, includeArchived: boolean = false): Task[] {
+    const conditions = [eq(tasks.projectId, projectId)];
+
+    if (status) {
+      conditions.push(eq(tasks.status, status));
+    }
+
+    if (!includeArchived) {
+      conditions.push(isNull(tasks.archivedAt));
+    }
+
+    // @ts-expect-error - drizzle spread operator typing issue with dynamic conditions
+    return this.db.select().from(tasks).where(and(...conditions)).all();
   }
 
   /**
@@ -179,6 +199,11 @@ export class TaskRepository {
    */
   search(options: TaskSearchOptions): Task[] {
     const conditions = [];
+
+    // Project filter (P5-2: Project Isolation)
+    if (options.projectId) {
+      conditions.push(eq(tasks.projectId, options.projectId));
+    }
 
     // Full-text search on title and executionSummary
     if (options.query && options.query.length >= 2) {

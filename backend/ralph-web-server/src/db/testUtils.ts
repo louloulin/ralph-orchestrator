@@ -27,6 +27,7 @@ export function initializeTestDatabase(): void {
   testSqlite.exec(`
     CREATE TABLE IF NOT EXISTS tasks (
       id TEXT PRIMARY KEY,
+      project_id TEXT,
       title TEXT NOT NULL,
       status TEXT NOT NULL DEFAULT 'open',
       priority INTEGER NOT NULL DEFAULT 2,
@@ -40,13 +41,19 @@ export function initializeTestDatabase(): void {
       execution_summary TEXT,
       exit_code INTEGER,
       duration_ms INTEGER,
-      archived_at INTEGER
+      archived_at INTEGER,
+      merge_loop_prompt TEXT,
+      preset TEXT,
+      current_iteration INTEGER,
+      max_iterations INTEGER,
+      loop_id TEXT
     )
   `);
 
   testSqlite.exec(`
     CREATE TABLE IF NOT EXISTS queued_tasks (
       id TEXT PRIMARY KEY,
+      project_id TEXT,
       task_type TEXT NOT NULL,
       payload TEXT NOT NULL,
       state TEXT NOT NULL DEFAULT 'pending',
@@ -64,6 +71,7 @@ export function initializeTestDatabase(): void {
     CREATE TABLE IF NOT EXISTS task_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       task_id TEXT NOT NULL,
+      project_id TEXT,
       timestamp INTEGER NOT NULL,
       source TEXT NOT NULL,
       line TEXT NOT NULL
@@ -86,9 +94,22 @@ export function initializeTestDatabase(): void {
   testSqlite.exec(`
     CREATE TABLE IF NOT EXISTS collections (
       id TEXT PRIMARY KEY,
+      project_id TEXT,
       name TEXT NOT NULL,
       description TEXT,
       graph_data TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  testSqlite.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      path TEXT NOT NULL,
+      description TEXT,
+      is_active INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )

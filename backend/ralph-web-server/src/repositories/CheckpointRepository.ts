@@ -1,3 +1,6 @@
+import * as fsPromises from "fs/promises";
+import * as pathModule from "path";
+
 /**
  * Checkpoint Repository
  *
@@ -174,11 +177,11 @@ export class FileCheckpointRepository implements CheckpointRepository {
     checkpoint.checksum = this.calculateChecksum(content);
 
     // Save checkpoint file
-    await this.fs.mkdir(this.fs.path.join(checkpointsDir, loopId), {
+    await fsPromises.mkdir(pathModule.join(checkpointsDir, loopId), {
       recursive: true,
     });
-    const checkpointPath = this.fs.path.join(checkpointsDir, loopId, `${id}.json`);
-    await this.fs.writeFile(checkpointPath, content);
+    const checkpointPath = pathModule.join(checkpointsDir, loopId, `${id}.json`);
+    await fsPromises.writeFile(checkpointPath, content);
 
     // Create metadata
     const meta: CheckpointMeta = {
@@ -223,11 +226,11 @@ export class FileCheckpointRepository implements CheckpointRepository {
       throw new Error(`Checkpoint not found: ${checkpointId}`);
     }
 
-    const checkpointPath = this.fs.path.join(
+    const checkpointPath = pathModule.join(
       this.getCheckpointsDir(cwd),
       meta.path
     );
-    const content = await this.fs.readFile(checkpointPath, "utf-8");
+    const content = await fsPromises.readFile(checkpointPath, "utf-8");
     const checkpoint: LoopCheckpoint = JSON.parse(content);
 
     return checkpoint;
@@ -263,11 +266,11 @@ export class FileCheckpointRepository implements CheckpointRepository {
     }
 
     // Load checkpoint
-    const checkpointPath = this.fs.path.join(
+    const checkpointPath = pathModule.join(
       this.getCheckpointsDir(cwd),
       meta.path
     );
-    const content = await this.fs.readFile(checkpointPath, "utf-8");
+    const content = await fsPromises.readFile(checkpointPath, "utf-8");
 
     // Verify checksum
     const actualChecksum = this.calculateChecksum(content);
@@ -291,7 +294,7 @@ export class FileCheckpointRepository implements CheckpointRepository {
     // Check for missing files
     for (const [filePath] of Object.entries(checkpoint.state.fileHashes)) {
       try {
-        await this.fs.access(this.fs.path.join(cwd, filePath));
+        await fsPromises.access(pathModule.join(cwd, filePath));
       } catch {
         warnings.push(`Referenced file no longer exists: ${filePath}`);
       }
@@ -317,14 +320,14 @@ export class FileCheckpointRepository implements CheckpointRepository {
     }
 
     const meta = index.checkpoints[metaIndex];
-    const checkpointPath = this.fs.path.join(
+    const checkpointPath = pathModule.join(
       this.getCheckpointsDir(cwd),
       meta.path
     );
 
     // Delete the file
     try {
-      await this.fs.unlink(checkpointPath);
+      await fsPromises.unlink(checkpointPath);
     } catch {
       // Ignore if file doesn't exist
     }
@@ -396,23 +399,12 @@ export class FileCheckpointRepository implements CheckpointRepository {
     return pruned;
   }
 
-  // Private helper methods
-
-  private fs = {
-    readFile: import("fs/promises").then((mod) => mod.readFile),
-    writeFile: import("fs/promises").then((mod) => mod.writeFile),
-    mkdir: import("fs/promises").then((mod) => mod.mkdir),
-    unlink: import("fs/promises").then((mod) => mod.unlink),
-    access: import("fs/promises").then((mod) => mod.access),
-    path,
-  };
-
   private getCheckpointsDir(cwd: string): string {
-    return this.fs.path.join(cwd, ".ralph/checkpoints");
+    return pathModule.join(cwd, ".ralph/checkpoints");
   }
 
   private getIndexFilePath(cwd: string): string {
-    return this.fs.path.join(this.getCheckpointsDir(cwd), "checkpoint-meta.json");
+    return pathModule.join(this.getCheckpointsDir(cwd), "checkpoint-meta.json");
   }
 
   private async readIndex(cwd: string): Promise<{
@@ -421,8 +413,7 @@ export class FileCheckpointRepository implements CheckpointRepository {
   }> {
     const indexPath = this.getIndexFilePath(cwd);
     try {
-      const readFile = await this.fs.readFile;
-      const content = await readFile(indexPath, "utf-8");
+      const content = await fsPromises.readFile(indexPath, "utf-8");
       return JSON.parse(content);
     } catch {
       return { checkpoints: [], updatedAt: new Date().toISOString() };
@@ -434,13 +425,9 @@ export class FileCheckpointRepository implements CheckpointRepository {
     index: { checkpoints: CheckpointMeta[]; updatedAt: string }
   ): Promise<void> {
     const indexPath = this.getIndexFilePath(cwd);
-    const [mkdir, writeFile] = await Promise.all([
-      this.fs.mkdir,
-      this.fs.writeFile,
-    ]);
-    await mkdir(this.fs.path.dirname(indexPath), { recursive: true });
+    await fsPromises.mkdir(pathModule.dirname(indexPath), { recursive: true });
     index.updatedAt = new Date().toISOString();
-    await writeFile(indexPath, JSON.stringify(index, null, 2));
+    await fsPromises.writeFile(indexPath, JSON.stringify(index, null, 2));
   }
 
   private async updateIndex(cwd: string, meta: CheckpointMeta): Promise<void> {

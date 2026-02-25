@@ -14,9 +14,11 @@ import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
  * - priority is integer (1-5 scale, 1 being highest priority)
  * - blockedBy is nullable text for task dependency relationships
  * - timestamps stored as integer (Unix epoch) for SQLite compatibility
+ * - projectId links tasks to projects for multi-project isolation (P5-2)
  */
 export const tasks = sqliteTable("tasks", {
   id: text("id").primaryKey(),
+  projectId: text("project_id"), // Foreign key to projects table for project isolation
   title: text("title").notNull(),
   status: text("status").notNull().default("open"),
   priority: integer("priority").notNull().default(2),
@@ -52,9 +54,11 @@ export const tasks = sqliteTable("tasks", {
  * - state tracks execution lifecycle: pending -> running -> completed/failed
  * - dbTaskId links to tasks table for correlation
  * - Enables recovery of pending tasks and detection of crashed running tasks
+ * - projectId links queued tasks to projects for per-project queue isolation (P5-2)
  */
 export const queuedTasks = sqliteTable("queued_tasks", {
   id: text("id").primaryKey(),
+  projectId: text("project_id"), // Foreign key to projects table for project isolation
   taskType: text("task_type").notNull(),
   payload: text("payload").notNull(), // JSON-serialized
   state: text("state", { enum: ["pending", "running", "completed", "failed"] })
@@ -76,10 +80,12 @@ export const queuedTasks = sqliteTable("queued_tasks", {
  * - Auto-increment id provides stable ordering across log lines
  * - taskId links logs to the task record (no FK for now)
  * - timestamp stored as integer (Unix epoch) for SQLite compatibility
+ * - projectId links logs to projects for project-scoped log retrieval (P5-2)
  */
 export const taskLogs = sqliteTable("task_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   taskId: text("task_id").notNull(),
+  projectId: text("project_id"), // Foreign key to projects table for project isolation
   timestamp: integer("timestamp", { mode: "timestamp" }).notNull(),
   source: text("source", { enum: ["stdout", "stderr"] }).notNull(),
   line: text("line").notNull(),
@@ -108,9 +114,11 @@ export const settings = sqliteTable("settings", {
  * - description provides context about the collection's purpose
  * - graphData stores the React Flow state (nodes, edges, viewport) as JSON
  * - Enables visual building and exporting to YAML presets
+ * - projectId links collections to projects for project-scoped hat collections (P5-2)
  */
 export const collections = sqliteTable("collections", {
   id: text("id").primaryKey(),
+  projectId: text("project_id"), // Foreign key to projects table for project isolation
   name: text("name").notNull(),
   description: text("description"),
   // JSON-serialized React Flow state: { nodes: Node[], edges: Edge[], viewport: Viewport }
@@ -130,3 +138,28 @@ export type Setting = typeof settings.$inferSelect;
 export type NewSetting = typeof settings.$inferInsert;
 export type Collection = typeof collections.$inferSelect;
 export type NewCollection = typeof collections.$inferInsert;
+
+/**
+ * Projects table - stores Ralph project configurations
+ *
+ * Design decisions:
+ * - id is a unique identifier (UUID)
+ * - name is the display name shown in the UI
+ * - path is the absolute filesystem path to the project directory
+ * - description provides context about the project
+ * - isActive marks the currently selected project
+ * - timestamps for audit trail
+ */
+export const projects = sqliteTable("projects", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  path: text("path").notNull(),
+  description: text("description"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+// Type exports for use in repositories
+export type Project = typeof projects.$inferSelect;
+export type NewProject = typeof projects.$inferInsert;

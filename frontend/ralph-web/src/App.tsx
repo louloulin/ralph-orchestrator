@@ -21,6 +21,9 @@ const SettingsPage = lazy(() => import("./pages/SettingsPage").then(m => ({ defa
 const MonitoringPage = lazy(() => import("./pages/MonitoringPage").then(m => ({ default: m.MonitoringPage })));
 const TeamsPage = lazy(() => import("./pages/TeamsPage").then(m => ({ default: m.TeamsPage })));
 const CheckpointsPage = lazy(() => import("./pages/CheckpointsPage").then(m => ({ default: m.default })));
+const HealingPage = lazy(() => import("./pages/HealingPage").then(m => ({ default: m.HealingPage })));
+const SkillsPage = lazy(() => import("./pages/SkillsPage").then(m => ({ default: m.SkillsPage })));
+const ProjectsPage = lazy(() => import("./pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
 
 /**
  * Wrapper component for lazy-loaded routes with Suspense
@@ -43,6 +46,9 @@ export function App() {
         <Route path="/settings" element={<LazyPage><SettingsPage /></LazyPage>} />
         <Route path="/monitoring" element={<LazyPage><MonitoringPage /></LazyPage>} />
         <Route path="/checkpoints" element={<LazyPage><CheckpointsPage /></LazyPage>} />
+        <Route path="/healing" element={<LazyPage><HealingPage /></LazyPage>} />
+        <Route path="/skills" element={<LazyPage><SkillsPage /></LazyPage>} />
+        <Route path="/projects" element={<LazyPage><ProjectsPage /></LazyPage>} />
         <Route path="/teams" element={<LazyPage><TeamsPage /></LazyPage>} />
         {/* Redirect root to dashboard */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />

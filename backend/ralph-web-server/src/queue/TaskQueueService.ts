@@ -20,6 +20,8 @@ import { TaskState, isValidTransition, isTerminalState } from "./TaskState";
 export interface QueuedTask {
   /** Unique identifier for this queued task */
   id: string;
+  /** Project ID for project-scoped isolation (P5-2) */
+  projectId?: string;
   /** Type/name of the task to execute */
   taskType: string;
   /** Arbitrary payload data for the task */
@@ -50,6 +52,8 @@ export interface EnqueueOptions {
   payload?: Record<string, unknown>;
   /** Priority (1-10, lower = higher priority, default 5) */
   priority?: number;
+  /** Project ID for project-scoped isolation (P5-2) */
+  projectId?: string;
 }
 
 /**
@@ -94,6 +98,7 @@ export class TaskQueueService {
   enqueue(options: EnqueueOptions): QueuedTask {
     const task: QueuedTask = {
       id: this.generateId(),
+      projectId: options.projectId,
       taskType: options.taskType,
       payload: options.payload ?? {},
       state: TaskState.PENDING,
@@ -162,6 +167,31 @@ export class TaskQueueService {
    */
   getRunningTasks(): QueuedTask[] {
     return Array.from(this.queue.values()).filter((task) => task.state === TaskState.RUNNING);
+  }
+
+  /**
+   * Get pending tasks for a specific project (P5-2: Project Isolation)
+   */
+  getPendingTasksByProjectId(projectId: string): QueuedTask[] {
+    return Array.from(this.queue.values()).filter(
+      (task) => task.state === TaskState.PENDING && task.projectId === projectId
+    );
+  }
+
+  /**
+   * Get running tasks for a specific project (P5-2: Project Isolation)
+   */
+  getRunningTasksByProjectId(projectId: string): QueuedTask[] {
+    return Array.from(this.queue.values()).filter(
+      (task) => task.state === TaskState.RUNNING && task.projectId === projectId
+    );
+  }
+
+  /**
+   * Count running tasks for a specific project (P5-2: Project Isolation)
+   */
+  countRunningByProjectId(projectId: string): number {
+    return this.getRunningTasksByProjectId(projectId).length;
   }
 
   /**

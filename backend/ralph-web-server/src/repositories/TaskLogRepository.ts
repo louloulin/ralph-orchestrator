@@ -16,6 +16,8 @@ export interface ListTaskLogsOptions {
   afterId?: number;
   /** Limit number of log entries returned */
   limit?: number;
+  /** Filter by project ID (P5-2: Project Isolation) */
+  projectId?: string;
 }
 
 export class TaskLogRepository {
@@ -29,7 +31,7 @@ export class TaskLogRepository {
    * Append a single log entry for a task.
    * Returns the inserted log id.
    */
-  append(taskId: string, entry: LogEntry): number {
+  append(taskId: string, entry: LogEntry, projectId?: string): number {
     const timestamp = entry.timestamp instanceof Date ? entry.timestamp : new Date(entry.timestamp);
 
     const result = getRunResult(
@@ -37,6 +39,7 @@ export class TaskLogRepository {
         .insert(taskLogs)
         .values({
           taskId,
+          projectId: projectId ?? null,
           timestamp,
           source: entry.source,
           line: entry.line,
@@ -51,14 +54,20 @@ export class TaskLogRepository {
    * List logs for a given task, ordered by id ascending.
    */
   listByTaskId(taskId: string, options: ListTaskLogsOptions = {}): TaskLog[] {
-    const { afterId, limit } = options;
+    const { afterId, limit, projectId } = options;
 
-    const whereClause =
-      afterId !== undefined
-        ? and(eq(taskLogs.taskId, taskId), gt(taskLogs.id, afterId))
-        : eq(taskLogs.taskId, taskId);
+    const conditions = [eq(taskLogs.taskId, taskId)];
 
-    const query = this.db.select().from(taskLogs).where(whereClause).orderBy(asc(taskLogs.id));
+    if (afterId !== undefined) {
+      conditions.push(gt(taskLogs.id, afterId));
+    }
+
+    if (projectId !== undefined) {
+      conditions.push(eq(taskLogs.projectId, projectId));
+    }
+
+    // @ts-expect-error - drizzle spread operator typing issue with dynamic conditions
+    const query = this.db.select().from(taskLogs).where(and(...conditions)).orderBy(asc(taskLogs.id));
 
     if (limit !== undefined) {
       return query.limit(limit).all();

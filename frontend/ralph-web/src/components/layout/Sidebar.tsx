@@ -9,12 +9,13 @@
  * Mobile: Hidden by default, slides in as overlay when toggled
  */
 
-import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X, Activity, Users, Save } from "lucide-react";
+import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X, Activity, Users, Save, Heart, BookOpen, Folder } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { useUIStore } from "@/store";
 import { ThemeToggleMinimal, LocaleSwitcherMinimal } from "@/components/shared";
 import { useTranslation } from "@/hooks";
 import { cn } from "@/lib/utils";
+import { ProjectSelector } from "./ProjectSelector";
 
 /** Ralph hat logo matching favicon */
 function RalphLogo({ className }: { className?: string }) {
@@ -45,6 +46,9 @@ const NAV_ITEMS = [
   { to: "/teams", icon: Users, labelKey: "nav.teams" },
   { to: "/monitoring", icon: Activity, labelKey: "nav.monitoring" },
   { to: "/checkpoints", icon: Save, labelKey: "nav.checkpoints" },
+  { to: "/healing", icon: Heart, labelKey: "nav.healing" },
+  { to: "/skills", icon: BookOpen, labelKey: "nav.skills" },
+  { to: "/projects", icon: Folder, labelKey: "nav.projects" },
   { to: "/builder", icon: Workflow, labelKey: "nav.builder" },
   { to: "/settings", icon: Settings, labelKey: "nav.settings" },
 ] as const;
@@ -104,18 +108,25 @@ export function Sidebar() {
       {/* Logo and brand */}
       <div
         className={cn(
-          "flex items-center h-14 px-3 border-b border-border",
-          sidebarOpen ? "gap-3 justify-between" : "justify-center"
+          "flex flex-col h-14 px-3 py-2 border-b border-border",
+          sidebarOpen ? "gap-1" : "items-center"
         )}
       >
-        <div className="flex items-center gap-3">
-          <RalphLogo className="h-6 w-6 text-primary flex-shrink-0" />
-          {sidebarOpen && <span className="font-bold text-lg tracking-tight">RO</span>}
+        <div className={cn("flex items-center", sidebarOpen ? "justify-between w-full" : "justify-center")}>
+          <div className="flex items-center gap-3">
+            <RalphLogo className="h-6 w-6 text-primary flex-shrink-0" />
+            {sidebarOpen && <span className="font-bold text-lg tracking-tight">RO</span>}
+          </div>
+          {sidebarOpen && (
+            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
+              Alpha
+            </span>
+          )}
         </div>
         {sidebarOpen && (
-          <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
-            Alpha
-          </span>
+          <div className="w-full">
+            <ProjectSelector />
+          </div>
         )}
       </div>
 

@@ -5,7 +5,7 @@
  * Implements CRUD operations for the task queue persistence.
  */
 
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import { queuedTasks, QueuedTask, NewQueuedTask } from "../db/schema";
 import * as schema from "../db/schema";
@@ -51,6 +51,35 @@ export class QueuedTaskRepository {
    */
   findByState(state: "pending" | "running" | "completed" | "failed"): QueuedTask[] {
     return this.db.select().from(queuedTasks).where(eq(queuedTasks.state, state)).all();
+  }
+
+  /**
+   * Find pending tasks for a specific project (P5-2: Project Isolation)
+   */
+  findPendingByProjectId(projectId: string): QueuedTask[] {
+    return this.db
+      .select()
+      .from(queuedTasks)
+      .where(and(eq(queuedTasks.state, "pending"), eq(queuedTasks.projectId, projectId)))
+      .all();
+  }
+
+  /**
+   * Find running tasks for a specific project (P5-2: Project Isolation)
+   */
+  findRunningByProjectId(projectId: string): QueuedTask[] {
+    return this.db
+      .select()
+      .from(queuedTasks)
+      .where(and(eq(queuedTasks.state, "running"), eq(queuedTasks.projectId, projectId)))
+      .all();
+  }
+
+  /**
+   * Count running tasks for a specific project (P5-2: Project Isolation)
+   */
+  countRunningByProjectId(projectId: string): number {
+    return this.findRunningByProjectId(projectId).length;
   }
 
   /**

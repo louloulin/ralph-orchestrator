@@ -9,11 +9,21 @@ export { TaskLogRepository } from "./TaskLogRepository";
 export { QueuedTaskRepository } from "./QueuedTaskRepository";
 export { CollectionRepository } from "./CollectionRepository";
 export { AlertRepository } from "./AlertRepository";
+export { ProjectRepository, projectRepository } from "./ProjectRepository";
 export {
-  CheckpointRepository,
   FileCheckpointRepository,
   checkpointRepository,
 } from "./CheckpointRepository";
+export type {
+  CheckpointRepository,
+} from "./CheckpointRepository";
+export {
+  FileHealingRepository,
+  healingRepository,
+} from "./HealingRepository";
+export type {
+  HealingRepository,
+} from "./HealingRepository";
 export type {
   GraphNode,
   GraphEdge,

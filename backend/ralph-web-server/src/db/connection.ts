@@ -138,6 +138,8 @@ export function initializeDatabase(database?: BunSQLiteDatabase<typeof schema>):
   addColumnIfNotExists("tasks", "current_iteration", "INTEGER");
   addColumnIfNotExists("tasks", "max_iterations", "INTEGER");
   addColumnIfNotExists("tasks", "loop_id", "TEXT");
+  // Project isolation (P5-2) - link tasks to projects
+  addColumnIfNotExists("tasks", "project_id", "TEXT");
 
   // Create queued_tasks table for task queue persistence
   sqlite.exec(`
@@ -156,6 +158,9 @@ export function initializeDatabase(database?: BunSQLiteDatabase<typeof schema>):
     )
   `);
 
+  // Project isolation (P5-2) - link queued tasks to projects
+  addColumnIfNotExists("queued_tasks", "project_id", "TEXT");
+
   // Create task logs table
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS task_logs (
@@ -166,6 +171,9 @@ export function initializeDatabase(database?: BunSQLiteDatabase<typeof schema>):
       line TEXT NOT NULL
     )
   `);
+
+  // Project isolation (P5-2) - link task logs to projects
+  addColumnIfNotExists("task_logs", "project_id", "TEXT");
 
   // Index for fast task log lookups
   sqlite.exec(`
@@ -189,6 +197,22 @@ export function initializeDatabase(database?: BunSQLiteDatabase<typeof schema>):
       name TEXT NOT NULL,
       description TEXT,
       graph_data TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `);
+
+  // Project isolation (P5-2) - link collections to projects
+  addColumnIfNotExists("collections", "project_id", "TEXT");
+
+  // Create projects table for multi-project architecture
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS projects (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      path TEXT NOT NULL,
+      description TEXT,
+      is_active INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )

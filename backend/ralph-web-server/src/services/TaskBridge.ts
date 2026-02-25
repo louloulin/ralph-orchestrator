@@ -190,6 +190,8 @@ export interface TaskBridgeOptions {
   collectionService?: CollectionService;
   /** Config merger for combining base config with preset hats */
   configMerger?: ConfigMerger;
+  /** Project ID for project-scoped task isolation (P5-2) */
+  projectId?: string;
 }
 
 /**
@@ -208,6 +210,7 @@ export class TaskBridge {
   private readonly defaultConfigPath?: string;
   private readonly collectionService?: CollectionService;
   private readonly configMerger?: ConfigMerger;
+  private readonly projectId?: string;
 
   /** Map from queuedTaskId to dbTaskId for correlation */
   private readonly taskIdMap: Map<string, string> = new Map();
@@ -231,6 +234,7 @@ export class TaskBridge {
     this.defaultConfigPath = options.defaultConfigPath;
     this.collectionService = options.collectionService;
     this.configMerger = options.configMerger;
+    this.projectId = options.projectId;
 
     // Subscribe to execution lifecycle events
     this.subscribeToEvents();
@@ -483,6 +487,7 @@ export class TaskBridge {
           args: args.length > 0 ? args : undefined,
         },
         priority: dbTask.priority,
+        projectId: this.projectId,
       });
 
       // Store the mapping for event correlation

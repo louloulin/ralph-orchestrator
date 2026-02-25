@@ -84,11 +84,145 @@ export const router = t.router;
 export const publicProcedure = t.procedure;
 
 /**
+ * Project router - CRUD operations for Ralph projects
+ */
+export const projectRouter = router({
+  /**
+   * List all projects
+   */
+  list: publicProcedure.query(async () => {
+    const { projectService } = await import("../services/ProjectService");
+    return projectService.getAllProjects();
+  }),
+
+  /**
+   * Get a single project by ID
+   */
+  get: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(async ({ input }) => {
+      const { projectService } = await import("../services/ProjectService");
+      const project = projectService.getProject(input.id);
+      if (!project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Project with id '${input.id}' not found`,
+        });
+      }
+      return project;
+    }),
+
+  /**
+   * Get the currently active project
+   */
+  getActive: publicProcedure.query(async () => {
+    const { projectService } = await import("../services/ProjectService");
+    return projectService.getActiveProject();
+  }),
+
+  /**
+   * Create a new project
+   */
+  create: publicProcedure
+    .input(
+      z.object({
+        name: z.string().min(1, "Project name is required"),
+        path: z.string().min(1, "Project path is required"),
+        description: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { projectService } = await import("../services/ProjectService");
+      try {
+        return await projectService.createProject(input);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to create project",
+        });
+      }
+    }),
+
+  /**
+   * Update a project
+   */
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).optional(),
+        path: z.string().min(1).optional(),
+        description: z.string().nullable().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { projectService } = await import("../services/ProjectService");
+      const project = projectService.updateProject(input.id, {
+        name: input.name,
+        path: input.path,
+        description: input.description,
+      });
+      if (!project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Project with id '${input.id}' not found`,
+        });
+      }
+      return project;
+    }),
+
+  /**
+   * Set a project as active (switch project context)
+   */
+  setActive: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const { projectService } = await import("../services/ProjectService");
+      try {
+        return projectService.setActiveProject(input.id);
+      } catch (error) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: error instanceof Error ? error.message : "Failed to set active project",
+        });
+      }
+    }),
+
+  /**
+   * Delete a project
+   */
+  delete: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .mutation(async ({ input }) => {
+      const { projectService } = await import("../services/ProjectService");
+      const deleted = projectService.deleteProject(input.id);
+      if (!deleted) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Project with id '${input.id}' not found`,
+        });
+      }
+      return { success: true };
+    }),
+
+  /**
+   * Validate a project path
+   */
+  validatePath: publicProcedure
+    .input(z.object({ path: z.string() }))
+    .query(async ({ input }) => {
+      const { projectService } = await import("../services/ProjectService");
+      return projectService.validatePath(input.path);
+    }),
+});
+
+/**
  * Task router - CRUD operations for tasks
  */
 export const taskRouter = router({
   /**
    * List all tasks, optionally filtered by status and archival state
+   * Supports project filtering (P5-2: Project Isolation)
    */
   list: publicProcedure
     .input(
@@ -96,22 +230,33 @@ export const taskRouter = router({
         .object({
           status: z.string().optional(),
           includeArchived: z.boolean().default(false).optional(),
+          projectId: z.string().optional(),
         })
         .optional()
     )
     .query(({ ctx, input }) => {
+      // If projectId is specified, use project-scoped query
+      if (input?.projectId) {
+        return ctx.taskRepository.findByProjectId(
+          input.projectId,
+          input.status,
+          input.includeArchived
+        );
+      }
       return ctx.taskRepository.findAll(input?.status, input?.includeArchived);
     }),
 
   /**
    * Search tasks with flexible filtering
    * Supports query string, status filtering, date range, and archival options
+   * Supports project filtering (P5-2: Project Isolation)
    */
   search: publicProcedure
     .input(
       z.object({
         query: z.string().min(2),
         status: z.array(z.string()).optional(),
+        projectId: z.string().optional(),
         includeArchived: z.boolean().optional(),
         includeClosed: z.boolean().optional(),
         dateRange: z
@@ -128,6 +273,7 @@ export const taskRouter = router({
       return ctx.taskRepository.search({
         query: input.query,
         status: input.status,
+        projectId: input.projectId,
         includeArchived: input.includeArchived,
         includeClosed: input.includeClosed,
         dateRange: input.dateRange,
@@ -158,6 +304,7 @@ export const taskRouter = router({
 
   /**
    * Create a new task and auto-execute it
+   * Supports project association (P5-2: Project Isolation)
    */
   create: publicProcedure
     .input(
@@ -169,6 +316,7 @@ export const taskRouter = router({
         blockedBy: z.string().nullable().optional(),
         autoExecute: z.boolean().default(true),
         preset: z.string().optional(),
+        projectId: z.string().nullable().optional(),
       })
     )
     .mutation(({ ctx, input }) => {
@@ -1825,9 +1973,305 @@ export const monitoringRouter = router({
 });
 
 /**
+ * Healing router - operations for self-healing mechanism (P4-4)
+ * Provides API endpoints for three-layer self-healing system.
+ */
+export const healingRouter = router({
+  /**
+   * Get healing events for a loop
+   */
+  getEvents: publicProcedure
+    .input(
+      z.object({
+        loopId: z.string(),
+        limit: z.number().int().min(1).max(100).optional(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const healingMod = await import("../repositories/HealingRepository");
+      return await healingMod.healingRepository.getEvents(input.loopId, cwd, input.limit);
+    }),
+
+  /**
+   * Get the healing policy
+   */
+  getPolicy: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const healingMod = await import("../repositories/HealingRepository");
+      return await healingMod.healingRepository.getPolicy(cwd);
+    }),
+
+  /**
+   * Update the healing policy
+   */
+  updatePolicy: publicProcedure
+    .input(
+      z.object({
+        policy: z.object({
+          maxAgentRetries: z.number().int().min(1).max(10).optional(),
+          agentRetryDelay: z.string().optional(),
+          maxPlatformRestarts: z.number().int().min(1).max(20).optional(),
+          platformRestartWindow: z.string().optional(),
+          backends: z.array(z.string()).optional(),
+          circuitBreakerThreshold: z.number().int().min(1).max(50).optional(),
+          circuitBreakerCooldown: z.string().optional(),
+          escalationChannels: z.array(z.string()).optional(),
+        }),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const healingMod = await import("../repositories/HealingRepository");
+      await healingMod.healingRepository.updatePolicy(input.policy, cwd);
+      return { success: true };
+    }),
+
+  /**
+   * Get known fix patterns
+   */
+  getKnownFixes: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const healingMod = await import("../repositories/HealingRepository");
+      const fixes = await healingMod.healingRepository.getKnownFixes(cwd);
+      // Convert RegExp to string for serialization
+      return fixes.map((fix) => ({
+        ...fix,
+        pattern: fix.pattern.source,
+      }));
+    }),
+
+  /**
+   * Add a known fix pattern
+   */
+  addKnownFix: publicProcedure
+    .input(
+      z.object({
+        id: z.string().min(1),
+        pattern: z.string().min(1),
+        action: z.discriminatedUnion("type", [
+          z.object({ type: z.literal("restart") }),
+          z.object({ type: z.literal("switch_backend"), backend: z.string() }),
+          z.object({ type: z.literal("inject_context"), content: z.string() }),
+          z.object({ type: z.literal("skip_step") }),
+          z.object({ type: z.literal("request_human") }),
+        ]),
+        description: z.string().min(1),
+        successRate: z.number().min(0).max(1),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const healingMod = await import("../repositories/HealingRepository");
+      await healingMod.healingRepository.addKnownFix(
+        {
+          id: input.id,
+          pattern: new RegExp(input.pattern, "i"),
+          action: input.action,
+          description: input.description,
+          successRate: input.successRate,
+        },
+        cwd
+      );
+      return { success: true };
+    }),
+
+  /**
+   * Test a fix pattern against an error message
+   */
+  testFix: publicProcedure
+    .input(
+      z.object({
+        fixId: z.string(),
+        error: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const healingMod = await import("../repositories/HealingRepository");
+      const fixes = await healingMod.healingRepository.getKnownFixes(cwd);
+      const fix = fixes.find((f) => f.id === input.fixId);
+      if (!fix) {
+        return { matches: false, error: "Fix not found" };
+      }
+      const matches = fix.pattern.test(input.error);
+      return { matches, fix: { ...fix, pattern: fix.pattern.source } };
+    }),
+
+  /**
+   * Manually trigger a healing action
+   */
+  triggerHealing: publicProcedure
+    .input(
+      z.object({
+        loopId: z.string(),
+        action: z.object({
+          type: z.string(),
+          params: z.record(z.string(), z.any()),
+          reason: z.string(),
+        }),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const healingMod = await import("../services/HealingService");
+      return await healingMod.healingService.triggerHealing(input.loopId, input.action, cwd);
+    }),
+
+  /**
+   * Get circuit breaker status for a loop
+   */
+  getCircuitBreakerStatus: publicProcedure
+    .input(
+      z.object({
+        loopId: z.string(),
+      })
+    )
+    .query(async ({ input }) => {
+      const healingMod = await import("../services/HealingService");
+      return healingMod.healingService.getCircuitBreakerStatus(input.loopId);
+    }),
+
+  /**
+   * Reset circuit breaker for a loop
+   */
+  resetCircuitBreaker: publicProcedure
+    .input(
+      z.object({
+        loopId: z.string(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const healingMod = await import("../services/HealingService");
+      healingMod.healingService.resetCircuitBreaker(input.loopId);
+      return { success: true };
+    }),
+});
+
+/**
+ * Skills router - operations for skills system (P4.5-2)
+ * Provides API endpoints for skill management and marketplace.
+ */
+export const skillsRouter = router({
+  /**
+   * List all available skills
+   */
+  list: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string().optional(),
+        source: z.enum(["all", "built_in", "user_defined", "marketplace"]).optional(),
+        tags: z.array(z.string()).optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const cwd = input?.cwd || process.cwd();
+      const skillMod = await import("../services/SkillService");
+      let skills = await skillMod.skillService.listSkills(cwd);
+
+      // Filter by source
+      if (input?.source && input.source !== "all") {
+        skills = skills.filter((s) => s.source === input.source);
+      }
+
+      // Filter by tags
+      if (input?.tags && input.tags.length > 0) {
+        skills = skills.filter((s) =>
+          input.tags!.some((tag) => s.tags.includes(tag))
+        );
+      }
+
+      return skills;
+    }),
+
+  /**
+   * Get a specific skill by name
+   */
+  get: publicProcedure
+    .input(
+      z.object({
+        name: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const skillMod = await import("../services/SkillService");
+      const skill = await skillMod.skillService.getSkill(input.name, cwd);
+
+      if (!skill) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Skill "${input.name}" not found`,
+        });
+      }
+
+      return skill;
+    }),
+
+  /**
+   * Get skill content
+   */
+  getContent: publicProcedure
+    .input(
+      z.object({
+        name: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const skillMod = await import("../services/SkillService");
+      const content = await skillMod.skillService.getSkillContent(input.name, cwd);
+
+      if (!content) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Skill "${input.name}" not found`,
+        });
+      }
+
+      return { content };
+    }),
+
+  /**
+   * Get skill categories
+   */
+  getCategories: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string().optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const cwd = input?.cwd || process.cwd();
+      const skillMod = await import("../services/SkillService");
+      return await skillMod.skillService.getCategories(cwd);
+    }),
+});
+
+/**
  * Main app router combining all sub-routers
  */
 export const appRouter = router({
+  project: projectRouter,
   task: taskRouter,
   hat: hatRouter,
   loops: loopsRouter,
@@ -1838,6 +2282,8 @@ export const appRouter = router({
   checkpoint: checkpointRouter,
   teams: teamsRouter,
   monitoring: monitoringRouter,
+  healing: healingRouter,
+  skills: skillsRouter,
   planning: router({
     /**
      * List all planning sessions.

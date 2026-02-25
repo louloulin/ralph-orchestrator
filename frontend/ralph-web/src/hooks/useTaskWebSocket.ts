@@ -17,6 +17,9 @@ import { useLogStore } from "@/stores/logStore";
 /** Stable empty array to avoid creating new references in selectors */
 const EMPTY_ENTRIES: LogEntry[] = [];
 
+/** Maximum number of Ralph events to keep in memory (sliding window) */
+const MAX_EVENTS = 1000;
+
 /**
  * Log entry from the server (mirrors LogEntry from LogStream.ts)
  */
@@ -296,7 +299,13 @@ export function useTaskWebSocket(
 
             case "event": {
               const eventData = message.data as RalphEvent;
-              setEvents((prev) => [...prev, eventData]);
+              setEvents((prev) => {
+                const newEvents = [...prev, eventData];
+                // Sliding window: keep only the last MAX_EVENTS to prevent memory leaks
+                return newEvents.length > MAX_EVENTS
+                  ? newEvents.slice(-MAX_EVENTS)
+                  : newEvents;
+              });
               onEventRef.current?.(eventData);
               break;
             }

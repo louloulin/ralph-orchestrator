@@ -21,22 +21,12 @@ import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
 import { createCommandGroups, findCommandById } from "@/lib/commands.tsx";
 import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
+import { trpc } from "@/trpc";
+import { toast } from "@/stores/toastStore";
 
 // Placeholder functions - will be connected to actual implementations
-const defaultCreateTask = (prompt: string) => {
-  console.log("Create task:", prompt);
-  // TODO: Connect to tRPC mutation
-};
-
-const defaultStartLoop = () => {
-  console.log("Start loop");
-  // TODO: Connect to actual loop start logic
-};
-
-const defaultCancelLoop = () => {
-  console.log("Cancel loop");
-  // TODO: Connect to actual loop cancel logic
-};
+// These are defined outside the component to be passed to createCommandGroups
+// Actual implementations use mutations inside the component
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
@@ -47,17 +37,68 @@ export function CommandPalette() {
 
   const { recentCommands, addToHistory } = useCommandPaletteStore();
 
+  // Mutations for task operations
+  const createTaskMutation = trpc.task.create.useMutation({
+    onSuccess: (data) => {
+      toast({
+        title: "Task created",
+        description: `Created task: ${data.title}`,
+      });
+      // Automatically run the task
+      trpc.task.run.useMutation().mutate({ id: data.id });
+      navigate("/tasks");
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to create task",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Actual implementation functions
+  const handleCreateTask = useCallback(
+    (prompt: string) => {
+      const taskId = `task-${Date.now()}`;
+      createTaskMutation.mutate({
+        id: taskId,
+        title: prompt,
+        status: "open",
+        priority: 2,
+        autoExecute: true,
+      });
+    },
+    [createTaskMutation]
+  );
+
+  const handleStartLoop = useCallback(() => {
+    toast({
+      title: "Starting loop",
+      description: "Use the Tasks page to create and run tasks",
+    });
+    navigate("/tasks");
+  }, [navigate, toast]);
+
+  const handleCancelLoop = useCallback(() => {
+    toast({
+      title: "Cancel loop",
+      description: "Select a running task to cancel",
+    });
+    navigate("/tasks");
+  }, [navigate, toast]);
+
   // Create command groups with navigation functions
   const commandGroups = useMemo(
     () =>
       createCommandGroups(
         navigate,
-        defaultCreateTask,
-        defaultStartLoop,
-        defaultCancelLoop,
+        handleCreateTask,
+        handleStartLoop,
+        handleCancelLoop,
         toggleTheme
       ),
-    [navigate, toggleTheme]
+    [navigate, handleCreateTask, handleStartLoop, handleCancelLoop, toggleTheme]
   );
 
   // Global keyboard shortcut (Cmd/Ctrl+K)
@@ -97,11 +138,11 @@ export function CommandPalette() {
   // Handle task submission
   const handleTaskSubmit = useCallback(() => {
     if (taskPrompt.trim()) {
-      defaultCreateTask(taskPrompt.trim());
+      handleCreateTask(taskPrompt.trim());
       setTaskPrompt("");
       setOpen(false);
     }
-  }, [taskPrompt]);
+  }, [taskPrompt, handleCreateTask]);
 
   // Handle keyboard events in task mode
   const handleTaskKeyDown = useCallback(

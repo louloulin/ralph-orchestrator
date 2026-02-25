@@ -13,7 +13,7 @@ import { getLogBroadcaster, configureLogBroadcaster, resetLogBroadcaster, LogMes
 import { TaskLogRepository } from "../repositories/TaskLogRepository";
 import { initializeTestDatabase, getTestDatabase, closeTestDatabase } from "../db/testUtils";
 
-let portCounter = 49000;
+let portCounter = 49600;
 function getUniquePort(): number {
   return portCounter++;
 }

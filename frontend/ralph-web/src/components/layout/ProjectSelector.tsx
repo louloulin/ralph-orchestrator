@@ -5,7 +5,7 @@
  * Displayed in the sidebar header.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ChevronDown, Folder, Plus, Check } from "lucide-react";
 import { trpc } from "@/trpc";
 import { useProjectStore } from "@/stores/projectStore";
@@ -16,27 +16,29 @@ export function ProjectSelector() {
   const { activeProject, setActiveProject, setLoaded } = useProjectStore();
 
   // Fetch all projects
-  const { data: projects, isLoading } = trpc.project.list.useQuery(undefined, {
-    onSuccess: (data) => {
-      if (!useProjectStore.getState().isLoaded) {
-        // Set active project from server if not set locally
-        const serverActive = data?.find((p) => p.isActive);
-        if (serverActive) {
-          setActiveProject(serverActive);
-        }
-        setLoaded(true);
+  const { data: projects, isLoading } = trpc.project.list.useQuery();
+
+  // Handle query success - set active project from server
+  useEffect(() => {
+    if (projects && !useProjectStore.getState().isLoaded) {
+      // Set active project from server if not set locally
+      const serverActive = projects.find((p) => p.isActive);
+      if (serverActive) {
+        setActiveProject(serverActive);
       }
-    },
-  });
+      setLoaded(true);
+    }
+  }, [projects, setActiveProject, setLoaded]);
 
   // Mutation to set active project
-  const setActiveMutation = trpc.project.setActive.useMutation({
-    onSuccess: (data) => {
-      if (data) {
-        setActiveProject(data);
-      }
-    },
-  });
+  const setActiveMutation = trpc.project.setActive.useMutation();
+
+  // Handle mutation success
+  useEffect(() => {
+    if (setActiveMutation.isSuccess && setActiveMutation.data) {
+      setActiveProject(setActiveMutation.data);
+    }
+  }, [setActiveMutation.isSuccess, setActiveMutation.data, setActiveProject]);
 
   const handleSelect = (project: Project) => {
     setActiveMutation.mutate({ id: project.id });

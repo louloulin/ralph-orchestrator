@@ -4,7 +4,7 @@
  * Displays detailed view of a single agent team with activity logs.
  */
 
-import React from "react";
+import React, { useEffect } from "react";
 import { trpc } from "../../trpc";
 import {
   type AgentTeam,
@@ -49,33 +49,42 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
   );
 
   // Mutations
-  const startTeam = trpc.teams.start.useMutation({
-    onSuccess: () => {
+  const startTeam = trpc.teams.start.useMutation();
+  const pauseTeam = trpc.teams.pause.useMutation();
+  const stopTeam = trpc.teams.stop.useMutation();
+  const deleteTeam = trpc.teams.delete.useMutation();
+
+  // Handle start team mutation success
+  useEffect(() => {
+    if (startTeam.isSuccess) {
       utils.teams.get.invalidate({ id: team.id });
       utils.teams.list.invalidate();
-    },
-  });
+    }
+  }, [startTeam.isSuccess, utils.teams.get, utils.teams.list, team.id]);
 
-  const pauseTeam = trpc.teams.pause.useMutation({
-    onSuccess: () => {
+  // Handle pause team mutation success
+  useEffect(() => {
+    if (pauseTeam.isSuccess) {
       utils.teams.get.invalidate({ id: team.id });
       utils.teams.list.invalidate();
-    },
-  });
+    }
+  }, [pauseTeam.isSuccess, utils.teams.get, utils.teams.list, team.id]);
 
-  const stopTeam = trpc.teams.stop.useMutation({
-    onSuccess: () => {
+  // Handle stop team mutation success
+  useEffect(() => {
+    if (stopTeam.isSuccess) {
       utils.teams.get.invalidate({ id: team.id });
       utils.teams.list.invalidate();
-    },
-  });
+    }
+  }, [stopTeam.isSuccess, utils.teams.get, utils.teams.list, team.id]);
 
-  const deleteTeam = trpc.teams.delete.useMutation({
-    onSuccess: () => {
+  // Handle delete team mutation success
+  useEffect(() => {
+    if (deleteTeam.isSuccess) {
       utils.teams.list.invalidate();
       onBack();
-    },
-  });
+    }
+  }, [deleteTeam.isSuccess, utils.teams.list, onBack]);
 
   const handleStart = () => {
     startTeam.mutate({ id: team.id });

@@ -39,6 +39,7 @@ import {
   FileQuestion,
 } from "lucide-react";
 import type { TaskAction } from "@/components/tasks/TaskDetailHeader";
+import type { FileChange } from "@/types/task";
 
 export function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -56,6 +57,22 @@ export function TaskDetailPage() {
   const loopsQuery = trpc.loops.list.useQuery(
     { includeTerminal: true },
     { refetchInterval: 5000 }
+  );
+
+  // Fetch file changes for completed/reviewed tasks (P5-5: Code Review)
+  const fileChangesQuery = trpc.task.getFileChanges.useQuery(
+    { id: id! },
+    {
+      enabled: !!id && (task?.status === "completed" || task?.status === "reviewed"),
+    }
+  );
+
+  // Fetch file changes statistics (P5-5: Code Review)
+  const fileChangesStatsQuery = trpc.task.getFileChangesStats.useQuery(
+    { id: id! },
+    {
+      enabled: !!id && (task?.status === "completed" || task?.status === "reviewed"),
+    }
   );
 
   // Find the associated loop by loopId
@@ -79,17 +96,23 @@ export function TaskDetailPage() {
   const runMutation = trpc.task.run.useMutation();
   const retryMutation = trpc.task.retry.useMutation();
   const cancelMutation = trpc.task.cancel.useMutation();
-  const deleteMutation = trpc.task.delete.useMutation({
-    onSuccess: () => {
+  const deleteMutation = trpc.task.delete.useMutation();
+  const retryMergeMutation = trpc.loops.retry.useMutation();
+
+  // Handle delete mutation success - navigate to tasks list
+  useEffect(() => {
+    if (deleteMutation.isSuccess) {
       navigate("/tasks");
-    },
-  });
-  const retryMergeMutation = trpc.loops.retry.useMutation({
-    onSuccess: () => {
+    }
+  }, [deleteMutation.isSuccess, navigate]);
+
+  // Handle retry merge mutation success - invalidate loops list and clear steering
+  useEffect(() => {
+    if (retryMergeMutation.isSuccess) {
       utils.loops.list.invalidate();
       setSteeringInput("");
-    },
-  });
+    }
+  }, [retryMergeMutation.isSuccess, utils.loops.list, setSteeringInput]);
 
   // Handle actions from TaskDetailHeader
   const handleAction = useCallback(
@@ -315,21 +338,78 @@ export function TaskDetailPage() {
         <div data-testid="code-review-section" className="space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2">
             <span>Code Changes</span>
-            <span className="text-xs font-normal text-muted-foreground">
-              (P5-5: Code Review Integration)
-            </span>
+            {fileChangesStatsQuery.data && (
+              <span className="text-xs font-normal text-muted-foreground">
+                ({fileChangesStatsQuery.data.filesChanged} files, +
+                {fileChangesStatsQuery.data.totalAdditions} / -
+                {fileChangesStatsQuery.data.totalDeletions} lines)
+              </span>
+            )}
           </h3>
-          <div className="border rounded-lg overflow-hidden">
-            <DiffViewer
-              files={[]}
-              totalStats={{ filesChanged: 0, additions: 0, deletions: 0 }}
-              viewMode="unified"
-              onViewModeChange={() => {}}
-            />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Backend integration pending. File changes will be tracked during task execution.
-          </p>
+
+          {fileChangesQuery.isLoading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">
+                Loading file changes...
+              </span>
+            </div>
+          ) : fileChangesQuery.data && fileChangesQuery.data.length > 0 ? (
+            <>
+              <div className="border rounded-lg overflow-hidden">
+                <DiffViewer
+                  files={fileChangesQuery.data.map((fc) => ({
+                    path: fc.path,
+                    oldPath: fc.oldPath,
+                    type: fc.status,
+                    additions: fc.additions,
+                    deletions: fc.deletions,
+                    content: fc.diff,
+                  }))}
+                  totalStats={
+                    fileChangesStatsQuery.data ?? {
+                      filesChanged: 0,
+                      additions: 0,
+                      deletions: 0,
+                    }
+                  }
+                  viewMode="unified"
+                  onViewModeChange={() => {}}
+                />
+              </div>
+
+              {/* Approval controls (P5-5: Code Review) */}
+              {fileChangesStatsQuery.data &&
+                fileChangesStatsQuery.data.pendingApproval > 0 && (
+                  <div className="flex items-center gap-2 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm text-blue-600">
+                      {fileChangesStatsQuery.data.pendingApproval} files pending approval
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="ml-auto"
+                      onClick={() =>
+                        console.log("Bulk approve - not yet implemented")
+                      }
+                    >
+                      Approve All
+                    </Button>
+                  </div>
+                )}
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <FileQuestion className="h-12 w-12 text-muted-foreground mb-2" />
+              <p className="text-sm text-muted-foreground">
+                No file changes detected for this task.
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                File changes are tracked when tasks modify the codebase.
+              </p>
+            </div>
+          )}
         </div>
       )}
     </div>

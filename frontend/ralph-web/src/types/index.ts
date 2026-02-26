@@ -94,3 +94,12 @@ export {
   TEAM_STATUS_COLORS,
 } from "./teams";
 
+// Task types for code review (P5-5)
+export type {
+  FileChange,
+  FileChangeStatus,
+  FileChangeApprovalStatus,
+  FileChangesStats,
+  FileChangeApprovalProps,
+  FileChangesListProps,
+} from "./task";

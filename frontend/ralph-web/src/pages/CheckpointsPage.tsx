@@ -6,6 +6,7 @@
  */
 
 import * as React from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import {
   RefreshCw,
@@ -224,26 +225,40 @@ export default function CheckpointsPage() {
   );
 
   // Restore mutation
-  const restoreMutation = trpc.checkpoint.restore.useMutation({
-    onSuccess: (data) => {
-      alert(t("checkpoints.restoreSuccess", { id: data.checkpoint.id }));
+  const restoreMutation = trpc.checkpoint.restore.useMutation();
+
+  // Handle restore mutation success
+  useEffect(() => {
+    if (restoreMutation.isSuccess && restoreMutation.data) {
+      alert(t("checkpoints.restoreSuccess", { id: restoreMutation.data.checkpoint.id }));
       setSelectedCheckpoint(null);
-    },
-    onError: (error) => {
-      alert(t("checkpoints.restoreError", { error: error.message }));
-    },
-  });
+    }
+  }, [restoreMutation.isSuccess, restoreMutation.data, t]);
+
+  // Handle restore mutation error
+  useEffect(() => {
+    if (restoreMutation.isError && restoreMutation.error) {
+      alert(t("checkpoints.restoreError", { error: restoreMutation.error.message }));
+    }
+  }, [restoreMutation.isError, restoreMutation.error, t]);
 
   // Delete mutation
-  const deleteMutation = trpc.checkpoint.delete.useMutation({
-    onSuccess: () => {
+  const deleteMutation = trpc.checkpoint.delete.useMutation();
+
+  // Handle delete mutation success
+  useEffect(() => {
+    if (deleteMutation.isSuccess) {
       refetch();
       setSelectedCheckpoint(null);
-    },
-    onError: (error) => {
-      alert(t("checkpoints.deleteError", { error: error.message }));
-    },
-  });
+    }
+  }, [deleteMutation.isSuccess, refetch]);
+
+  // Handle delete mutation error
+  useEffect(() => {
+    if (deleteMutation.isError && deleteMutation.error) {
+      alert(t("checkpoints.deleteError", { error: deleteMutation.error.message }));
+    }
+  }, [deleteMutation.isError, deleteMutation.error, t]);
 
   // Get unique loop IDs from checkpoints
   const loopIds = React.useMemo(() => {

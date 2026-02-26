@@ -9,7 +9,7 @@
  * WebSocket updates showing the latest status line.
  */
 
-import { useMemo, useCallback, forwardRef, type MouseEvent, memo } from "react";
+import { useMemo, useCallback, forwardRef, type MouseEvent, memo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   CheckCircle2,
@@ -193,26 +193,38 @@ const TaskThreadComponent = forwardRef<HTMLDivElement, TaskThreadProps>(function
 
   // tRPC mutations
   const utils = trpc.useUtils();
-  const runMutation = trpc.task.run.useMutation({
-    onSuccess: () => {
+  const runMutation = trpc.task.run.useMutation();
+  const retryMutation = trpc.task.retry.useMutation();
+  const mergeMutation = trpc.loops.merge.useMutation();
+  const discardMutation = trpc.loops.discard.useMutation();
+
+  // Handle run mutation success
+  useEffect(() => {
+    if (runMutation.isSuccess) {
       utils.task.list.invalidate();
-    },
-  });
-  const retryMutation = trpc.task.retry.useMutation({
-    onSuccess: () => {
+    }
+  }, [runMutation.isSuccess, utils.task.list]);
+
+  // Handle retry mutation success
+  useEffect(() => {
+    if (retryMutation.isSuccess) {
       utils.task.list.invalidate();
-    },
-  });
-  const mergeMutation = trpc.loops.merge.useMutation({
-    onSuccess: () => {
+    }
+  }, [retryMutation.isSuccess, utils.task.list]);
+
+  // Handle merge mutation success
+  useEffect(() => {
+    if (mergeMutation.isSuccess) {
       utils.loops.list.invalidate();
-    },
-  });
-  const discardMutation = trpc.loops.discard.useMutation({
-    onSuccess: () => {
+    }
+  }, [mergeMutation.isSuccess, utils.loops.list]);
+
+  // Handle discard mutation success
+  useEffect(() => {
+    if (discardMutation.isSuccess) {
       utils.loops.list.invalidate();
-    },
-  });
+    }
+  }, [discardMutation.isSuccess, utils.loops.list]);
 
   const handleRun = useCallback(
     (e: MouseEvent) => {

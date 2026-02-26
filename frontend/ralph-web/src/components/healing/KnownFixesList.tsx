@@ -5,6 +5,7 @@
  */
 
 import * as React from "react";
+import { useState, useEffect } from "react";
 import { Wrench, Plus, Trash2, CheckCircle, XCircle, TestTube } from "lucide-react";
 import { trpc } from "@/trpc";
 import { type KnownFix, type FixAction } from "@/types/healing";
@@ -118,8 +119,11 @@ function AddKnownFixForm({ onAdd }: { onAdd: () => void }) {
   const [actionContent, setActionContent] = React.useState("");
   const [successRate, setSuccessRate] = React.useState(0.9);
 
-  const addFix = trpc.healing.addKnownFix.useMutation({
-    onSuccess: () => {
+  const addFix = trpc.healing.addKnownFix.useMutation();
+
+  // Handle add fix mutation success
+  useEffect(() => {
+    if (addFix.isSuccess) {
       toast.success("Fix added", "New known fix pattern has been added.");
       utils.healing.getKnownFixes.invalidate();
       // Reset form
@@ -128,11 +132,15 @@ function AddKnownFixForm({ onAdd }: { onAdd: () => void }) {
       setDescription("");
       setActionContent("");
       onAdd();
-    },
-    onError: (error) => {
-      toast.error("Error", error.message);
-    },
-  });
+    }
+  }, [addFix.isSuccess, utils.healing.getKnownFixes, onAdd]);
+
+  // Handle add fix mutation error
+  useEffect(() => {
+    if (addFix.isError && addFix.error) {
+      toast.error("Error", addFix.error.message);
+    }
+  }, [addFix.isError, addFix.error]);
 
   const handleSubmit = () => {
     if (!id || !pattern || !description || !actionContent) {
@@ -261,15 +269,18 @@ export function KnownFixesList({ className }: KnownFixesListProps) {
 
   const { data: fixes, isLoading } = trpc.healing.getKnownFixes.useQuery({});
 
-  const testFix = trpc.healing.testFix.useMutation({
-    onSuccess: (result) => {
-      if (result.matches) {
-        toast.success("Match Found", `This error matches fix: ${result.fix?.id}`);
+  const testFix = trpc.healing.testFix.useMutation();
+
+  // Handle test fix mutation success
+  useEffect(() => {
+    if (testFix.isSuccess && testFix.data) {
+      if (testFix.data.matches) {
+        toast.success("Match Found", `This error matches fix: ${testFix.data.fix?.id}`);
       } else {
         toast.info("No Match", "This error does not match any known fix");
       }
-    },
-  });
+    }
+  }, [testFix.isSuccess, testFix.data]);
 
   const handleTest = (fixId: string, error: string) => {
     testFix.mutate({ fixId, error });

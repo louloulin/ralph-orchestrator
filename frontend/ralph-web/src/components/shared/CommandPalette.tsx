@@ -40,24 +40,31 @@ export function CommandPalette() {
   const { recentCommands, addToHistory } = useCommandPaletteStore();
 
   // Mutations for task operations
-  const createTaskMutation = trpc.task.create.useMutation({
-    onSuccess: (data) => {
+  const createTaskMutation = trpc.task.create.useMutation();
+
+  // Handle create task mutation success
+  useEffect(() => {
+    if (createTaskMutation.isSuccess && createTaskMutation.data) {
       toast({
         title: "Task created",
-        description: `Created task: ${data.title}`,
+        description: `Created task: ${createTaskMutation.data.title}`,
       });
       // Automatically run the task
-      trpc.task.run.useMutation().mutate({ id: data.id });
+      trpc.task.run.useMutation().mutate({ id: createTaskMutation.data.id });
       navigate("/tasks");
-    },
-    onError: (error) => {
+    }
+  }, [createTaskMutation.isSuccess, createTaskMutation.data, navigate]);
+
+  // Handle create task mutation error
+  useEffect(() => {
+    if (createTaskMutation.isError && createTaskMutation.error) {
       toast({
         title: "Failed to create task",
-        description: error.message,
+        description: createTaskMutation.error.message,
         variant: "destructive",
       });
-    },
-  });
+    }
+  }, [createTaskMutation.isError, createTaskMutation.error]);
 
   // Actual implementation functions
   const handleCreateTask = useCallback(

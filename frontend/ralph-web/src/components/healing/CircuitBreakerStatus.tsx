@@ -5,6 +5,7 @@
  */
 
 import * as React from "react";
+import { useEffect } from "react";
 import { Power, RefreshCw, AlertTriangle, CheckCircle, XCircle, Clock } from "lucide-react";
 import { trpc } from "@/trpc";
 import { type CircuitBreakerStatus as CircuitBreakerStatusType, CIRCUIT_BREAKER_STATE_COLORS, CIRCUIT_BREAKER_STATE_LABELS } from "@/types/healing";
@@ -33,15 +34,22 @@ export function CircuitBreakerStatus({ loopId, className }: CircuitBreakerStatus
     { enabled: !!loopId, refetchInterval: 5000 } // Refresh every 5s
   );
 
-  const resetBreaker = trpc.healing.resetCircuitBreaker.useMutation({
-    onSuccess: () => {
+  const resetBreaker = trpc.healing.resetCircuitBreaker.useMutation();
+
+  // Handle reset mutation success
+  useEffect(() => {
+    if (resetBreaker.isSuccess) {
       toast.success("Circuit Breaker Reset", "The circuit breaker has been reset.");
       utils.healing.getCircuitBreakerStatus.invalidate();
-    },
-    onError: (error) => {
-      toast.error("Error", error.message);
-    },
-  });
+    }
+  }, [resetBreaker.isSuccess, utils.healing.getCircuitBreakerStatus]);
+
+  // Handle reset mutation error
+  useEffect(() => {
+    if (resetBreaker.isError && resetBreaker.error) {
+      toast.error("Error", resetBreaker.error.message);
+    }
+  }, [resetBreaker.isError, resetBreaker.error]);
 
   if (!loopId) {
     return (

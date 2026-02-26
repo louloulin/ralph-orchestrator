@@ -4,7 +4,7 @@
  * Dialog for creating a new agent team with configuration options.
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { trpc } from "../../trpc";
 import {
   type ContextSharingMode,
@@ -51,13 +51,16 @@ export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
   const { data: hats } = trpc.hat.list.useQuery();
 
   // Create mutation
-  const createTeam = trpc.teams.create.useMutation({
-    onSuccess: () => {
+  const createTeam = trpc.teams.create.useMutation();
+
+  // Handle create team mutation success
+  useEffect(() => {
+    if (createTeam.isSuccess) {
       utils.teams.list.invalidate();
       utils.teams.stats.invalidate();
       handleClose();
-    },
-  });
+    }
+  }, [createTeam.isSuccess, utils.teams.list, utils.teams.stats, handleClose]);
 
   const handleAddMember = () => {
     setMembers([

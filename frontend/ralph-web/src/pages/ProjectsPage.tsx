@@ -5,7 +5,7 @@
  * Allows creating, editing, deleting, and switching between projects.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Folder, Plus, Trash2, Edit2, Check, X, AlertCircle, GitBranch } from "lucide-react";
 import { trpc } from "../trpc";
 import { useProjectStore } from "../stores/projectStore";
@@ -34,47 +34,65 @@ export function ProjectsPage() {
   const { data: projects, isLoading, refetch } = trpc.project.list.useQuery();
 
   // Create mutation
-  const createMutation = trpc.project.create.useMutation({
-    onSuccess: (project) => {
+  const createMutation = trpc.project.create.useMutation();
+
+  // Handle create mutation success
+  useEffect(() => {
+    if (createMutation.isSuccess && createMutation.data) {
       setIsCreating(false);
       setNewProject({ name: "", path: "", description: "", type: "local" });
       setFormError(null);
       refetch();
       // Auto-activate new project
-      setActiveProject(project);
-    },
-    onError: (error) => {
-      setFormError(error.message);
-    },
-  });
+      setActiveProject(createMutation.data);
+    }
+  }, [createMutation.isSuccess, createMutation.data, refetch, setActiveProject]);
+
+  // Handle create mutation error
+  useEffect(() => {
+    if (createMutation.isError && createMutation.error) {
+      setFormError(createMutation.error.message);
+    }
+  }, [createMutation.isError, createMutation.error]);
 
   // Update mutation
-  const updateMutation = trpc.project.update.useMutation({
-    onSuccess: () => {
+  const updateMutation = trpc.project.update.useMutation();
+
+  // Handle update mutation success
+  useEffect(() => {
+    if (updateMutation.isSuccess) {
       setEditingId(null);
       setEditProject({ name: "", path: "", description: "", type: "local" });
       refetch();
-    },
-    onError: (error) => {
-      setFormError(error.message);
-    },
-  });
+    }
+  }, [updateMutation.isSuccess, refetch]);
+
+  // Handle update mutation error
+  useEffect(() => {
+    if (updateMutation.isError && updateMutation.error) {
+      setFormError(updateMutation.error.message);
+    }
+  }, [updateMutation.isError, updateMutation.error]);
 
   // Delete mutation
-  const deleteMutation = trpc.project.delete.useMutation({
-    onSuccess: () => {
+  const deleteMutation = trpc.project.delete.useMutation();
+
+  // Handle delete mutation success
+  useEffect(() => {
+    if (deleteMutation.isSuccess) {
       refetch();
-    },
-  });
+    }
+  }, [deleteMutation.isSuccess, refetch]);
 
   // Set active mutation
-  const setActiveMutation = trpc.project.setActive.useMutation({
-    onSuccess: (project) => {
-      if (project) {
-        setActiveProject(project);
-      }
-    },
-  });
+  const setActiveMutation = trpc.project.setActive.useMutation();
+
+  // Handle set active mutation success
+  useEffect(() => {
+    if (setActiveMutation.isSuccess && setActiveMutation.data) {
+      setActiveProject(setActiveMutation.data);
+    }
+  }, [setActiveMutation.isSuccess, setActiveMutation.data, setActiveProject]);
 
   // Validate path mutation
   const validatePathMutation = trpc.project.validatePath.useMutation();

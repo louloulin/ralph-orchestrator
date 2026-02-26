@@ -43,6 +43,8 @@ export const tasks = sqliteTable("tasks", {
   currentIteration: integer("current_iteration"), // Current iteration count
   maxIterations: integer("max_iterations"), // Max iterations configured
   loopId: text("loop_id"), // Associated loop ID
+  // Code review fields (P5-5) - track file changes for approval flow
+  fileChanges: text("file_changes"), // JSON-serialized array of FileChange objects
 });
 
 /**
@@ -165,3 +167,54 @@ export const projects = sqliteTable("projects", {
 // Type exports for use in repositories
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
+
+/**
+ * File change tracking types for code review (P5-5)
+ *
+ * Used to track file modifications during task execution for the approval flow.
+ */
+
+/**
+ * File change status - what happened to the file
+ */
+export type FileChangeStatus = "added" | "modified" | "deleted" | "renamed";
+
+/**
+ * Individual file change record
+ *
+ * Tracks a single file's modifications during task execution.
+ */
+export interface FileChange {
+  /** Relative path from project root */
+  path: string;
+  /** Type of change that occurred */
+  status: FileChangeStatus;
+  /** Number of lines added (for modified/added files) */
+  additions: number;
+  /** Number of lines deleted (for modified/deleted files) */
+  deletions: number;
+  /** Unified diff content (if available) */
+  diff?: string;
+  /** Previous path (for renamed files) */
+  oldPath?: string;
+  /** Approval status for the change */
+  approvalStatus?: "pending" | "approved" | "rejected";
+}
+
+/**
+ * File changes summary statistics
+ */
+export interface FileChangesStats {
+  /** Total number of files changed */
+  filesChanged: number;
+  /** Total lines added across all files */
+  totalAdditions: number;
+  /** Total lines deleted across all files */
+  totalDeletions: number;
+  /** Number of files pending approval */
+  pendingApproval: number;
+  /** Number of files approved */
+  approved: number;
+  /** Number of files rejected */
+  rejected: number;
+}

@@ -140,6 +140,8 @@ export function initializeDatabase(database?: BunSQLiteDatabase<typeof schema>):
   addColumnIfNotExists("tasks", "loop_id", "TEXT");
   // Project isolation (P5-2) - link tasks to projects
   addColumnIfNotExists("tasks", "project_id", "TEXT");
+  // Code review (P5-5) - track file changes for approval flow
+  addColumnIfNotExists("tasks", "file_changes", "TEXT");
 
   // Create queued_tasks table for task queue persistence
   sqlite.exec(`

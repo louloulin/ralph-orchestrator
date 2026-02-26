@@ -32,3 +32,8 @@ export {
   useTranslation,
   formatRelativeTime,
 } from "./useTranslation";
+
+export {
+  usePanelShortcuts,
+  DEFAULT_PANEL_SHORTCUTS,
+} from "./usePanelShortcuts";

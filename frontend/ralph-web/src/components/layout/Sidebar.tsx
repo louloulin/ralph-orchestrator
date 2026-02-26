@@ -9,7 +9,7 @@
  * Mobile: Hidden by default, slides in as overlay when toggled
  */
 
-import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Settings, Columns3, Menu, X, Activity, Users, Save, Heart, BookOpen, Folder, Lightbulb, Sparkles, Wrench, Layers, Home, Bot, Play, Gauge } from "lucide-react";
+import { PanelLeftClose, PanelLeft, Settings, ListTodo, Menu, X, Users, Folder, Lightbulb, Sparkles, Wrench, MessageSquare, Gauge } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { NavSection } from "./NavSection";
 import { useUIStore } from "@/store";
@@ -17,6 +17,7 @@ import { ThemeToggleMinimal, LocaleSwitcherMinimal } from "@/components/shared";
 import { useTranslation } from "@/hooks";
 import { cn } from "@/lib/utils";
 import { ProjectSelector } from "./ProjectSelector";
+import { usePanelStore } from "@/stores/panelStore";
 
 /** Ralph hat logo matching favicon */
 function RalphLogo({ className }: { className?: string }) {
@@ -54,43 +55,26 @@ interface NavItemConfig {
   labelKey: string;
 }
 
-/** Hierarchical navigation structure - 5 core views */
+/** Hierarchical navigation structure - AI-native 3-layer design */
 const NAV_SECTIONS: NavSection[] = [
   {
-    id: "home",
-    labelKey: "nav.sections.home",
-    icon: Home,
+    id: "chat",
+    labelKey: "nav.sections.chat",
+    icon: MessageSquare,
     items: [
-      { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
+      { to: "/chat", icon: MessageSquare, labelKey: "nav.chat" },
     ],
   },
   {
-    id: "tasks",
-    labelKey: "nav.sections.tasks",
-    icon: ListTodo,
+    id: "panels",
+    labelKey: "nav.sections.panels",
+    icon: PanelLeft,
     items: [
       { to: "/tasks", icon: ListTodo, labelKey: "nav.tasks" },
-      { to: "/kanban", icon: Columns3, labelKey: "nav.kanban" },
       { to: "/plan", icon: Lightbulb, labelKey: "nav.planning" },
-    ],
-  },
-  {
-    id: "agents",
-    labelKey: "nav.sections.agents",
-    icon: Bot,
-    items: [
-      { to: "/teams", icon: Users, labelKey: "nav.teams" },
-      { to: "/skills", icon: BookOpen, labelKey: "nav.skills" },
-    ],
-  },
-  {
-    id: "runtime",
-    labelKey: "nav.sections.runtime",
-    icon: Play,
-    items: [
       { to: "/monitoring", icon: Gauge, labelKey: "nav.monitoring" },
-      { to: "/checkpoints", icon: Save, labelKey: "nav.checkpoints" },
-      { to: "/healing", icon: Heart, labelKey: "nav.healing" },
+      { to: "/teams", icon: Users, labelKey: "nav.teams" },
+      { to: "/projects", icon: Folder, labelKey: "nav.projects" },
     ],
   },
   {
@@ -98,28 +82,11 @@ const NAV_SECTIONS: NavSection[] = [
     labelKey: "nav.sections.settings",
     icon: Settings,
     items: [
-      { to: "/projects", icon: Folder, labelKey: "nav.projects" },
       { to: "/builder", icon: Sparkles, labelKey: "nav.builder" },
       { to: "/settings", icon: Wrench, labelKey: "nav.settings" },
     ],
   },
 ];
-
-/** Legacy flat structure for backward compatibility */
-const NAV_ITEMS = [
-  { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
-  { to: "/tasks", icon: ListTodo, labelKey: "nav.tasks" },
-  { to: "/kanban", icon: Columns3, labelKey: "nav.kanban" },
-  { to: "/plan", icon: Lightbulb, labelKey: "nav.planning" },
-  { to: "/teams", icon: Users, labelKey: "nav.teams" },
-  { to: "/monitoring", icon: Activity, labelKey: "nav.monitoring" },
-  { to: "/checkpoints", icon: Save, labelKey: "nav.checkpoints" },
-  { to: "/healing", icon: Heart, labelKey: "nav.healing" },
-  { to: "/skills", icon: BookOpen, labelKey: "nav.skills" },
-  { to: "/projects", icon: Folder, labelKey: "nav.projects" },
-  { to: "/builder", icon: Workflow, labelKey: "nav.builder" },
-  { to: "/settings", icon: Settings, labelKey: "nav.settings" },
-] as const;
 
 /**
  * Mobile menu button component - hamburger icon
@@ -152,11 +119,29 @@ export function MobileMenuButton() {
 export function Sidebar() {
   const { sidebarOpen, toggleSidebar, mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const { t } = useTranslation();
+  const { openPanel } = usePanelStore();
 
   // Close mobile menu when nav item is clicked
   const handleNavClick = () => {
     if (mobileMenuOpen) {
       setMobileMenuOpen(false);
+    }
+  };
+
+  // Panel navigation - opens panels instead of navigating to routes
+  const handlePanelNavClick = (to: string) => {
+    const panelMap: Record<string, Parameters<typeof openPanel>[0]> = {
+      "/tasks": "tasks",
+      "/plan": "plan",
+      "/monitoring": "monitor",
+      "/teams": "teams",
+      "/projects": "projects",
+    };
+
+    const panelId = panelMap[to];
+    if (panelId) {
+      openPanel(panelId);
+      handleNavClick();
     }
   };
 
@@ -183,7 +168,7 @@ export function Sidebar() {
         <div className={cn("flex items-center", sidebarOpen ? "justify-between w-full" : "justify-center")}>
           <div className="flex items-center gap-3">
             <RalphLogo className="h-6 w-6 text-primary flex-shrink-0" />
-            {sidebarOpen && <span className="font-bold text-lg tracking-tight">RO</span>}
+            {sidebarOpen && <span className="font-bold text-lg tracking-tight">Ralph</span>}
           </div>
           {sidebarOpen && (
             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400 font-medium">
@@ -208,16 +193,22 @@ export function Sidebar() {
               collapsed={!sidebarOpen}
             />
             <div className={cn("space-y-1", !sidebarOpen && "mt-1")}>
-              {section.items.map((item) => (
-                <NavItem
-                  key={item.to}
-                  to={item.to}
-                  icon={item.icon}
-                  label={t(item.labelKey)}
-                  collapsed={!sidebarOpen}
-                  onClick={handleNavClick}
-                />
-              ))}
+              {section.items.map((item) => {
+                // Check if this is a panel navigation item
+                const isPanelNav = section.id === "panels";
+
+                return (
+                  <NavItem
+                    key={item.to}
+                    to={item.to}
+                    icon={item.icon}
+                    label={t(item.labelKey)}
+                    collapsed={!sidebarOpen}
+                    onClick={isPanelNav ? () => handlePanelNavClick(item.to) : handleNavClick}
+                    isPanelNav={isPanelNav}
+                  />
+                );
+              })}
             </div>
           </div>
         ))}

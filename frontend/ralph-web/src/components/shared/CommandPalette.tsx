@@ -20,6 +20,7 @@ import { Search, FileText, ArrowRight, Moon, Play, Trash2 } from "lucide-react";
 import { useCommandPaletteStore } from "@/stores/commandPaletteStore";
 import { createCommandGroups, findCommandById } from "@/lib/commands.tsx";
 import { useTheme } from "@/hooks/useTheme";
+import { usePanelStore } from "@/stores/panelStore";
 import { cn } from "@/lib/utils";
 import { trpc } from "@/trpc";
 import { toast } from "@/stores/toastStore";
@@ -34,6 +35,7 @@ export function CommandPalette() {
   const [taskPrompt, setTaskPrompt] = useState("");
   const navigate = useNavigate();
   const { toggle: toggleTheme } = useTheme();
+  const { openPanel } = usePanelStore();
 
   const { recentCommands, addToHistory } = useCommandPaletteStore();
 
@@ -96,9 +98,10 @@ export function CommandPalette() {
         handleCreateTask,
         handleStartLoop,
         handleCancelLoop,
-        toggleTheme
+        toggleTheme,
+        openPanel
       ),
-    [navigate, handleCreateTask, handleStartLoop, handleCancelLoop, toggleTheme]
+    [navigate, handleCreateTask, handleStartLoop, handleCancelLoop, toggleTheme, openPanel]
   );
 
   // Global keyboard shortcut (Cmd/Ctrl+K)

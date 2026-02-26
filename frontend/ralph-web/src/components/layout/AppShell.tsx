@@ -8,17 +8,27 @@
  * Mobile behavior:
  * - Sidebar is hidden by default, toggleable via hamburger menu
  * - Overlay backdrop appears when sidebar is open on mobile
+ *
+ * SidePanel system:
+ * - Panels slide out from right for progressive disclosure
+ * - Keyboard shortcuts: Cmd/Ctrl+1-5 to open panels, Esc/0 to close
  */
 
 import { Outlet } from "react-router-dom";
 import { Sidebar, MobileMenuButton } from "./Sidebar";
+import { SidePanel, TasksPanelContent, PlanPanelContent, MonitorPanelContent, TeamsPanelContent, ProjectsPanelContent } from "@/components/panels";
+import { ActiveLoopsDock } from "@/components/dock";
 import { useUIStore } from "@/store";
 import { useTranslation } from "@/hooks";
+import { usePanelShortcuts, DEFAULT_PANEL_SHORTCUTS } from "@/hooks/usePanelShortcuts";
 import { cn } from "@/lib/utils";
 
 export function AppShell() {
   const { mobileMenuOpen, setMobileMenuOpen } = useUIStore();
   const { t } = useTranslation();
+
+  // Register keyboard shortcuts for panels
+  usePanelShortcuts(DEFAULT_PANEL_SHORTCUTS);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -54,7 +64,8 @@ export function AppShell() {
         id="main-content"
         className={cn(
           "flex-1 overflow-auto",
-          "pt-14 md:pt-0" // Add top padding on mobile for header
+          "pt-14 md:pt-0", // Add top padding on mobile for header
+          "pb-20 md:pb-20" // Add bottom padding for dock
         )}
         role="main"
         aria-label={t("a11y.mainContent")}
@@ -72,6 +83,18 @@ export function AppShell() {
         aria-atomic="true"
         className="sr-only"
       />
+
+      {/* SidePanel System - slide-out panels for progressive disclosure */}
+      <SidePanel width={600} showBackdrop closeOnBackdropClick>
+        <TasksPanelContent />
+        <PlanPanelContent />
+        <MonitorPanelContent />
+        <TeamsPanelContent />
+        <ProjectsPanelContent />
+      </SidePanel>
+
+      {/* ActiveLoopsDock - persistent bottom dock for multi-task visibility */}
+      <ActiveLoopsDock />
     </div>
   );
 }

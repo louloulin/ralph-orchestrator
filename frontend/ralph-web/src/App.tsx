@@ -11,6 +11,7 @@ import { AppShell } from "./components/layout";
 import { PageLoading } from "./components/shared";
 
 // Lazy-loaded page components for code splitting
+const ChatPage = lazy(() => import("./pages/ChatPage").then(m => ({ default: m.ChatPage })));
 const DashboardPage = lazy(() => import("./pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
 const TasksPage = lazy(() => import("./pages/TasksPage").then(m => ({ default: m.TasksPage })));
 const TaskDetailPage = lazy(() => import("./pages/TaskDetailPage").then(m => ({ default: m.TaskDetailPage })));
@@ -22,7 +23,6 @@ const MonitoringPage = lazy(() => import("./pages/MonitoringPage").then(m => ({ 
 const TeamsPage = lazy(() => import("./pages/TeamsPage").then(m => ({ default: m.TeamsPage })));
 const CheckpointsPage = lazy(() => import("./pages/CheckpointsPage").then(m => ({ default: m.default })));
 const HealingPage = lazy(() => import("./pages/HealingPage").then(m => ({ default: m.HealingPage })));
-const SkillsPage = lazy(() => import("./pages/SkillsPage").then(m => ({ default: m.SkillsPage })));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
 
 /**
@@ -37,6 +37,9 @@ export function App() {
     <Routes>
       {/* AppShell provides the layout, Outlet renders the matched route */}
       <Route element={<AppShell />}>
+        {/* Chat is the new AI-native main interface */}
+        <Route path="/chat" element={<LazyPage><ChatPage /></LazyPage>} />
+        {/* Legacy routes - will be converted to panels */}
         <Route path="/dashboard" element={<LazyPage><DashboardPage /></LazyPage>} />
         <Route path="/tasks" element={<LazyPage><TasksPage /></LazyPage>} />
         <Route path="/tasks/:id" element={<LazyPage><TaskDetailPage /></LazyPage>} />
@@ -47,13 +50,12 @@ export function App() {
         <Route path="/monitoring" element={<LazyPage><MonitoringPage /></LazyPage>} />
         <Route path="/checkpoints" element={<LazyPage><CheckpointsPage /></LazyPage>} />
         <Route path="/healing" element={<LazyPage><HealingPage /></LazyPage>} />
-        <Route path="/skills" element={<LazyPage><SkillsPage /></LazyPage>} />
         <Route path="/projects" element={<LazyPage><ProjectsPage /></LazyPage>} />
         <Route path="/teams" element={<LazyPage><TeamsPage /></LazyPage>} />
-        {/* Redirect root to dashboard */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        {/* Catch-all redirect to dashboard */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {/* Redirect root to chat */}
+        <Route path="/" element={<Navigate to="/chat" replace />} />
+        {/* Catch-all redirect to chat */}
+        <Route path="*" element={<Navigate to="/chat" replace />} />
       </Route>
     </Routes>
   );

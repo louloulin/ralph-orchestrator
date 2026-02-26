@@ -13,6 +13,10 @@ import { App } from "./App";
 
 // Mock lazy-loaded page components to isolate routing tests
 // Each mock returns a module with a default export (the component)
+vi.mock("./pages/ChatPage", () => ({
+  ChatPage: () => <div data-testid="chat-page">Chat Page</div>,
+}));
+
 vi.mock("./pages/DashboardPage", () => ({
   DashboardPage: () => <div data-testid="dashboard-page">Dashboard Page</div>,
 }));
@@ -112,11 +116,11 @@ describe("App routing", () => {
       });
     });
 
-    it("redirects root to /dashboard", async () => {
+    it("redirects root to /chat", async () => {
       renderWithRoute("/");
 
       await waitFor(() => {
-        expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
+        expect(screen.getByTestId("chat-page")).toBeInTheDocument();
       });
     });
 

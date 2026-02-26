@@ -31,6 +31,7 @@
     "skipToContent": "跳转到主要内容"
   },
   "nav": {
+    "chat": "聊天",
     "dashboard": "仪表盘",
     "tasks": "任务",
     "kanban": "看板",
@@ -52,11 +53,13 @@
     "openMenu": "打开菜单",
     "closeMenu": "关闭菜单",
     "sections": {
+      "chat": "聊天",
+      "panels": "面板",
+      "settings": "设置",
       "home": "主页",
       "tasks": "任务",
       "agents": "代理",
-      "runtime": "运行",
-      "settings": "设置"
+      "runtime": "运行"
     }
   },
   "a11y": {
@@ -232,6 +235,24 @@
     "closeHint": "关闭",
     "hint": "按 ⌘K 打开命令面板"
   },
+  "panels": {
+    "title": "面板",
+    "tasks": "任务",
+    "plan": "规划",
+    "monitor": "监控",
+    "teams": "团队",
+    "projects": "项目",
+    "shortcuts": {
+      "openTasks": "⌘1",
+      "openPlan": "⌘2",
+      "openMonitor": "⌘3",
+      "openTeams": "⌘4",
+      "openProjects": "⌘5",
+      "close": "Esc / ⌘0",
+      "hint": "键盘快捷键：⌘1-5 打开面板，Esc/⌘0 关闭"
+    },
+    "close": "关闭面板"
+  },
   "errors": {
     "generic": "出了点问题",
     "networkError": "网络错误，请检查您的连接。",
@@ -336,6 +357,65 @@
       "totalSize": "总大小",
       "loops": "循环数",
       "latest": "最新"
+    }
+  },
+  "chat": {
+    "title": "与 Ralph 聊天",
+    "description": "描述您想要完成的任务，Ralph 将帮助您实现它。",
+    "inputPlaceholder": "描述您的需求...",
+    "connecting": "正在连接代理...",
+    "quickActions": {
+      "newTask": {
+        "title": "开始新任务",
+        "description": "创建一个新任务让 Ralph 执行"
+      },
+      "explore": {
+        "title": "探索项目",
+        "description": "分析和理解您的代码库"
+      }
+    },
+    "status": {
+      "thinking": "思考中...",
+      "streaming": "生成中...",
+      "completed": "已完成",
+      "error": "错误"
+    },
+    "message": {
+      "user": "您",
+      "agent": "Ralph"
+    },
+    "thinking": {
+      "title": "思考",
+      "copy": "复制思考内容"
+    },
+    "toolCall": {
+      "arguments": "参数",
+      "result": "结果"
+    }
+  },
+  "dock": {
+    "activeLoops": "活跃循环",
+    "newTask": "新建任务",
+    "pauseAll": "全部暂停",
+    "stop": "停止",
+    "merge": "合并",
+    "retry": "重试",
+    "loopStopped": "循环已停止",
+    "loopStoppedMessage": "循环已成功停止",
+    "stopFailed": "停止循环失败",
+    "mergeTriggered": "合并已触发",
+    "mergeTriggeredMessage": "合并任务已创建",
+    "mergeFailed": "合并循环失败",
+    "stopLoop": "停止循环",
+    "mergeLoop": "合并循环",
+    "retryMerge": "重试合并",
+    "status": {
+      "running": "运行中",
+      "completed": "已完成",
+      "failed": "失败",
+      "merging": "合并中",
+      "stuck": "卡住",
+      "queued": "排队中"
     }
   }
 }

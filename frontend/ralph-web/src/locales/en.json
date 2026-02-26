@@ -31,6 +31,7 @@
     "skipToContent": "Skip to main content"
   },
   "nav": {
+    "chat": "Chat",
     "dashboard": "Dashboard",
     "tasks": "Tasks",
     "kanban": "Kanban",
@@ -52,11 +53,13 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "sections": {
+      "chat": "Chat",
+      "panels": "Panels",
+      "settings": "Settings",
       "home": "Home",
       "tasks": "Tasks",
       "agents": "Agents",
-      "runtime": "Runtime",
-      "settings": "Settings"
+      "runtime": "Runtime"
     }
   },
   "a11y": {
@@ -232,6 +235,24 @@
     "closeHint": "to close",
     "hint": "Press ⌘K to open command palette"
   },
+  "panels": {
+    "title": "Panels",
+    "tasks": "Tasks",
+    "plan": "Planning",
+    "monitor": "Monitoring",
+    "teams": "Teams",
+    "projects": "Projects",
+    "shortcuts": {
+      "openTasks": "⌘1",
+      "openPlan": "⌘2",
+      "openMonitor": "⌘3",
+      "openTeams": "⌘4",
+      "openProjects": "⌘5",
+      "close": "Esc / ⌘0",
+      "hint": "Keyboard shortcuts: ⌘1-5 to open panels, Esc/⌘0 to close"
+    },
+    "close": "Close panel"
+  },
   "errors": {
     "generic": "Something went wrong",
     "networkError": "Network error. Please check your connection.",
@@ -336,6 +357,65 @@
       "totalSize": "Total Size",
       "loops": "Loops",
       "latest": "Latest"
+    }
+  },
+  "chat": {
+    "title": "Chat with Ralph",
+    "description": "Describe what you want to accomplish, and Ralph will help you build it.",
+    "inputPlaceholder": "Describe what you need...",
+    "connecting": "Connecting to agent...",
+    "quickActions": {
+      "newTask": {
+        "title": "Start New Task",
+        "description": "Create a new task for Ralph to work on"
+      },
+      "explore": {
+        "title": "Explore Project",
+        "description": "Analyze and understand your codebase"
+      }
+    },
+    "status": {
+      "thinking": "Thinking...",
+      "streaming": "Generating...",
+      "completed": "Done",
+      "error": "Error"
+    },
+    "message": {
+      "user": "You",
+      "agent": "Ralph"
+    },
+    "thinking": {
+      "title": "Thinking",
+      "copy": "Copy thinking"
+    },
+    "toolCall": {
+      "arguments": "Arguments",
+      "result": "Result"
+    }
+  },
+  "dock": {
+    "activeLoops": "active loops",
+    "newTask": "New Task",
+    "pauseAll": "Pause All",
+    "stop": "Stop",
+    "merge": "Merge",
+    "retry": "Retry",
+    "loopStopped": "Loop Stopped",
+    "loopStoppedMessage": "The loop has been stopped successfully",
+    "stopFailed": "Failed to Stop Loop",
+    "mergeTriggered": "Merge Triggered",
+    "mergeTriggeredMessage": "Merge task has been created",
+    "mergeFailed": "Failed to Merge Loop",
+    "stopLoop": "Stop loop",
+    "mergeLoop": "Merge loop",
+    "retryMerge": "Retry merge",
+    "status": {
+      "running": "Running",
+      "completed": "Completed",
+      "failed": "Failed",
+      "merging": "Merging",
+      "stuck": "Stuck",
+      "queued": "Queued"
     }
   }
 }

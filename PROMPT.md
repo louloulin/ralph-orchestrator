@@ -1,1276 +1,632 @@
-# Ralph Web Dashboard UI改造计划
+# Ralph Web UI 1.0 - AI 原生界面设计
 
-> **创建时间**: 2026-02-26
-> **分析目标**: 对比主流AI平台UI设计，制定Ralph Dashboard改造计划，构建类似Codex/Claude Cowork的AI Chatbox体验
-> **版本**: v2.0
+> **状态**: 草稿 | **版本**: 1.0 | **创建日期**: 2026-02-26
+
+## 执行摘要
+
+本文档概述了 Ralph Web Dashboard 从传统多页仪表板到 AI 原生聊天中心的 UI/UX 转换方案，灵感来源于 Claude Code、Cursor 和现代 AI 产品。
+
+**核心变化:**
+- **主界面**: 基于聊天的交互（类似 Claude Code）
+- **渐进式展示**: 侧边面板用于任务、规划、监控
+- **多任务可见性**: 始终可见的活动循环坞
+- **简化导航**: 3 层结构（聊天 → 面板 → 设置）
+- **删除**: Skills 页面（底层 Claude Code 已支持 skills）
 
 ---
 
 ## 目录
 
-- [一、竞品分析](#一竞品分析)
-- [二、AI Chatbox UI设计模式](#二ai-chatbox-ui设计模式)
-- [三、Ralph Dashboard现状分析](#三ralph-dashboard现状分析)
-- [四、架构设计](#四架构设计)
-- [五、交互式AI功能设计](#五交互式ai功能设计)
-- [六、差距分析](#六差距分析)
-- [七、改造方案](#七改造方案)
-- [八、实施路线图](#八实施路线图)
+1. [设计理念](#设计理念)
+2. [当前状态分析](#当前状态分析)
+3. [目标用户体验: AI Chatbox + 编排](#目标用户体验-ai-chatbox--编排)
+4. [架构图](#架构图)
+5. [UI 组件系统](#ui-组件系统)
+6. [导航结构](#导航结构)
+7. [技术增强](#技术增强)
+8. [实施路线图](#实施路线图)
+9. [设计规范](#设计规范)
+10. [Claude Agent Skills 协议](#claude-agent-skills-协议)
+11. [参考文献](#参考文献)
 
 ---
 
-## 一、竞品分析
+## 设计理念
 
-### 1.1 Codex App (OpenAI, 2026-02-03发布)
+### 从传统到 AI 原生
 
-**产品定位**: macOS原生Agent编排应用
+**传统仪表板模式**（当前）:
+```
+用户 → 导航到页面 → 填写表单 → 提交 → 查看结果
+```
 
-**UI设计亮点**:
-- **Agent管理中心**: 专门设计用于管理多个AI代理的界面，支持平滑任务切换
-- **多线程并行界面**: 不同任务的并行代理线程(重构、测试、前端更新)
-- **Git Worktrees集成**: 隐式后端支持，允许代理在隔离沙箱中工作
-- **视觉设计**: 用户反馈UI美学"比Cursor高几个等级"
-- **中文本地化**: 支持个性化设置中文输出
-- **Skills库UI**: 内置技能库界面，包括Figma-to-Code实现、图片生成、云部署等
+**AI 原生模式**（目标）:
+```
+用户 → 聊天界面 → Agent 规划 → Agent 执行 → 实时反馈
+```
 
-**设计隐喻**: "指挥中心"模式 - 高度视觉化、专业感强
+### 核心原则
+
+#### 1. 对话作为主要界面
+- 聊天不是功能，它是主界面
+- 始终可访问的输入（持久底部栏）
+- 消息线程显示 Agent 推理、工具调用、结果
+- 代码变更内联显示在对话中
+
+#### 2. 渐进式展示
+- 从最简开始（仅聊天输入）
+- 按需揭示面板（任务、规划、监控）
+- 折叠以保持专注
+- 上下文感知提示
+
+#### 3. 多任务可见性
+- 始终看到 Agent 正在做什么
+- 实时状态指示器
+- 快速切换活动任务
+- 一目了然的任务生命周期
+
+#### 4. 混合工作流支持
+- **Cursor 风格**: 实时内联编辑
+- **Claude Code 风格**: 自主任务委托
+- **规划模式**: 规格 → 设计 → 实现
+- 无缝模式切换
+
+#### 5. 设计智能
+- 行业标准配色方案
+- 一致的间距（8px 网格）
+- 专业图标
+- 可访问对比度（WCAG 2.1 AA）
+- 用于反馈的微交互
 
 ---
 
-### 1.2 Claude Cowork (Anthropic, 2026-01-12发布)
+## 当前状态分析
 
-**产品定位**: "Claude Code for the rest of your work" - 面向普通知识工作者的AI代理
+### 架构概览
 
-**UI设计亮点**:
-- **桌面GUI替代命令行**: 移除终端障碍，友好的桌面界面
-- **任务可视化**: 视觉化显示任务执行进度
-- **上下文支持**: 用户可附加文件夹作为工作上下文
-- **提示词驱动**: 简洁的任务启动方式
-- **任务与聊天分离**: 明确区分任务执行和对话交互
+**技术栈:**
+- React 19, TypeScript, Vite 7
+- Tailwind CSS v4 (OKLCH 颜色系统)
+- Zustand（状态管理）
+- tRPC（类型安全 API）
+- React Router v7
+- WebSocket（实时日志）
+- Lucide React（图标）
 
-**设计理念**:
-1. 去除任务特定输入框和脚手架
-2. 系统更好地理解用户意图
-3. 根据上下文动态分支界面(如检测使用应用X时弹出相关UI)
+**当前页面（12个）:**
+1. Dashboard（默认）
+2. Tasks
+3. Kanban
+4. Plan
+5. Teams
+6. Monitoring
+7. Checkpoints
+8. Healing
+9. Skills（待删除）
+10. Projects
+11. Builder
+12. Settings
+
+### 组件结构
+
+```
+frontend/ralph-web/src/
+├── components/
+│   ├── ui/              # 基础组件（Button, Card, Input）
+│   ├── shared/          # 可复用（CommandPalette, ErrorBoundary, ThemeToggle）
+│   ├── dashboard/       # StatCard, ActivityTimeline, QuickActions
+│   ├── tasks/           # TaskInput, ThreadList, TaskThread
+│   ├── kanban/          # KanbanCard, KanbanColumn
+│   ├── builder/         # Flow builder 组件
+│   ├── plan/            # PlanLanding, PlanSession
+│   ├── teams/           # Team 管理
+│   └── monitoring/      # Process 监控
+├── pages/               # 路由级页面组件
+├── stores/              # Zustand stores
+└── store.ts             # 主 UI store
+```
+
+### 状态管理
+
+**Zustand Stores:**
+- store.ts - UI 状态（侧边栏、任务展开）
+- themeStore.ts - 主题偏好
+- i18nStore.ts - 国际化
+- projectStore.ts - 活动项目
+- commandPaletteStore.ts - Cmd+K 调色板
+- diffStore.ts - Diff 查看器
+- thinkingStore.ts - Thinking 面板
+- logStore.ts - 日志流
+- toastStore.ts - 通知
 
 ---
 
-### 1.3 OpenCode (开源替代品)
+## 目标用户体验: AI Chatbox + 编排
 
-**产品定位**: 免费开源的AI编码替代方案
+### 主视图: 聊天界面
 
-**UI设计亮点**:
-- **跨平台支持**: Mac、Windows、Linux
-- **多提供商UI**: 统一界面支持GLM-4.7等多个提供商
-- **免费开源**: 社区驱动
+```
+┌───────────────────────────────────────────────────────────────────┐
+│  Ralph  ● 运行中: 3  任务: 12  [⌘K]                    ⚙️ 主题  │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │ 👤 用户        今天 2:30 PM                              │  │
+│  │ 重构认证系统以使用 JWT tokens                             │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │ 🤖 Agent [思考中...]  今天 2:30 PM                      │  │
+│  │ ┌─ 思考: 分析当前认证流程                                │  │
+│  │ │  ✓ 在 src/auth/service.ts 找到 AuthService            │  │
+│  │ │  ✓ 当前实现使用 session cookies                       │  │
+│  │ │  → 计划: 迁移到 JWT 并使用 refresh token rotation     │  │
+│  │ └─ [折叠]                                                │  │
+│  │                                                          │  │
+│  │ → 工具: 读取文件 src/auth/service.ts                     │  │
+│  │ ┌────────────────────────────────────────────────────┐   │  │
+│  │ │ export class AuthService {                         │   │  │
+│  │ │   async login(email, password) {                   │   │  │
+│  │ │     // Session-based auth                          │   │  │
+│  │ │     const session = await createSession(...);      │   │  │
+│  │ │   }                                                 │   │  │
+│  │ │ }                                                   │   │  │
+│  │ └────────────────────────────────────────────────────┘   │  │
+│  │                                                          │  │
+│  │ → 工具: 写入文件 src/auth/jwt.service.ts                │  │
+│  │ [✓ 已创建带 token rotation 的 JWT 服务]                │  │
+│  │                                                          │  │
+│  │ → 工具: 运行测试                                        │  │
+│  │ [✓ 测试通过 (15/15)]                                    │  │
+│  │                                                          │  │
+│  │ ✓ 已将认证系统重构为 JWT。摘要:                         │  │
+│  │   - 创建了带 access/refresh tokens 的 JwtAuthService    │  │
+│  │   - 实现了 token rotation（7 天 refresh）              │  │
+│  │   - 添加了 JWT 验证中间件                              │  │
+│  │   - 所有测试通过                                        │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │ 👤 用户        今天 2:35 PM                              │  │
+│  │ 太好了！现在添加速率限制以防止暴力破解                   │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  ┌────────────────────────────────────────────────────────────┐  │
+│  │ 🤖 Agent [运行中...]  今天 2:35 PM                      │  │
+│  │ → 工具: 读取文件 src/auth/middleware.ts                  │  │
+│  │ [加载中...]                                               │  │
+│  └────────────────────────────────────────────────────────────┘  │
+│                                                                   │
+│  [─────────────────────────────────────────────────────────]    │
+│  [📎] 描述你需要什么...                          发送 (⌘↵)  │
+└───────────────────────────────────────────────────────────────────┘
+```
 
----
+### 侧边面板（从右侧滑出）
 
-## 二、AI Chatbox UI设计模式
+**任务面板（Cmd+1）**
+- 搜索和筛选任务
+- 显示运行中、暂停、已完成的任务
+- 任务状态指示器
 
-### 2.1 核心交互模式 (2026最佳实践)
+**规划面板（Cmd+2）**
+- 活动规格列表
+- 草稿规格
+- 规划进度追踪
 
-基于最新AI UX研究([来源](https://juejin.cn/post/7556142470908919848), [来源](https://juejin.cn/post/7583971282892455988))：
+**监控面板（Cmd+3）**
+- 系统健康状态
+- 活动循环列表
+- 实时指标
+- 最近事件
 
-#### 2.1.1 多模态交互支持
+### 持久坞（底部）
 
-| 模态 | 最佳使用场景 | 实现优先级 |
-|------|-------------|-----------|
-| **文本** | 快速查询、详细指令 | P0 - 已实现 |
-| **语音** | 免提场景、无障碍访问 | P1 |
-| **图片** | 视觉分析、创意任务 | P2 |
-| **文件拖拽** | 上下文附件 | P1 |
-
-**实现建议**:
-```typescript
-// 统一输入组件支持多种模态
-interface MultimodalInput {
-  text: string;
-  voice?: Blob;           // 语音转文字
-  images?: File[];        // 图片OCR/分析
-  files?: File[];         // 文件上下文
-}
+```
+┌───────────────────────────────────────────────────────────────┐
+│ [🔄 JWT 重构] [⏸️ 速率限制] [✓ 修复 Bug]   [+] [⏸️ 全部]        │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-#### 2.1.2 主动式UX设计
+## 架构图
 
-**核心理念**: AI系统应该预测用户需求，而非等待命令
+### 组件层次结构
 
-**实现模式**:
-1. **预测性建议** - 根据当前上下文提供下一步操作建议
-2. **自适应界面** - 根据用户行为动态调整布局
-3. **智能提示** - 在用户卡住时主动提供帮助
-4. **上下文连续性** - 跨会话记住历史和偏好
+```
+App
+├── AppShell
+│   ├── Sidebar（可折叠，移动端可折叠）
+│   │   ├── Logo + ProjectSelector
+│   │   ├── NavSections（主页、任务、Agents、运行时、设置）
+│   │   └── ThemeToggle + LocaleSwitcher
+│   │
+│   └── MainContent
+│       ├── TopBar（面包屑、系统状态）
+│       │
+│       ├── ChatPage（默认 - 新建）
+│       │   ├── MessageThread（虚拟滚动）
+│       │   │   ├── UserMessage
+│       │   │   ├── AgentMessage
+│       │   │   ├── ThinkingBlock（可折叠）
+│       │   │   ├── ToolCallCard
+│       │   │   └── DiffInline
+│       │   │
+│       │   └── ChatInput（持久底部）
+│       │       ├── Textarea（自动展开）
+│       │       ├── FileAttachButton
+│       │       ├── ContextMenu（附加规格、预设）
+│       │       └── SendButton
+│       │
+│       ├── SidePanels（从右侧滑出）
+│       │   ├── TasksPanel（TasksPage 改编）
+│       │   ├── PlanPanel（PlanPage 改编）
+│       │   ├── MonitorPanel（Monitoring + Checkpoints + Healing）
+│       │   ├── TeamsPanel
+│       │   └── ProjectsPanel
+│       │
+│       ├── ActiveLoopsDock（底部、持久）
+│       │   ├── LoopCard（迷你状态）
+│       │   ├── QuickActions
+│       │   └── BulkControls
+│       │
+│       └── Other Pages（独立）
+│           ├── BuilderPage（flow builder）
+│           └── SettingsPage
+│
+└── GlobalComponents
+    ├── CommandPalette（Cmd+K）
+    ├── ToastContainer
+    └── ErrorBoundary
+```
 
-**示例UX**:
-```mermaid
-graph LR
-    A[用户打开任务] --> B[AI检测上下文]
-    B --> C[显示相关建议]
-    C --> D[用户选择或忽略]
-    D --> E[AI学习偏好]
+### 数据流
+
+```
+用户输入（ChatInput）
+    ↓
+tRPC Mutation（task.create）
+    ↓
+Backend（TaskQueueService）
+    ↓
+Agent Loop（Ralph 编排）
+    ↓
+WebSocket 事件（Agent 输出、工具调用）
+    ↓
+MessageThread（实时更新）
+    ↓
+SidePanels（反映状态）
+    ↓
+ActiveLoopsDock（显示状态）
 ```
 
 ---
 
-#### 2.1.3 渐进式披露
+## UI 组件系统
 
-**原则**: 避免信息过载，按需展示高级功能
+### 新组件（待创建）
 
-| 层级 | 内容 | 触发条件 |
-|------|------|----------|
-| **基础** | 简单任务输入框 | 首次使用 |
-| **进阶** | 技能选择、参数配置 | 3次使用后 |
-| **专家** | 完整Hat配置、事件流 | 用户主动开启 |
+#### MessageThread
+- 虚拟滚动支持
+- 多种消息类型（user, agent, thinking, tool, diff, status, error）
+- 流式消息支持
+
+#### ChatInput
+- 自动展开 textarea
+- 文件拖放附件
+- 上下文菜单（附加规格、选择预设）
+- 键盘快捷键（⌘↵ 发送）
+
+#### SidePanel
+- 滑入动画
+- 点击外部关闭
+- Esc 关闭
+- 可调整宽度
+- 多面板标签页
+
+#### LoopCard
+- 状态指示器（运行、暂停、完成、失败）
+- 迷你状态
+- 进度条
+- 控制按钮
+
+#### ThinkingBlock
+- 可折叠推理显示
+- 结构使用等宽字体
+- 复制按钮
+
+#### DiffInline
+- 消息内联 diff
+- 语法高亮
+- 展开/折叠
+
+### 增强的现有组件
+
+- TaskInput → ChatInput 迁移
+- ThreadList → TasksPanel
+- MonitoringPage → MonitorPanel
 
 ---
 
-#### 2.1.4 AI透明度设计
+## 导航结构
 
-**信任构建关键要素**:
-1. **置信度显示** - AI对建议的确定程度(高/中/低)
-2. **决策解释** - AI为什么采取某个行动
-3. **能力边界** - 明确说明AI能做什么/不能做什么
-4. **错误恢复** - AI失败时的优雅降级
+### 之前（当前）
+```
+/dashboard（默认）
+/tasks
+/kanban
+/plan
+/teams
+/monitoring
+/checkpoints
+/healing
+/skills（待删除）
+/projects
+/builder
+/settings
+```
 
-**UI模式**:
-```typescript
-// AI置信度指示器
-interface AIConfidence {
-  level: 'high' | 'medium' | 'low';
-  explanation?: string;  // "基于3个相似任务..."
-  alternatives?: string[];  // 低置信度时提供备选
-}
+### 之后（提议）
+```
+/chat（新默认）
+  - 主聊天界面
+  - 始终可访问的输入
+
+面板（滑出，可通过 Cmd+1-5 访问）:
+  /tasks-panel
+  /plan-panel
+  /monitor-panel
+  /teams-panel
+  /projects-panel
+
+独立页面:
+  /builder
+  /settings
+
+已删除:
+  /skills（底层 Claude Code 支持 skills）
+  /dashboard（合并到 /chat）
+  /kanban（移动到 TasksPanel）
 ```
 
 ---
 
-### 2.2 对话式界面模式
+## 技术增强
 
-#### 2.2.1 消息类型设计
+### 新依赖
+- @tanstack/react-virtual（虚拟滚动）
+- framer-motion（动画）
+- react-markdown + remark-gfm + rehype-highlight（Markdown 支持）
+- mermaid（图表支持）
 
-| 消息类型 | UI表现 | 用途 |
-|---------|--------|------|
-| **用户消息** | 右对齐气泡 | 用户输入 |
-| **AI响应** | 左对齐卡片 | AI回复 |
-| **系统通知** | 顶部Toast | 非阻塞提示 |
-| **进度更新** | 行内进度条 | 长时间任务 |
-| **错误消息** | 红色警告框 | 失败处理 |
-| **行动卡片** | 可交互按钮 | AI建议操作 |
+### WebSocket 增强
+- 扩展 /ws/logs 用于聊天流
+- 支持消息、思考、工具、diff、状态类型
+
+### 性能优化
+1. 虚拟滚动（长消息线程）
+2. 消息分页
+3. 代码拆分和延迟加载
 
 ---
 
-#### 2.2.2 输入状态模式
+## 实施路线图
 
-```mermaid
-stateDiagram-v2
-    [*] --> Idle
-    Idle --> Typing: 用户开始输入
-    Typing --> Processing: 发送消息
-    Processing --> Thinking: AI思考中
-    Thinking --> Executing: 开始执行
-    Executing --> Completed: 任务完成
-    Executing --> Error: 执行失败
-    Error --> Idle: 用户确认
-    Completed --> Idle: 自动返回
+### 阶段 1: 基础（第 1-2 周）
+
+1. 创建 ChatPage 组件
+2. 增强 TaskInput → ChatInput
+3. 创建消息组件
+4. 删除 Skills 页面
+5. 更新路由
+
+### 阶段 2: 侧边面板（第 2-3 周）
+
+1. 实现 SidePanel 系统
+2. 改编现有页面为面板
+3. 添加面板键盘快捷键
+4. 面板状态管理
+
+### 阶段 3: 多任务 UI（第 3-4 周）
+
+1. 创建 ActiveLoopsDock 组件
+2. 实现 LoopCard 组件
+3. 创建循环详情视图
+4. 集成现有 WebSocket
+
+### 阶段 4: 完善（第 4-5 周）
+
+1. Command Palette v2
+2. 快速操作栏
+3. 键盘导航
+4. 性能优化
+5. 动画完善
+6. 可访问性审计
+
+---
+
+## 设计规范
+
+### 字体排版
+- 字体族: Inter（sans）、JetBrains Mono（mono）
+- 8px 网格系统
+
+### 颜色（OKLCH 系统）
+- 状态颜色: success、warning、error、info
+- Agent 状态: thinking（紫）、running（蓝）、completed（绿）、failed（红）
+
+### 组件规范
+- MessageBubble、ChatInput、SidePanel、LoopCard 样式规范
+- 动画规范（面板滑入、消息淡入）
+
+---
+
+## Claude Agent Skills 协议
+
+### 概述
+
+Claude Agent Skills 协议是一种基于 Markdown 的技能定义格式，用于扩展 Claude Code 的能力。Ralph 支持通过此协议定义和管理 AI Agent 的技能集合。
+
+### 技能格式
+
+每个技能是一个独立的 Markdown 文件，使用 YAML frontmatter 定义元数据，后跟详细说明。
+
+#### 基本结构
+
+```markdown
+---
+name: skill-name
+description: 技能的简短描述
+---
+
+# 技能名称
+
+## 使用场景
+描述何时使用此技能...
+
+## 实现细节
+详细说明技能如何工作...
+
+## 示例
+展示技能使用的示例...
 ```
 
-**UI表现**:
-- **Thinking**: 脉动动画 + "正在分析..."
-- **Executing**: 进度条 + "正在执行步骤 3/5"
-- **Error**: 红色高亮 + 重试/修改选项
+#### 元数据字段
 
----
+| 字段 | 类型 | 必需 | 描述 |
+|------|------|------|------|
+| name | string | 是 | 技能唯一标识符 |
+| description | string | 是 | 技能功能的简短描述 |
 
-### 2.3 视觉设计趋势 (2026)
+### Ralph 中的 Skills 实现
 
-#### 2.3.1 流行UI风格
+#### 技能存储位置
 
-| 风格 | 特点 | 适用场景 |
-|------|------|----------|
-| **Glassmorphism** | 毛玻璃效果、半透明 | 悬停面板、卡片 |
-| **Claymorphism** | 3D粘土质感、软阴影 | 按钮、图标 |
-| **Neumorphism** | 凹凸浮雕、低对比 | 开关、滑块 |
-| **Bento Grid** | 网格模块化布局 | 仪表盘、功能区 |
-
-**推荐组合**:
-- 主布局: Bento Grid (模块化仪表盘)
-- 悬浮元素: Glassmorphism (现代感)
-- 交互控件: Claymorphism (触感反馈)
-
----
-
-#### 2.3.2 色彩系统
-
-**2026流行配色** ([来源](https://m.blog.csdn.net/gitblog_00568/article/details/151938575)):
-
-```css
-/* 暗色主题优化 */
---bg-primary: #09090b;      /* 深黑背景 */
---bg-secondary: #18181b;    /* 卡片背景 */
---accent-primary: #8b5cf6;  /* 紫色主色 - AI感 */
---accent-secondary: #06b6d4;/* 青色辅色 - 科技感 */
---text-primary: #fafafa;    /* 主文本 */
---text-muted: #a1a1aa;      /* 次要文本 */
---success: #10b981;         /* 成功绿 */
---warning: #f59e0b;         /* 警告黄 */
---error: #ef4444;           /* 错误红 */
+```
+.claude/skills/
+├── SKILL.md              # Ralph Tools 技能（主技能）
+├── commit/SKILL.md       # Git commit 技能
+├── code-assist/SKILL.md  # 代码辅助技能
+└── ...
 ```
 
+#### 当前实现的 Skills
+
+1. **ralph-tools** - 在 Ralph 编排运行期间管理运行时任务和记忆
+2. **commit** - 创建格式良好的提交和约定式提交消息
+3. **code-assist** - 使用测试驱动开发实现代码任务
+
+### 技能加载机制
+
+#### 技能发现
+
+Ralph 在 .claude/skills/ 目录中自动发现技能
+
+#### 技能触发
+
+技能通过关键词或命令触发
+
+### 为什么不需要 Skills 页面
+
+1. **底层已支持**: Claude Code 本身就支持技能系统
+2. **Markdown 格式**: 技能定义是简单的 Markdown 文件，易于编辑
+3. **命令行接口**: 使用 ralph tools skill list/load 管理技能
+4. **上下文感知**: 技能在运行时按需加载，无需 UI 管理
+
+### 技能最佳实践
+
+#### 命名规范
+- 使用 kebab-case
+- 名称应该简短且描述性强
+- 避免使用通用术语
+
+#### 文档结构
+1. 清晰的用途说明
+2. 真实的使用示例
+3. 命令参考
+4. 工作流示例
+
+### 未来扩展
+
+#### 技能类型（建议）
+1. 域特定技能（frontend、backend、devops）
+2. 工具集成技能（docker、k8s、terraform）
+3. 语言特定技能（rust、python、typescript）
+
 ---
 
-### 2.4 动画与微交互
+## 参考文献
 
-#### 2.4.1 必需动画清单
+### 研究来源
 
-| 动画类型 | 时长 | 缓动函数 | 用途 |
-|---------|------|---------|------|
-| **页面过渡** | 300ms | ease-in-out | 路由切换 |
-| **卡片悬停** | 200ms | ease-out | 鼠标悬停 |
-| **状态变化** | 150ms | ease | 进度更新 |
-| **消息弹出** | 250ms | spring | 新消息 |
-| **加载骨架** | 循环 | linear | 数据加载 |
+1. **2026 年 AI 编程工具横评** - Copilot、Cursor、Claude Code、Windsurf、Trae 的比较
+2. **Claude Code vs Cursor体验** - 开发者体验比较
+3. **AI编程助手设计增强插件** - UI UX Pro Max
+4. **GitHub 霸榜：UI UX Pro Max** - 专业设计能力
 
-**实现建议**:
-```typescript
-// 使用Framer Motion统一动画管理
-import { motion } from 'framer-motion';
+### 设计灵感
 
-const variants = {
-  pageTransition: {
-    initial: { opacity: 0, y: 20 },
-    animate: { opacity: 1, y: 0 },
-    exit: { opacity: 0, y: -20 },
-    transition: { duration: 0.3 }
-  }
-};
+- Claude Code - 终端原生 Agent 优先界面
+- Cursor - IDE 集成 Copilot 及实时反馈
+- Linear - 速度、键盘快捷键、极简 UI
+- Vercel - 干净、暗主题、OKLCH 颜色
+- GitHub Copilot - 内联建议、聊天界面
+
+### 可访问性标准
+
+- WCAG 2.1 AA
+- ARIA Authoring Practices
+- WebAIM Contrast Checker
+
+---
+
+## 附录
+
+### 键盘快捷键
+
+| 快捷键 | 操作 |
+|--------|------|
+| ⌘K / Ctrl+K | 打开命令面板 |
+| ⌘1 / Ctrl+1 | 打开任务面板 |
+| ⌘2 / Ctrl+2 | 打开规划面板 |
+| ⌘3 / Ctrl+3 | 打开监控面板 |
+| ⌘4 / Ctrl+4 | 打开团队面板 |
+| ⌘5 / Ctrl+5 | 打开项目面板 |
+| Esc | 关闭活动面板 |
+| ⌘↵ / Ctrl+Enter | 发送消息 |
+| ⌘I / Ctrl+I | 附加文件 |
+| ⌘/ | 聚焦搜索 |
+
+### 文件结构（之后）
+
 ```
-
----
-
-## 三、Ralph Dashboard现状分析
-
-### 3.1 技术架构
-
-| 组件 | 技术 | 状态 |
-|------|------|------|
-| 前端框架 | React + Vite | ✅ |
-| UI库 | TailwindCSS + shadcn/ui | ✅ |
-| 状态管理 | Zustand | ✅ |
-| 图标库 | lucide-react | ✅ |
-| 数据获取 | tRPC | ✅ |
-| 国际化 | i18n | ✅ |
-| 主题系统 | 明/暗/系统切换 | ✅ |
-| WebSocket | 实时日志流 | ✅ |
-
----
-
-### 3.2 当前UI结构
-
-**布局**: 左侧可折叠导航栏 + 主内容区域
-
-**导航分组** (13个页面，4个分组):
-1. **Orchestration** - Dashboard, Tasks, Kanban, Planning
-2. **Team** - Teams, Skills
-3. **Operations** - Monitoring, Checkpoints, Healing
-4. **Configuration** - Projects, Builder, Settings
-
----
-
-### 3.3 设计风格特点
-
-- ✅ 暗色主题为主(hacker美学)
-- ✅ 卡片式布局
-- ✅ Lucide图标
-- ✅ 响应式设计
-- ✅ 移动端适配
-- ✅ 无障碍支持
-- ✅ 国际化支持
-
-**缺失**:
-- ❌ AI Chatbox界面
-- ❌ Agent协作可视化
-- ❌ 流畅过渡动画
-- ❌ 主动式UX
-
----
-
-## 四、架构设计
-
-### 4.1 整体系统架构
-
-```mermaid
-graph TB
-    subgraph "Frontend Layer - React UI"
-        A[AppShell] --> B[Chatbox Interface]
-        A --> C[Dashboard Views]
-        A --> D[Agent Canvas]
-
-        B --> E[ConversationPanel]
-        B --> F[ContextPanel]
-        B --> G[ActionCards]
-
-        D --> H[AgentFlowGraph]
-        D --> I[ParallelTasksView]
-        D --> J[TimelineView]
-    end
-
-    subgraph "State Management - Zustand"
-        K[chatStore]
-        L[agentStore]
-        M[taskStore]
-        N[projectStore]
-    end
-
-    subgraph "Communication Layer"
-        O[tRPC Client]
-        P[WebSocket Client]
-    end
-
-    subgraph "Backend Layer - Fastify"
-        Q[tRPC Router]
-        R[WebSocket Server]
-        S[LogBroadcaster]
-    end
-
-    subgraph "Core Orchestration - Ralph"
-        T[Event Loop]
-        U[Hat System]
-        V[Memory System]
-        W[Task Queue]
-    end
-
-    A --> K
-    A --> L
-    A --> M
-    A --> N
-
-    K --> O
-    L --> O
-    M --> O
-    N --> O
-
-    B --> P
-    D --> P
-
-    O --> Q
-    P --> R
-
-    Q --> T
-    R --> S
-
-    T --> U
-    T --> V
-    T --> W
-```
-
----
-
-### 4.2 AI Chatbox组件架构
-
-```mermaid
-graph TB
-    subgraph "Chatbox Core Components"
-        A[ChatboxContainer]
-
-        A --> B[ConversationView]
-        A --> C[InputArea]
-        A --> D[ContextPanel]
-
-        B --> E[MessageList]
-        B --> F[TypingIndicator]
-        B --> G[ActionCards]
-
-        C --> H[MultimodalInput]
-        C --> I[SuggestionChips]
-        C --> J[SendButton]
-
-        D --> K[ActiveTaskContext]
-        D --> L[AgentStatusCards]
-        D --> M[RelatedMemories]
-    end
-
-    subgraph "Data Layer"
-        N[chatStore]
-        O[taskStore]
-        P[agentStore]
-    end
-
-    subgraph "API Layer"
-        Q[tRPC chatRouter]
-        R[WebSocket /ws/chat]
-    end
-
-    E --> N
-    H --> N
-    K --> O
-    L --> P
-
-    N --> Q
-    B --> R
-```
-
-**组件职责**:
-
-| 组件 | 职责 | Props |
-|------|------|-------|
-| `ChatboxContainer` | 容器，管理状态 | `activeProjectId` |
-| `ConversationView` | 消息列表展示 | `messages`, `onAction` |
-| `InputArea` | 多模态输入 | `onSend`, `suggestions` |
-| `ContextPanel` | 上下文信息面板 | `task`, `agents`, `memories` |
-| `MessageList` | 虚拟滚动消息 | `messages[]` |
-| `ActionCards` | AI建议操作 | `actions[]` |
-| `MultimodalInput` | 文本/语音/文件输入 | `onSubmit` |
-
----
-
-### 4.3 Agent可视化架构
-
-```mermaid
-graph TB
-    subgraph "Agent Canvas Components"
-        A[AgentCanvas]
-
-        A --> B[AgentFlowGraph]
-        A --> C[AgentTimeline]
-        A --> D[ParallelTasks]
-
-        B --> E[AgentNodes]
-        B --> F[ConnectionEdges]
-        B --> G[StatusIndicators]
-
-        C --> H[TimeScale]
-        C --> I[ExecutionBars]
-        C --> J[MilestoneMarkers]
-
-        D --> K[TaskCards]
-        D --> L[ProgressBars]
-        D --> M[DependencyLines]
-    end
-
-    subgraph "Data Source"
-        N[WebSocket /ws/agents]
-        O[agentStore]
-    end
-
-    subgraph "Visualization Lib"
-        P[React Flow]
-    end
-
-    N --> O
-    O --> A
-    B --> P
+frontend/ralph-web/src/
+├── components/
+│   ├── chat/                # 新建
+│   ├── panels/              # 新建
+│   ├── dock/                # 新建
+│   └── ...（现有）
+├── pages/
+│   ├── ChatPage.tsx         # 新建（默认）
+│   ├── ...（改编/保持）
+├── stores/
+│   ├── chatStore.ts         # 新建
+│   ├── panelStore.ts        # 新建
+│   ├── loopStore.ts         # 新建
+│   └── ...（现有）
+├── hooks/
+│   ├── useChat.ts           # 新建
+│   ├── usePanels.ts         # 新建
+│   ├── useLoops.ts          # 新建
+│   └── ...（现有）
+├── App.tsx                  # 更新路由
+└── main.tsx
 ```
 
 ---
 
-### 4.4 状态管理架构
-
-```mermaid
-graph TB
-    subgraph "Zustand Stores"
-        A[chatStore]
-        B[agentStore]
-        C[taskStore]
-        D[projectStore]
-        E[uiStore]
-    end
-
-    subgraph "chatStore State"
-        A1[messages: Message[]]
-        A2[isThinking: boolean]
-        A3[currentTask: Task]
-        A4[suggestions: Suggestion[]]
-    end
-
-    subgraph "agentStore State"
-        B1[agents: Agent[]]
-        B2[activeHats: Hat[]]
-        B3[relationships: Connection[]]
-    end
-
-    subgraph "taskStore State"
-        C1[tasks: Task[]]
-        C2[queue: QueuedTask[]]
-        C3[activeTask: Task]
-    end
-
-    A --> A1
-    A --> A2
-    A --> A3
-    A --> A4
-
-    B --> B1
-    B --> B2
-    B --> B3
-
-    C --> C1
-    C --> C2
-    C --> C3
-```
-
-**Store接口定义**:
-
-```typescript
-// stores/chatStore.ts
-interface ChatStore {
-  // State
-  messages: Message[];
-  isThinking: boolean;
-  currentTask: Task | null;
-  suggestions: Suggestion[];
-
-  // Actions
-  sendMessage: (content: string, context?: Context) => Promise<void>;
-  executeAction: (action: Action) => Promise<void>;
-  clearHistory: () => void;
-}
-
-// stores/agentStore.ts
-interface AgentStore {
-  // State
-  agents: Agent[];
-  activeHats: Hat[];
-  relationships: Connection[];
-
-  // Actions
-  subscribeToAgents: (loopId: string) => void;
-  updateAgentStatus: (agentId: string, status: AgentStatus) => void;
-}
-```
-
----
-
-### 4.5 WebSocket实时通信架构
-
-```mermaid
-sequenceDiagram
-    participant F as Frontend
-    participant W as WebSocket Client
-    participant B as Backend (Fastify)
-    participant L as LogBroadcaster
-    participant R as Ralph Core
-
-    F->>W: Connect /ws/logs
-    W->>B: WebSocket Upgrade
-    B-->>L: Register client
-    L-->>B: Send backlog
-
-    R->>L: Emit log event
-    L->>B: Broadcast to clients
-    B->>W: Send {type: 'log', data: {...}}
-    W->>F: Update UI
-
-    R->>L: Emit status event
-    L->>B: Broadcast
-    B->>W: Send {type: 'status', data: {...}}
-    W->>F: Update agent status
-```
-
-**消息协议**:
-
-```typescript
-// WebSocket Message Types
-type WSMessage =
-  | { type: 'log'; taskId: string; data: LogEntry }
-  | { type: 'status'; loopId: string; data: LoopStatus }
-  | { type: 'event'; eventType: string; data: unknown }
-  | { type: 'agent'; agentId: string; data: AgentState }
-  | { type: 'progress'; taskId: string; data: ProgressUpdate };
-
-// Frontend Hook
-function useTaskWebSocket(taskId: string) {
-  const [messages, setMessages] = useState<LogEntry[]>([]);
-
-  useEffect(() => {
-    const ws = new WebSocket(`ws://localhost:3000/ws/logs?taskId=${taskId}`);
-
-    ws.onmessage = (event) => {
-      const message: WSMessage = JSON.parse(event.data);
-      if (message.type === 'log') {
-        setMessages(prev => [...prev, message.data]);
-      }
-    };
-
-    return () => ws.close();
-  }, [taskId]);
-
-  return messages;
-}
-```
-
----
-
-### 4.6 前端路由架构
-
-```mermaid
-graph TB
-    subgraph "Routes"
-        A[/ - Home]
-        B[/tasks - Tasks]
-        C[/agents - Agents]
-        D[/runtime - Runtime]
-        E[/settings - Settings]
-    end
-
-    subgraph "Home View"
-        A1[UnifiedDashboard]
-        A2[QuickActions]
-        A3[RecentTasks]
-        A4[SystemStatus]
-    end
-
-    subgraph "Tasks View"
-        B1[TaskKanban]
-        B2[TaskList]
-        B3[TaskDetail]
-        B4[ChatboxOverlay]
-    end
-
-    subgraph "Agents View"
-        C1[AgentCanvas]
-        C2[TeamsList]
-        C3[SkillsLibrary]
-    end
-
-    subgraph "Runtime View"
-        D1[LiveMonitoring]
-        D2[CheckpointTimeline]
-        D3[HealingHistory]
-    end
-
-    subgraph "Settings View"
-        E1[Preferences]
-        E2[ProjectManager]
-        E3[Builder]
-    end
-
-    A --> A1
-    A --> A2
-    A --> A3
-    A --> A4
-
-    B --> B1
-    B --> B2
-    B --> B3
-    B --> B4
-
-    C --> C1
-    C --> C2
-    C --> C3
-
-    D --> D1
-    D --> D2
-    D --> D3
-
-    E --> E1
-    E --> E2
-    E --> E3
-```
-
-**路由配置**:
-
-```typescript
-// App.tsx
-const routes = [
-  {
-    path: '/',
-    element: <HomeView />,
-    children: [
-      { index: true, element: <UnifiedDashboard /> }
-    ]
-  },
-  {
-    path: '/tasks',
-    element: <TasksView />,
-    children: [
-      { index: true, element: <TaskKanban /> },
-      { path: ':taskId', element: <TaskDetail /> }
-    ]
-  },
-  {
-    path: '/agents',
-    element: <AgentsView />,
-    children: [
-      { index: true, element: <AgentCanvas /> },
-      { path: 'teams', element: <TeamsList /> },
-      { path: 'skills', element: <SkillsLibrary /> }
-    ]
-  },
-  {
-    path: '/runtime',
-    element: <RuntimeView />,
-    children: [
-      { index: true, element: <LiveMonitoring /> },
-      { path: 'checkpoints', element: <CheckpointTimeline /> },
-      { path: 'healing', element: <HealingHistory /> }
-    ]
-  },
-  {
-    path: '/settings',
-    element: <SettingsView />,
-    children: [
-      { index: true, element: <Preferences /> },
-      { path: 'projects', element: <ProjectManager /> },
-      { path: 'builder', element: <Builder /> }
-    ]
-  }
-];
-```
-
----
-
-## 五、交互式AI功能设计
-
-### 5.1 AI Chatbox核心功能
-
-#### 5.1.1 对话式任务创建
-
-**用户流程**:
-```mermaid
-sequenceDiagram
-    participant U as 用户
-    participant C as Chatbox
-    participant AI as Ralph AI
-    participant T as TaskSystem
-
-    U->>C: "帮我创建一个登录组件"
-    C->>AI: 发送自然语言请求
-    AI->>AI: 分析意图 → 检测上下文
-    AI->>C: 显示思考状态
-    AI->>T: 创建任务 + 生成计划
-    T-->>AI: 返回任务ID
-    AI->>C: 显示任务卡片 + 确认
-    C->>U: 展示任务详情 + 开始按钮
-    U->>C: 点击"开始执行"
-    C->>T: 启动任务
-```
-
-**UI实现**:
-
-```typescript
-// components/chatbox/ConversationView.tsx
-export function ConversationView() {
-  const { messages, isThinking } = useChatStore();
-  const { scrollToBottom } = useChatScroll();
-
-  return (
-    <div className="flex flex-col h-full">
-      {/* Message List */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
-        ))}
-
-        {/* Thinking Indicator */}
-        {isThinking && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-center gap-2 text-muted-foreground"
-          >
-            <Loader2 className="animate-spin" />
-            <span>正在分析...</span>
-          </motion.div>
-        )}
-      </div>
-
-      {/* Action Cards */}
-      <ActionCardsContainer />
-
-      {/* Input Area */}
-      <InputArea />
-    </div>
-  );
-}
-```
-
----
-
-#### 5.1.2 上下文感知建议
-
-**智能提示模式**:
-
-| 触发场景 | AI建议类型 | UI表现 |
-|---------|-----------|--------|
-| **首次使用** | 功能引导 | 高亮新手教程 |
-| **重复任务** | 快捷模板 | "再次创建类似任务?" |
-| **错误发生** | 修复建议 | "应用已知修复?" |
-| **任务完成** | 下一步 | "现在可以测试/部署" |
-| **空闲状态** | 探索建议 | "查看团队配置" |
-
-**实现**:
-
-```typescript
-// components/chatbox/SuggestionChips.tsx
-export function SuggestionChips() {
-  const { suggestions } = useChatStore();
-  const { executeSuggestion } = useChatActions();
-
-  if (suggestions.length === 0) return null;
-
-  return (
-    <div className="flex flex-wrap gap-2 p-2">
-      {suggestions.map((suggestion) => (
-        <Button
-          key={suggestion.id}
-          variant="outline"
-          size="sm"
-          onClick={() => executeSuggestion(suggestion)}
-          className="gap-2"
-        >
-          <Sparkles className="w-4 h-4" />
-          {suggestion.label}
-          <Badge variant="secondary">
-            {suggestion.confidence}%
-          </Badge>
-        </Button>
-      ))}
-    </div>
-  );
-}
-```
-
----
-
-#### 5.1.3 多模态输入支持
-
-**统一输入界面**:
-
-```typescript
-// components/chatbox/MultimodalInput.tsx
-export function MultimodalInput() {
-  const [input, setInput] = useState('');
-  const [files, setFiles] = useState<File[]>([]);
-  const [isRecording, setIsRecording] = useState(false);
-
-  const handleSend = async () => {
-    const message: MultimodalInput = {
-      text: input,
-      files: files.length > 0 ? files : undefined,
-      voice: isRecording ? await captureVoice() : undefined
-    };
-
-    await sendMessage(message);
-    setInput('');
-    setFiles([]);
-  };
-
-  return (
-    <div className="border-t p-4">
-      {/* Context Files */}
-      {files.length > 0 && (
-        <div className="flex gap-2 mb-2">
-          {files.map((file) => (
-            <FileChip key={file.name} file={file} onRemove={() => removeFile(file)} />
-          ))}
-        </div>
-      )}
-
-      {/* Input Area */}
-      <div className="flex gap-2">
-        <AttachmentButton onFilesSelected={setFiles} />
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="输入任务描述，或拖拽文件..."
-          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
-        />
-        <VoiceButton
-          isRecording={isRecording}
-          onToggle={setIsRecording}
-        />
-        <SendButton onClick={handleSend} disabled={!input.trim()} />
-      </div>
-    </div>
-  );
-}
-```
-
----
-
-### 5.2 Agent协作可视化
-
-#### 5.2.1 Agent关系图
-
-**基于React Flow的节点图**:
-
-```typescript
-// components/agents/AgentFlowGraph.tsx
-import { Flow, Node, Edge } from 'reactflow';
-
-export function AgentFlowGraph() {
-  const { agents, relationships } = useAgentStore();
-
-  // Convert agents to nodes
-  const nodes: Node[] = agents.map((agent) => ({
-    id: agent.id,
-    type: 'agentNode',
-    position: agent.position,
-    data: {
-      label: agent.name,
-      hat: agent.hat,
-      status: agent.status,
-      task: agent.currentTask
-    }
-  }));
-
-  // Convert relationships to edges
-  const edges: Edge[] = relationships.map((rel) => ({
-    id: rel.id,
-    source: rel.from,
-    target: rel.to,
-    type: 'smoothstep',
-    animated: rel.active,
-    label: rel.type
-  }));
-
-  return (
-    <div className="h-full w-full">
-      <Flow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={{ agentNode: AgentNodeComponent }}
-        fitView
-      >
-        <Background />
-        <Controls />
-      </Flow>
-    </div>
-  );
-}
-```
-
-**Agent节点组件**:
-
-```typescript
-// components/agents/AgentNode.tsx
-export function AgentNode({ data }: NodeProps) {
-  return (
-    <div className="px-4 py-2 shadow-md rounded-md bg-white dark:bg-gray-800 border-2">
-      {/* Status Indicator */}
-      <div className={`w-3 h-3 rounded-full ${getStatusColor(data.status)}`} />
-
-      {/* Agent Info */}
-      <div className="font-bold">{data.label}</div>
-      <div className="text-xs text-gray-500">{data.hat}</div>
-
-      {/* Current Task */}
-      {data.task && (
-        <Badge variant="outline" className="mt-1">
-          {data.task}
-        </Badge>
-      )}
-    </div>
-  );
-}
-```
-
----
-
-#### 5.2.2 并行任务时间线
-
-```typescript
-// components/agents/AgentTimeline.tsx
-export function AgentTimeline() {
-  const { tasks } = useTaskStore();
-
-  return (
-    <div className="relative">
-      {/* Time Scale */}
-      <div className="flex justify-between text-xs text-muted-foreground mb-2">
-        <span>00:00</span>
-        <span>00:30</span>
-        <span>01:00</span>
-      </div>
-
-      {/* Task Bars */}
-      {tasks.map((task) => (
-        <div key={task.id} className="mb-2">
-          <div className="text-sm font-medium">{task.title}</div>
-          <div className="relative h-8 bg-secondary rounded">
-            <div
-              className="absolute h-full bg-primary rounded"
-              style={{
-                left: `${task.startTime}%`,
-                width: `${task.duration}%`
-              }}
-            >
-              <div className="px-2 text-xs text-white">{task.status}</div>
-            </div>
-          </div>
-        </div>
-      ))}
-
-      {/* Current Time Indicator */}
-      <div
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500"
-        style={{ left: `${currentTimePercent}%` }}
-      />
-    </div>
-  );
-}
-```
-
----
-
-### 5.3 任务执行可视化
-
-#### 5.3.1 细粒度进度条
-
-```typescript
-// components/tasks/TaskProgress.tsx
-export function TaskProgress({ task }: { task: Task }) {
-  const progress = useTaskProgress(task.id);
-
-  return (
-    <div className="space-y-2">
-      {/* Overall Progress */}
-      <div>
-        <div className="flex justify-between text-sm mb-1">
-          <span>{task.status}</span>
-          <span>{progress.percentage}%</span>
-        </div>
-        <Progress value={progress.percentage} />
-      </div>
-
-      {/* Current Step */}
-      {progress.currentStep && (
-        <div className="flex items-center gap-2 text-sm">
-          <Loader2 className="animate-spin w-4 h-4" />
-          <span>{progress.currentStep}</span>
-        </div>
-      )}
-
-      {/* Step List */}
-      <div className="space-y-1">
-        {progress.steps.map((step, index) => (
-          <div
-            key={index}
-            className={cn(
-              "flex items-center gap-2 text-sm",
-              step.completed && "text-muted-foreground line-through"
-            )}
-          >
-            <CheckCircle className={cn(step.completed ? "text-green-500" : "text-gray-300")} />
-            <span>{step.label}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-```
-
----
-
-#### 5.3.2 实时日志流
-
-```typescript
-// components/tasks/LiveLogs.tsx
-export function LiveLogs({ taskId }: { taskId: string }) {
-  const logs = useTaskLogs(taskId);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [logs]);
-
-  return (
-    <div ref={containerRef} className="h-64 overflow-y-auto font-mono text-sm bg-black text-green-400 p-2">
-      {logs.map((log, index) => (
-        <div key={index} className={cn(
-          "whitespace-pre-wrap",
-          log.level === 'error' && "text-red-400",
-          log.level === 'warning' && "text-yellow-400"
-        )}>
-          <span className="text-gray-500">[{log.timestamp}]</span>
-          <span>{log.message}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-```
-
----
-
-## 六、差距分析
-
-### 6.1 导航复杂度问题
-
-| 问题 | 描述 | 影响 |
-|------|------|------|
-| **页面过多** | 13个页面分散在4个分组 | 用户迷失、学习成本高 |
-| **分组抽象** | "Orchestration/Team/Operations/Configuration"不够直观 | 非技术用户理解困难 |
-| **层级过深** | 折叠导航需要多次点击 | 效率降低 |
-
----
-
-### 6.2 AI Chatbox缺失
-
-| 问题 | 描述 | 影响 |
-|------|------|------|
-| **无对话式界面** | 当前只有表单式任务创建 | 非技术用户门槛高 |
-| **缺少上下文感知** | 无智能建议系统 | 用户需要手动配置 |
-| **无多模态输入** | 仅支持文本输入 | 交互方式单一 |
-| **AI透明度不足** | AI决策过程不透明 | 信任度低 |
-
----
-
-### 6.3 Agent协作可视化缺失
-
-| 问题 | 描述 | 影响 |
-|------|------|------|
-| **多Agent视图缺失** | 当前主要是单任务/单Loop视图 | 无法直观看到Agent协作 |
-| **并行执行不可见** | 后台loop运行状态分散 | 难以把握整体进度 |
-| **Agent关系不清晰** | Hat系统、Loop之间的协作关系不明确 | 调试困难 |
-
----
-
-### 6.4 任务执行可视化不足
-
-| 问题 | 描述 | 影响 |
-|------|------|------|
-| **执行进度抽象** | 状态显示(open/in_progress/closed) | 无法感知具体进度 |
-| **实时反馈弱** | WebSocket日志流但缺乏可视化进度条 | 焦虑感强 |
-| **上下文切换难** | 多任务时需要在不同页面切换 | 工作流中断 |
-
----
-
-## 七、改造方案
-
-### 7.1 阶段一: AI Chatbox实现 (优先级 P0)
-
-**目标**: 构建类似Claude Cowork的对话式任务界面
-
-**新增组件**:
-1. `ChatboxContainer` - 主容器
-2. `ConversationView` - 对话视图
-3. `MultimodalInput` - 多模态输入
-4. `SuggestionChips` - 智能建议
-5. `ActionCards` - AI建议操作
-
-**实施**:
-- 创建 `/chatbox` 路由
-- 实现 `chatStore` (Zustand)
-- 集成 tRPC `chatRouter`
-- WebSocket实时流
-
----
-
-### 7.2 阶段二: 导航简化 (优先级 P1)
-
-**目标**: 从13页面简化到5个核心视图
-
-**新导航结构**:
-
-| 视图 | 描述 | 合并的原页面 |
-|------|------|--------------|
-| **Home** | 统一仪表盘 + Chatbox | Dashboard + Chatbox |
-| **Tasks** | 任务看板 + 执行视图 | Tasks + Kanban + Plan |
-| **Agents** | Agent团队 + Skills | Teams + Skills + Canvas |
-| **Runtime** | 实时执行 + 监控 | Monitoring + Checkpoints + Healing |
-| **Settings** | 配置 + 项目 | Settings + Projects + Builder |
-
----
-
-### 7.3 阶段三: Agent协作可视化 (优先级 P1)
-
-**目标**: 创建实时Agent协作视图
-
-**新增组件**:
-1. `AgentFlowGraph` - Agent关系图 (React Flow)
-2. `AgentTimeline` - 执行时间线
-3. `ParallelTasks` - 并行任务视图
-
----
-
-### 7.4 阶段四: 视觉升级 (优先级 P2)
-
-**目标**: 打造"Vibe"感
-
-**改进项**:
-1. Glassmorphism/Claymorphism效果
-2. 流畅页面过渡动画
-3. 增加留白，降低信息密度
-4. 统一阴影和圆角
-
----
-
-## 八、实施路线图
-
-### 8.1 Sprint 1 (2周): AI Chatbox核心
-
-- [ ] ChatboxContainer + ConversationView
-- [ ] MultimodalInput组件
-- [ ] chatStore实现
-- [ ] tRPC chatRouter
-- [ ] 基础WebSocket集成
-
----
-
-### 8.2 Sprint 2 (2周): 智能建议系统
-
-- [ ] SuggestionChips组件
-- [ ] ActionCards系统
-- [ ] 上下文感知逻辑
-- [ ] AI置信度显示
-
----
-
-### 8.3 Sprint 3 (2周): 导航简化
-
-- [ ] 修改Sidebar导航
-- [ ] 合并页面组件
-- [ ] 调整路由
-- [ ] 更新i18n
-
----
-
-### 8.4 Sprint 4 (3周): Agent可视化
-
-- [ ] AgentFlowGraph实现
-- [ ] AgentTimeline实现
-- [ ] WebSocket agent事件流
-- [ ] 实时状态更新
-
----
-
-### 8.5 Sprint 5 (2周): 视觉升级
-
-- [ ] Glassmorphism效果
-- [ ] 页面过渡动画
-- [ ] 微交互优化
-- [ ] 色彩系统调整
-
----
-
-## 九、参考资源
-
-### 竞品研究
-- [Codex App](https://openai.com/codex) - OpenAI Agent编排应用
-- [Claude Cowork](https://anthropic.com) - Anthropic桌面AI代理
-
-### AI/UX设计资源
-- [2026 UX/UI设计趋势](https://www.163.com/dy/article/KMF6RRBS0556BKC3.html) - 网易分析
-- [AI UX设计终极指南](https://m.blog.csdn.net/gitblog_00568/article/details/151938575) - CSDN
-- [建构AI Agent应用UX](https://juejin.cn/post/7556142470908919848) - 掘金
-- [2025 AI产品设计原则](https://juejin.cn/post/7583971282892455988) - 掘金
-
-### 技术框架
-- [shadcn/ui](https://ui.shadcn.com) - React组件库
-- [React Flow](https://reactflow.dev) - 流程图可视化
-- [Framer Motion](https://www.framer.com/motion) - 动画库
-- [Zustand](https://zustand-demo.pmnd.rs) - 状态管理
-
----
-
-**文档版本**: v2.0
-**最后更新**: 2026-02-26
-**作者**: Ralph AI Orchestrator
+**文档版本:** 1.0
+**最后更新:** 2026-02-26
+**作者:** Ralph (AI Agent)
+**状态:** 草稿 - 待审核

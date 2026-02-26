@@ -152,6 +152,9 @@ vi.mock("@/hooks", () => ({
   useKeyboardShortcuts: vi.fn(() => ({
     isTaskFocused: vi.fn(() => false),
   })),
+  useToast: vi.fn(() => ({
+    toast: vi.fn(),
+  })),
 }));
 
 vi.mock("./LiveStatus", () => ({

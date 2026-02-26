@@ -15,7 +15,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Save, AlertCircle, CheckCircle2, RefreshCw, Trash2, Globe } from "lucide-react";
+import { Save, AlertCircle, CheckCircle2, RefreshCw, Trash2, Globe, Terminal, Copy, Check } from "lucide-react";
 import { clearAllRalphLocalStorage, getRalphLocalStorageInfo, useTranslation } from "@/hooks";
 import { LocaleSwitcher } from "@/components/shared";
 
@@ -26,6 +26,7 @@ export function SettingsPage() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
   const [cacheCleared, setCacheCleared] = useState(false);
   const [cacheInfo, setCacheInfo] = useState<{ key: string; size: number }[]>([]);
+  const [copiedVar, setCopiedVar] = useState<string | null>(null);
 
   const configQuery = trpc.config.get.useQuery();
   const presetsQuery = trpc.presets.list.useQuery();
@@ -97,6 +98,22 @@ export function SettingsPage() {
   // Get available presets for the dropdown
   const presets = presetsQuery.data ?? [];
 
+  // Environment variables that Ralph supports
+  const envVars = [
+    { name: "RALPH_TELEGRAM_BOT_TOKEN", description: "Telegram bot token for human-in-the-loop", requiredFor: "RObot (Telegram)" },
+    { name: "RALPH_DIAGNOSTICS", description: "Enable diagnostics output (set to 1)", requiredFor: "Debugging" },
+    { name: "RALPH_VERBOSE", description: "Enable verbose output (set to 1)", requiredFor: "Debugging" },
+    { name: "RALPH_QUIET", description: "Suppress non-essential output (set to 1)", requiredFor: "Quiet mode" },
+    { name: "RALPH_WORKSPACE_ROOT", description: "Override workspace root path", requiredFor: "Web server" },
+    { name: "RALPH_BACKEND_PORT", description: "Override backend server port", requiredFor: "Web server" },
+  ];
+
+  const handleCopyEnvVar = (varName: string) => {
+    navigator.clipboard.writeText(varName);
+    setCopiedVar(varName);
+    setTimeout(() => setCopiedVar(null), 2000);
+  };
+
   return (
     <>
       {/* Page header */}
@@ -167,6 +184,58 @@ export function SettingsPage() {
             </div>
             <LocaleSwitcher />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Environment Variables */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Terminal className="h-5 w-5" />
+            Environment Variables
+          </CardTitle>
+          <CardDescription>
+            Ralph configuration via environment variables. Set these in your shell profile
+            (.bashrc, .zshrc) or system environment variables.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {envVars.map((envVar) => (
+              <div
+                key={envVar.name}
+                className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <code className="text-sm font-mono text-primary">{envVar.name}</code>
+                    {envVar.requiredFor && (
+                      <Badge variant="outline" className="text-xs">
+                        {envVar.requiredFor}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">{envVar.description}</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="ml-2 flex-shrink-0"
+                  onClick={() => handleCopyEnvVar(envVar.name)}
+                  title="Copy variable name"
+                >
+                  {copiedVar === envVar.name ? (
+                    <Check className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-4">
+            Note: Environment variables must be set before starting Ralph. Changes require a restart.
+          </p>
         </CardContent>
       </Card>
 

@@ -19,6 +19,8 @@ interface LoopCardProps {
     location: string;
     pid?: number;
     prompt?: string;
+    /** Agent/backend type (claude, kiro, gemini, codex, etc.) */
+    agentType?: string;
   };
 }
 
@@ -41,6 +43,35 @@ function getStatusIcon(status: LoopCardProps["loop"]["status"]) {
     default:
       return <div className="w-4 h-4 rounded-full bg-muted-foreground" />;
   }
+}
+
+/**
+ * Get agent display info from agent type
+ */
+function getAgentInfo(agentType?: string): { label: string; color: string } {
+  const agents: Record<string, { label: string; color: string }> = {
+    claude: { label: "Claude", color: "bg-blue-500/10 text-blue-500" },
+    kiro: { label: "Kiro", color: "bg-purple-500/10 text-purple-500" },
+    gemini: { label: "Gemini", color: "bg-green-500/10 text-green-500" },
+    codex: { label: "Codex", color: "bg-orange-500/10 text-orange-500" },
+    openai: { label: "OpenAI", color: "bg-teal-500/10 text-teal-500" },
+  };
+
+  const normalized = agentType?.toLowerCase() || "claude";
+  return agents[normalized] || { label: agentType || "Claude", color: "bg-gray-500/10 text-gray-500" };
+}
+
+/**
+ * Derive agent type from location (worktree name)
+ * This is a fallback when agentType is not provided by backend
+ */
+function deriveAgentType(location: string): string {
+  const loc = location.toLowerCase();
+  if (loc.includes("kiro")) return "kiro";
+  if (loc.includes("gemini")) return "gemini";
+  if (loc.includes("codex")) return "codex";
+  if (loc.includes("openai")) return "openai";
+  return "claude"; // default
 }
 
 /**
@@ -137,6 +168,10 @@ export function LoopCard({ loop }: LoopCardProps) {
   const isCompleted = loop.status === "completed";
   const isStuck = loop.status === "stuck" || loop.status === "failed";
 
+  // Get agent type - use provided or derive from location
+  const agentType = loop.agentType || deriveAgentType(loop.location);
+  const agentInfo = getAgentInfo(agentType);
+
   return (
     <motion.div
       layout
@@ -151,10 +186,15 @@ export function LoopCard({ loop }: LoopCardProps) {
         hover:shadow-md transition-shadow
       `}
     >
-      {/* Header with status icon and prompt */}
+      {/* Header with status icon, agent badge, and prompt */}
       <div className="flex items-start gap-2">
         <div className="shrink-0 mt-0.5">{getStatusIcon(loop.status)}</div>
         <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${agentInfo.color}`}>
+              {agentInfo.label}
+            </span>
+          </div>
           <p className="text-xs font-medium text-foreground truncate">
             {truncatePrompt(loop.prompt)}
           </p>

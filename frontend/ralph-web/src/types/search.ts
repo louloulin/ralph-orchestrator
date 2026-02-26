@@ -24,7 +24,8 @@ export type TaskStatus =
   | "completed"
   | "closed"
   | "failed"
-  | "archived";
+  | "archived"
+  | "reviewed";
 
 /**
  * All available task status options for filter UI
@@ -37,6 +38,7 @@ export const TASK_STATUS_OPTIONS: readonly { value: TaskStatus; label: string; c
   { value: "completed", label: "Completed", color: "text-emerald-500" },
   { value: "closed", label: "Closed", color: "text-gray-500" },
   { value: "failed", label: "Failed", color: "text-red-500" },
+  { value: "reviewed", label: "Reviewed", color: "text-purple-500" },
   { value: "archived", label: "Archived", color: "text-muted-foreground" },
 ] as const;
 

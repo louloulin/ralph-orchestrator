@@ -9,6 +9,17 @@ import { create } from "zustand";
 import type { ChatMessage, MessageSender, ToolCall, MessageStatus } from "@/types/chat";
 
 /**
+ * File attachment metadata
+ */
+export interface FileAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  content?: string; // Base64 encoded content for small files
+}
+
+/**
  * Generate a unique message ID.
  */
 function generateMessageId(): string {
@@ -20,6 +31,13 @@ function generateMessageId(): string {
  */
 function generateToolCallId(): string {
   return `tool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
+ * Generate a unique attachment ID.
+ */
+function generateAttachmentId(): string {
+  return `attach-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 interface ChatStore {
@@ -40,6 +58,9 @@ interface ChatStore {
 
   /** Whether the input is disabled */
   isInputDisabled: boolean;
+
+  /** File attachments for the current message */
+  attachments: FileAttachment[];
 
   // Actions
 
@@ -117,6 +138,21 @@ interface ChatStore {
    * Scroll to and highlight a specific message.
    */
   scrollToMessage: (messageId: string) => void;
+
+  /**
+   * Add a file attachment.
+   */
+  addAttachment: (file: File) => void;
+
+  /**
+   * Remove a file attachment by ID.
+   */
+  removeAttachment: (attachmentId: string) => void;
+
+  /**
+   * Clear all attachments.
+   */
+  clearAttachments: () => void;
 }
 
 /**
@@ -133,6 +169,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   streamingMessageId: null,
   activeTaskId: null,
   isInputDisabled: false,
+  attachments: [],
 
   addMessage: (sender, content, options = {}) => {
     const id = generateMessageId();
@@ -263,5 +300,49 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
     }
+  },
+
+  addAttachment: (file) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const attachment: FileAttachment = {
+        id: generateAttachmentId(),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+        content: reader.result as string,
+      };
+
+      set((state) => ({
+        attachments: [...state.attachments, attachment],
+      }));
+    };
+
+    // Read file as base64 (for small files)
+    if (file.size < 1024 * 1024) { // 1MB limit
+      reader.readAsDataURL(file);
+    } else {
+      // For larger files, just store metadata
+      const attachment: FileAttachment = {
+        id: generateAttachmentId(),
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      };
+
+      set((state) => ({
+        attachments: [...state.attachments, attachment],
+      }));
+    }
+  },
+
+  removeAttachment: (attachmentId) => {
+    set((state) => ({
+      attachments: state.attachments.filter((att) => att.id !== attachmentId),
+    }));
+  },
+
+  clearAttachments: () => {
+    set({ attachments: [] });
   },
 }));

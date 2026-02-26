@@ -1,53 +1,56 @@
 /**
  * Panel Content Wrappers
  *
- * Wrappers that render existing page components as panel content.
- * Each component extracts the core content from a page and adap it for panel display.
+ * Wrappers that render specialized panel components optimized for side panel display.
+ * Each component provides a compact, focused interface adapted from its page counterpart.
  */
 
-import { TasksPage } from "@/pages/TasksPage";
-import { PlanPage } from "@/pages/PlanPage";
-import { MonitoringPage } from "@/pages/MonitoringPage";
+import { SidePanelContent } from "./SidePanel";
+import { TasksPanel } from "./TasksPanel";
+import { PlanPanel } from "./PlanPanel";
+import { MonitorPanel } from "./MonitorPanel";
 import { TeamsPage } from "@/pages/TeamsPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
-import { SidePanelContent } from "@/components/panels";
 
 /**
  * TasksPanelContent - Tasks page adapted for panel display.
+ * Uses specialized TasksPanel component optimized for side panel.
  */
 export function TasksPanelContent() {
   return (
     <SidePanelContent panelId="tasks">
-      <TasksPage />
+      <TasksPanel />
     </SidePanelContent>
   );
 }
 
 /**
  * PlanPanelContent - Planning page adapted for panel display.
+ * Uses specialized PlanPanel component optimized for side panel.
  */
 export function PlanPanelContent() {
   return (
     <SidePanelContent panelId="plan">
-      <PlanPage />
+      <PlanPanel />
     </SidePanelContent>
   );
 }
 
 /**
  * MonitorPanelContent - Monitoring page adapted for panel display.
- * Combines monitoring, checkpoints, and healing views.
+ * Uses specialized MonitorPanel component optimized for side panel.
  */
 export function MonitorPanelContent() {
   return (
     <SidePanelContent panelId="monitor">
-      <MonitoringPage />
+      <MonitorPanel />
     </SidePanelContent>
   );
 }
 
 /**
  * TeamsPanelContent - Teams page adapted for panel display.
+ * TODO: Create specialized TeamsPanel component similar to TasksPanel.
  */
 export function TeamsPanelContent() {
   return (
@@ -59,6 +62,7 @@ export function TeamsPanelContent() {
 
 /**
  * ProjectsPanelContent - Projects page adapted for panel display.
+ * TODO: Create specialized ProjectsPanel component similar to TasksPanel.
  */
 export function ProjectsPanelContent() {
   return (

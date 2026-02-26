@@ -14,3 +14,7 @@ export {
   TeamsPanelContent,
   ProjectsPanelContent,
 } from "./PanelContents";
+
+export { TasksPanel } from "./TasksPanel";
+export { PlanPanel } from "./PlanPanel";
+export { MonitorPanel } from "./MonitorPanel";

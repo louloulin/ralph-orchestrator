@@ -52,10 +52,11 @@
     "openMenu": "Open menu",
     "closeMenu": "Close menu",
     "sections": {
-      "orchestration": "Orchestration",
-      "team": "Team",
-      "operations": "Operations",
-      "configuration": "Configuration"
+      "home": "Home",
+      "tasks": "Tasks",
+      "agents": "Agents",
+      "runtime": "Runtime",
+      "settings": "Settings"
     }
   },
   "a11y": {

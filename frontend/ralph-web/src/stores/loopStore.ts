@@ -14,6 +14,8 @@ export interface Loop {
   location: string;
   pid?: number;
   prompt?: string;
+  /** Agent/backend type (claude, kiro, gemini, codex, etc.) */
+  agentType?: string;
   mergeButtonState?: {
     state: "active" | "blocked";
     reason?: string;

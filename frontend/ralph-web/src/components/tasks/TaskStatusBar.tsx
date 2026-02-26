@@ -10,9 +10,9 @@ import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { LoopBadge, type LoopStatus } from "./LoopBadge";
 import { cn } from "@/lib/utils";
-import { Loader2, Check, XCircle, Circle, CheckCircle2 } from "lucide-react";
+import { Loader2, Check, XCircle, Circle, CheckCircle2, Eye } from "lucide-react";
 
-export type TaskStatus = "open" | "running" | "completed" | "failed" | "closed";
+export type TaskStatus = "open" | "running" | "completed" | "failed" | "closed" | "reviewed";
 
 export interface TaskStatusBarProps {
   /** The task status to display */
@@ -61,6 +61,12 @@ const STATUS_MAP: Record<TaskStatus, StatusConfig> = {
     label: "Closed",
     icon: Check,
     variant: "secondary",
+  },
+  reviewed: {
+    label: "Reviewed",
+    icon: Eye,
+    variant: "outline",
+    badgeClass: "bg-purple-500/10 border-purple-500/20 text-purple-400",
   },
 };
 

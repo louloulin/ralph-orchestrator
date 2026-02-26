@@ -9,10 +9,10 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { ArrowLeft, Loader2, Trash2, Circle, Check, XCircle, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Circle, Check, XCircle, CheckCircle2, Eye, EyeOff } from "lucide-react";
 
-export type TaskStatus = "open" | "running" | "completed" | "closed" | "failed";
-export type TaskAction = "run" | "cancel" | "retry";
+export type TaskStatus = "open" | "running" | "completed" | "closed" | "failed" | "reviewed";
+export type TaskAction = "run" | "cancel" | "retry" | "request_review" | "approve" | "reject";
 
 export interface TaskDetailHeaderProps {
   /** Current task status */
@@ -43,6 +43,11 @@ function getActionForStatus(status: TaskStatus): { action: TaskAction; label: st
     case "open":
       return { action: "run", label: "Run", variant: "default" };
     case "completed":
+      // Show review actions for completed tasks
+      return { action: "request_review", label: "Request Review", variant: "default" };
+    case "reviewed":
+      // Show approve/reject actions for reviewed tasks
+      return { action: "approve", label: "Approve", variant: "default" };
     case "closed":
       return null;
     default:
@@ -89,6 +94,12 @@ const STATUS_MAP: Record<TaskStatus, StatusConfig> = {
     label: "Closed",
     icon: Check,
     variant: "secondary",
+  },
+  reviewed: {
+    label: "Reviewed",
+    icon: Eye,
+    variant: "outline",
+    badgeClass: "bg-purple-500/10 border-purple-500/20 text-purple-400",
   },
 };
 

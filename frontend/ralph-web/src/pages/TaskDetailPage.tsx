@@ -30,6 +30,7 @@ import {
   type LoopDetailData,
 } from "@/components/tasks";
 import { ThinkingPanel } from "@/components/shared";
+import { DiffViewer } from "@/components/diff/DiffViewer";
 import {
   AlertTriangle,
   Loader2,
@@ -103,6 +104,13 @@ export function TaskDetailPage() {
           break;
         case "cancel":
           cancelMutation.mutate({ id: task.id });
+          break;
+        case "request_review":
+        case "approve":
+        case "reject":
+          // TODO: Implement backend mutations for review workflow
+          // For now, show a toast indicating the feature is not yet implemented
+          console.log(`Review action: ${action} for task ${task.id}`);
           break;
       }
     },
@@ -199,7 +207,8 @@ export function TaskDetailPage() {
     | "running"
     | "completed"
     | "closed"
-    | "failed";
+    | "failed"
+    | "reviewed";
 
   return (
     <div className="p-6 space-y-6">
@@ -298,6 +307,29 @@ export function TaskDetailPage() {
         <div data-testid="log-viewer" className="space-y-4">
           <ThinkingPanel taskId={task.id} maxHeight="300px" />
           <EnhancedLogViewer taskId={task.id} />
+        </div>
+      )}
+
+      {/* Code review section - show diff viewer for completed/reviewed tasks */}
+      {(task.status === "completed" || task.status === "reviewed") && (
+        <div data-testid="code-review-section" className="space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <span>Code Changes</span>
+            <span className="text-xs font-normal text-muted-foreground">
+              (P5-5: Code Review Integration)
+            </span>
+          </h3>
+          <div className="border rounded-lg overflow-hidden">
+            <DiffViewer
+              files={[]}
+              totalStats={{ filesChanged: 0, additions: 0, deletions: 0 }}
+              viewMode="unified"
+              onViewModeChange={() => {}}
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Backend integration pending. File changes will be tracked during task execution.
+          </p>
         </div>
       )}
     </div>

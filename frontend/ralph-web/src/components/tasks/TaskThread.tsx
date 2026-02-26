@@ -32,6 +32,8 @@ import { trpc } from "@/trpc";
 import { LoopBadge } from "./LoopBadge";
 import { WorktreeBadge } from "./WorktreeBadge";
 import { type LoopDetailData } from "./LoopDetail";
+import { TaskPreview } from "./TaskPreview";
+import { TaskContextMenu } from "./TaskContextMenu";
 
 /**
  * Task shape from the tRPC API.
@@ -278,153 +280,157 @@ const TaskThreadComponent = forwardRef<HTMLDivElement, TaskThreadProps>(function
   const hasIteration = loop?.currentIteration != null && loop?.maxIterations != null;
 
   return (
-    <Card
-      ref={ref}
-      className={cn(
-        "cursor-pointer hover:bg-accent/50 transition-colors duration-150",
-        isFocused && "ring-2 ring-primary bg-accent/30",
-        // Visual distinction for merge loop tasks: green left border
-        isMergeLoopTask && "border-l-4 border-l-green-500/60",
-        className
-      )}
-      onClick={handleNavigate}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          handleNavigate();
-        }
-      }}
-    >
-      <CardHeader className="p-4">
-        <div className="flex flex-col gap-1.5">
-          {/* Row 1: Status icon + Title */}
-          <div className="flex items-center gap-3">
-            <StatusIcon
-              className={cn("h-5 w-5 shrink-0", statusConfig.color)}
-              aria-hidden="true"
-            />
-            <span className="font-medium text-foreground flex-1 truncate">
-              {task.title}
-            </span>
-          </div>
+    <TaskPreview task={task} delayDuration={500}>
+      <TaskContextMenu task={task}>
+        <Card
+          ref={ref}
+          className={cn(
+            "cursor-pointer hover:bg-accent/50 transition-colors duration-150",
+            isFocused && "ring-2 ring-primary bg-accent/30",
+            // Visual distinction for merge loop tasks: green left border
+            isMergeLoopTask && "border-l-4 border-l-green-500/60",
+            className
+          )}
+          onClick={handleNavigate}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleNavigate();
+            }
+          }}
+        >
+          <CardHeader className="p-4">
+            <div className="flex flex-col gap-1.5">
+              {/* Row 1: Status icon + Title */}
+              <div className="flex items-center gap-3">
+                <StatusIcon
+                  className={cn("h-5 w-5 shrink-0", statusConfig.color)}
+                  aria-hidden="true"
+                />
+                <span className="font-medium text-foreground flex-1 truncate">
+                  {task.title}
+                </span>
+              </div>
 
-          {/* Row 2: StatusBadge + IterationBadge? + dot + RelativeTime + ActionButton */}
-          <div className="flex items-center gap-2 ml-8 text-xs text-muted-foreground">
-            {/* Status badge */}
-            <Badge variant={statusConfig.badgeVariant} className="shrink-0">
-              {statusConfig.label}
-            </Badge>
+              {/* Row 2: StatusBadge + IterationBadge? + dot + RelativeTime + ActionButton */}
+              <div className="flex items-center gap-2 ml-8 text-xs text-muted-foreground">
+                {/* Status badge */}
+                <Badge variant={statusConfig.badgeVariant} className="shrink-0">
+                  {statusConfig.label}
+                </Badge>
 
-            {/* Iteration badge - only shown when iteration data exists */}
-            {hasIteration && (
-              <span className="shrink-0 bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs tabular-nums">
-                {loop.currentIteration}/{loop.maxIterations}
-              </span>
-            )}
-
-            {/* Worktree badge - only shown for non-primary (worktree) loops */}
-            {isWorktreeLoop && loop && <WorktreeBadge loopId={loop.id} className="shrink-0" />}
-
-            {/* Loop badge - only shown when a loop match exists */}
-            {loop && <LoopBadge status={loop.status} className="shrink-0" />}
-
-            {/* Dot separator */}
-            <span className="text-muted-foreground/50" aria-hidden="true">•</span>
-
-            {/* Relative time */}
-            <span className="shrink-0 tabular-nums">
-              {relativeTime}
-            </span>
-
-            {/* Spacer to push action buttons right */}
-            <span className="flex-1" />
-
-            {/* Merge button for worktree tasks - per explicit-merge-loop-ux spec */}
-            {showMergeDiscardButtons && (
-              <Button
-                size="sm"
-                variant={isMergeBlocked ? "ghost" : "default"}
-                className={cn(
-                  "shrink-0 h-6 px-2 text-xs",
-                  !isMergeBlocked && "bg-green-600 hover:bg-green-700 text-white",
-                  isMergeBlocked && "opacity-50"
+                {/* Iteration badge - only shown when iteration data exists */}
+                {hasIteration && (
+                  <span className="shrink-0 bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded text-xs tabular-nums">
+                    {loop.currentIteration}/{loop.maxIterations}
+                  </span>
                 )}
-                onClick={handleMerge}
-                disabled={isExecuting || isMergeBlocked}
-                title={mergeTooltip}
-              >
-                {mergeMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <GitMerge className="h-3 w-3" />
-                )}
-                <span className="ml-1">Merge</span>
-              </Button>
-            )}
 
-            {/* Discard button for worktree tasks */}
-            {showMergeDiscardButtons && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="shrink-0 h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
-                onClick={handleDiscard}
-                disabled={isExecuting}
-                title="Discard this worktree"
-              >
-                {discardMutation.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Trash2 className="h-3 w-3" />
-                )}
-                <span className="ml-1">Discard</span>
-              </Button>
-            )}
+                {/* Worktree badge - only shown for non-primary (worktree) loops */}
+                {isWorktreeLoop && loop && <WorktreeBadge loopId={loop.id} className="shrink-0" />}
 
-            {/* Run button */}
-            {canRun && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="shrink-0 h-6 px-2 text-xs"
-                onClick={handleRun}
-                disabled={isExecuting}
-              >
-                {isExecuting ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <Play className="h-3 w-3" />
-                )}
-                <span className="ml-1">Run</span>
-              </Button>
-            )}
+                {/* Loop badge - only shown when a loop match exists */}
+                {loop && <LoopBadge status={loop.status} className="shrink-0" />}
 
-            {/* Retry button */}
-            {canRetry && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="shrink-0 h-6 px-2 text-xs"
-                onClick={handleRetry}
-                disabled={isExecuting}
-              >
-                {isExecuting ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  <RotateCcw className="h-3 w-3" />
-                )}
-                <span className="ml-1">Retry</span>
-              </Button>
-            )}
-          </div>
+                {/* Dot separator */}
+                <span className="text-muted-foreground/50" aria-hidden="true">•</span>
 
-          {/* Live status for running tasks */}
-          {isRunning && <LiveStatus taskId={task.id} className="ml-8" />}
-        </div>
-      </CardHeader>
-    </Card>
+                {/* Relative time */}
+                <span className="shrink-0 tabular-nums">
+                  {relativeTime}
+                </span>
+
+                {/* Spacer to push action buttons right */}
+                <span className="flex-1" />
+
+                {/* Merge button for worktree tasks - per explicit-merge-loop-ux spec */}
+                {showMergeDiscardButtons && (
+                  <Button
+                    size="sm"
+                    variant={isMergeBlocked ? "ghost" : "default"}
+                    className={cn(
+                      "shrink-0 h-6 px-2 text-xs",
+                      !isMergeBlocked && "bg-green-600 hover:bg-green-700 text-white",
+                      isMergeBlocked && "opacity-50"
+                    )}
+                    onClick={handleMerge}
+                    disabled={isExecuting || isMergeBlocked}
+                    title={mergeTooltip}
+                  >
+                    {mergeMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <GitMerge className="h-3 w-3" />
+                    )}
+                    <span className="ml-1">Merge</span>
+                  </Button>
+                )}
+
+                {/* Discard button for worktree tasks */}
+                {showMergeDiscardButtons && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0 h-6 px-2 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                    onClick={handleDiscard}
+                    disabled={isExecuting}
+                    title="Discard this worktree"
+                  >
+                    {discardMutation.isPending ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                    <span className="ml-1">Discard</span>
+                  </Button>
+                )}
+
+                {/* Run button */}
+                {canRun && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0 h-6 px-2 text-xs"
+                    onClick={handleRun}
+                    disabled={isExecuting}
+                  >
+                    {isExecuting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Play className="h-3 w-3" />
+                    )}
+                    <span className="ml-1">Run</span>
+                  </Button>
+                )}
+
+                {/* Retry button */}
+                {canRetry && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="shrink-0 h-6 px-2 text-xs"
+                    onClick={handleRetry}
+                    disabled={isExecuting}
+                  >
+                    {isExecuting ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-3 w-3" />
+                    )}
+                    <span className="ml-1">Retry</span>
+                  </Button>
+                )}
+              </div>
+
+              {/* Live status for running tasks */}
+              {isRunning && <LiveStatus taskId={task.id} className="ml-8" />}
+            </div>
+          </CardHeader>
+        </Card>
+      </TaskContextMenu>
+    </TaskPreview>
   );
 });
 

@@ -5,6 +5,7 @@
  */
 
 import * as React from "react";
+import { useEffect, useState } from "react";
 import { Settings, Save, RefreshCw } from "lucide-react";
 import { trpc } from "@/trpc";
 import { type HealingPolicy, DEFAULT_HEALING_POLICY } from "@/types/healing";
@@ -64,16 +65,23 @@ export function HealingPolicyEditor({ className }: HealingPolicyEditorProps) {
     }
   }, [policy]);
 
-  const updatePolicy = trpc.healing.updatePolicy.useMutation({
-    onSuccess: () => {
+  const updatePolicy = trpc.healing.updatePolicy.useMutation();
+
+  // Handle update mutation success
+  useEffect(() => {
+    if (updatePolicy.isSuccess) {
       toast.success("Policy updated", "Healing policy has been saved.");
       utils.healing.getPolicy.invalidate();
       setHasChanges(false);
-    },
-    onError: (error) => {
-      toast.error("Error", error.message);
-    },
-  });
+    }
+  }, [updatePolicy.isSuccess, utils.healing.getPolicy, setHasChanges]);
+
+  // Handle update mutation error
+  useEffect(() => {
+    if (updatePolicy.isError && updatePolicy.error) {
+      toast.error("Error", updatePolicy.error.message);
+    }
+  }, [updatePolicy.isError, updatePolicy.error]);
 
   const handleSave = () => {
     updatePolicy.mutate({ policy: formData });

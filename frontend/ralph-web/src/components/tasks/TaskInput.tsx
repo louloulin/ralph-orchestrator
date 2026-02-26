@@ -64,8 +64,11 @@ export function TaskInput({
     setPresetSelection(value);
   };
 
-  const createMutation = trpc.task.create.useMutation({
-    onSuccess: (task) => {
+  const createMutation = trpc.task.create.useMutation();
+
+  // Handle create mutation success
+  useEffect(() => {
+    if (createMutation.isSuccess && createMutation.data) {
       setValue("");
       // Reset textarea height after clearing
       if (textareaRef.current) {
@@ -74,9 +77,9 @@ export function TaskInput({
       // Invalidate task list to show new task
       utils.task.list.invalidate();
       utils.task.ready.invalidate();
-      onTaskCreated?.(task.id);
-    },
-  });
+      onTaskCreated?.(createMutation.data.id);
+    }
+  }, [createMutation.isSuccess, createMutation.data, utils.task.list, utils.task.ready, onTaskCreated]);
 
   // Auto-resize textarea as content changes
   useEffect(() => {

@@ -6,6 +6,7 @@
  */
 
 import { motion } from "framer-motion";
+import { useEffect } from "react";
 import { Pause, Play, Square, AlertCircle, CheckCircle2, Loader2 } from "lucide-react";
 import { useTranslation } from "@/hooks/useTranslation";
 import { trpc } from "@/trpc";
@@ -115,52 +116,60 @@ export function LoopCard({ loop }: LoopCardProps) {
   const { mutate: stopLoop } = trpc.loops.stop.useMutation();
   const { mutate: mergeLoop } = trpc.loops.merge.useMutation();
 
+  // Handle stop mutation success
+  useEffect(() => {
+    if (stopLoop.isSuccess) {
+      utils.loops.list.invalidate();
+      refresh();
+      toast.add({
+        type: "success",
+        title: t("dock.loopStopped"),
+        message: t("dock.loopStoppedMessage"),
+      });
+    }
+  }, [stopLoop.isSuccess, utils.loops.list, refresh, toast, t]);
+
+  // Handle stop mutation error
+  useEffect(() => {
+    if (stopLoop.isError && stopLoop.error) {
+      toast.add({
+        type: "error",
+        title: t("dock.stopFailed"),
+        message: stopLoop.error.message,
+      });
+    }
+  }, [stopLoop.isError, stopLoop.error, toast, t]);
+
+  // Handle merge mutation success
+  useEffect(() => {
+    if (mergeLoop.isSuccess) {
+      utils.loops.list.invalidate();
+      refresh();
+      toast.add({
+        type: "success",
+        title: t("dock.mergeTriggered"),
+        message: t("dock.mergeTriggeredMessage"),
+      });
+    }
+  }, [mergeLoop.isSuccess, utils.loops.list, refresh, toast, t]);
+
+  // Handle merge mutation error
+  useEffect(() => {
+    if (mergeLoop.isError && mergeLoop.error) {
+      toast.add({
+        type: "error",
+        title: t("dock.mergeFailed"),
+        message: mergeLoop.error.message,
+      });
+    }
+  }, [mergeLoop.isError, mergeLoop.error, toast, t]);
+
   const handleStop = () => {
-    stopLoop(
-      { id: loop.id, force: false },
-      {
-        onSuccess: () => {
-          utils.loops.list.invalidate();
-          refresh();
-          toast.add({
-            type: "success",
-            title: t("dock.loopStopped"),
-            message: t("dock.loopStoppedMessage"),
-          });
-        },
-        onError: (error) => {
-          toast.add({
-            type: "error",
-            title: t("dock.stopFailed"),
-            message: error.message,
-          });
-        },
-      }
-    );
+    stopLoop({ id: loop.id, force: false });
   };
 
   const handleMerge = () => {
-    mergeLoop(
-      { id: loop.id, force: false },
-      {
-        onSuccess: () => {
-          utils.loops.list.invalidate();
-          refresh();
-          toast.add({
-            type: "success",
-            title: t("dock.mergeTriggered"),
-            message: t("dock.mergeTriggeredMessage"),
-          });
-        },
-        onError: (error) => {
-          toast.add({
-            type: "error",
-            title: t("dock.mergeFailed"),
-            message: error.message,
-          });
-        },
-      }
-    );
+    mergeLoop({ id: loop.id, force: false });
   };
 
   const statusColor = getStatusColor(loop.status);

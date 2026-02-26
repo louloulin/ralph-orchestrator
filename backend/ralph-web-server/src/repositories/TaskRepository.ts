@@ -262,4 +262,72 @@ export class TaskRepository {
       .limit(options.limit ?? 50)
       .all();
   }
+
+  /**
+   * Set file changes for a task (P5-5: Code Review)
+   *
+   * Stores the array of file changes as JSON-serialized string.
+   */
+  setFileChanges(id: string, fileChanges: schema.FileChange[]): Task | undefined {
+    const serialized = JSON.stringify(fileChanges);
+    return this.update(id, { fileChanges: serialized });
+  }
+
+  /**
+   * Get file changes for a task (P5-5: Code Review)
+   *
+   * Parses the JSON-serialized file changes array.
+   */
+  getFileChanges(id: string): schema.FileChange[] | undefined {
+    const task = this.findById(id);
+    if (!task || !task.fileChanges) {
+      return undefined;
+    }
+    try {
+      return JSON.parse(task.fileChanges) as schema.FileChange[];
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * Update approval status for a specific file change (P5-5: Code Review)
+   *
+   * Allows approving or rejecting individual file changes.
+   */
+  updateFileChangeApproval(
+    id: string,
+    filePath: string,
+    approvalStatus: "approved" | "rejected"
+  ): Task | undefined {
+    const fileChanges = this.getFileChanges(id);
+    if (!fileChanges) {
+      return undefined;
+    }
+
+    const updatedChanges = fileChanges.map((change) =>
+      change.path === filePath ? { ...change, approvalStatus } : change
+    );
+
+    return this.setFileChanges(id, updatedChanges);
+  }
+
+  /**
+   * Calculate summary statistics for file changes (P5-5: Code Review)
+   */
+  getFileChangesStats(id: string): schema.FileChangesStats | undefined {
+    const fileChanges = this.getFileChanges(id);
+    if (!fileChanges) {
+      return undefined;
+    }
+
+    return {
+      filesChanged: fileChanges.length,
+      totalAdditions: fileChanges.reduce((sum, fc) => sum + fc.additions, 0),
+      totalDeletions: fileChanges.reduce((sum, fc) => sum + fc.deletions, 0),
+      pendingApproval: fileChanges.filter((fc) => !fc.approvalStatus || fc.approvalStatus === "pending").length,
+      approved: fileChanges.filter((fc) => fc.approvalStatus === "approved").length,
+      rejected: fileChanges.filter((fc) => fc.approvalStatus === "rejected").length,
+    };
+  }
 }

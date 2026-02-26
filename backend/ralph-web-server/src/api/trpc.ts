@@ -657,6 +657,101 @@ export const taskRouter = router({
     const deletedTasks = ctx.taskRepository.deleteAll();
     return { success: true, deletedTasks, deletedLogs };
   }),
+
+  /**
+   * Get file changes for a task (P5-5: Code Review)
+   * Returns the array of file changes with their current approval status.
+   */
+  getFileChanges: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ ctx, input }) => {
+      const fileChanges = ctx.taskRepository.getFileChanges(input.id);
+      return fileChanges ?? [];
+    }),
+
+  /**
+   * Get file changes statistics for a task (P5-5: Code Review)
+   * Returns summary statistics about file changes and approval status.
+   */
+  getFileChangesStats: publicProcedure
+    .input(z.object({ id: z.string() }))
+    .query(({ ctx, input }) => {
+      const stats = ctx.taskRepository.getFileChangesStats(input.id);
+      if (!stats) {
+        return {
+          filesChanged: 0,
+          totalAdditions: 0,
+          totalDeletions: 0,
+          pendingApproval: 0,
+          approved: 0,
+          rejected: 0,
+        };
+      }
+      return stats;
+    }),
+
+  /**
+   * Update approval status for a specific file change (P5-5: Code Review)
+   * Allows approving or rejecting individual file changes.
+   */
+  updateFileChangeApproval: publicProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        filePath: z.string(),
+        approvalStatus: z.enum(["approved", "rejected"]),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      const task = ctx.taskRepository.updateFileChangeApproval(
+        input.taskId,
+        input.filePath,
+        input.approvalStatus
+      );
+
+      if (!task) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Task with id '${input.taskId}' not found or has no file changes`,
+        });
+      }
+
+      return { success: true, task };
+    }),
+
+  /**
+   * Set file changes for a task (P5-5: Code Review)
+   * Used by the backend to capture file changes after task completion.
+   */
+  setFileChanges: publicProcedure
+    .input(
+      z.object({
+        taskId: z.string(),
+        fileChanges: z.array(
+          z.object({
+            path: z.string(),
+            status: z.enum(["added", "modified", "deleted", "renamed"]),
+            additions: z.number().int().min(0),
+            deletions: z.number().int().min(0),
+            diff: z.string().optional(),
+            oldPath: z.string().optional(),
+            approvalStatus: z.enum(["pending", "approved", "rejected"]).optional(),
+          })
+        ),
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      const task = ctx.taskRepository.setFileChanges(input.taskId, input.fileChanges);
+
+      if (!task) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Task with id '${input.taskId}' not found`,
+        });
+      }
+
+      return { success: true, task };
+    }),
 });
 
 /**

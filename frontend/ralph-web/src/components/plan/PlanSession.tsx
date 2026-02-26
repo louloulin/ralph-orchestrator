@@ -75,12 +75,15 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
     );
 
   // Submit response mutation
-  const submitMutation = trpc.planning.respond.useMutation({
-    onSuccess: () => {
+  const submitMutation = trpc.planning.respond.useMutation();
+
+  // Handle submit mutation success
+  useEffect(() => {
+    if (submitMutation.isSuccess) {
       utils.planning.get.invalidate({ id: sessionId });
       utils.planning.list.invalidate();
-    },
-  });
+    }
+  }, [submitMutation.isSuccess, utils.planning.get, utils.planning.list, sessionId]);
 
   // Track current pending question (first unanswered prompt)
   const pendingPrompt = session?.conversation?.find((entry) => entry.type === "prompt");
@@ -105,19 +108,19 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
     const trimmed = response.trim();
     if (!trimmed || !pendingPrompt || submitMutation.isPending) return;
 
-    submitMutation.mutate(
-      {
-        sessionId,
-        promptId: pendingPrompt.id,
-        response: trimmed,
-      },
-      {
-        onSuccess: () => {
-          setResponse("");
-        },
-      }
-    );
+    submitMutation.mutate({
+      sessionId,
+      promptId: pendingPrompt.id,
+      response: trimmed,
+    });
   }, [response, pendingPrompt, submitMutation, sessionId]);
+
+  // Clear response when mutation succeeds
+  useEffect(() => {
+    if (submitMutation.isSuccess) {
+      setResponse("");
+    }
+  }, [submitMutation.isSuccess]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

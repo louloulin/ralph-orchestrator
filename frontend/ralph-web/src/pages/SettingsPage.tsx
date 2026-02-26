@@ -30,17 +30,24 @@ export function SettingsPage() {
 
   const configQuery = trpc.config.get.useQuery();
   const presetsQuery = trpc.presets.list.useQuery();
-  const updateMutation = trpc.config.update.useMutation({
-    onSuccess: () => {
+  const updateMutation = trpc.config.update.useMutation();
+
+  // Handle mutation success with useEffect
+  useEffect(() => {
+    if (updateMutation.isSuccess) {
       setIsDirty(false);
       setSaveStatus("success");
       configQuery.refetch();
       setTimeout(() => setSaveStatus("idle"), 3000);
-    },
-    onError: () => {
+    }
+  }, [updateMutation.isSuccess, configQuery]);
+
+  // Handle mutation error with useEffect
+  useEffect(() => {
+    if (updateMutation.isError) {
       setSaveStatus("error");
-    },
-  });
+    }
+  }, [updateMutation.isError]);
 
   // Load cache info on mount
   useEffect(() => {
@@ -99,13 +106,93 @@ export function SettingsPage() {
   const presets = presetsQuery.data ?? [];
 
   // Environment variables that Ralph supports
-  const envVars = [
-    { name: "RALPH_TELEGRAM_BOT_TOKEN", description: "Telegram bot token for human-in-the-loop", requiredFor: "RObot (Telegram)" },
-    { name: "RALPH_DIAGNOSTICS", description: "Enable diagnostics output (set to 1)", requiredFor: "Debugging" },
-    { name: "RALPH_VERBOSE", description: "Enable verbose output (set to 1)", requiredFor: "Debugging" },
-    { name: "RALPH_QUIET", description: "Suppress non-essential output (set to 1)", requiredFor: "Quiet mode" },
-    { name: "RALPH_WORKSPACE_ROOT", description: "Override workspace root path", requiredFor: "Web server" },
-    { name: "RALPH_BACKEND_PORT", description: "Override backend server port", requiredFor: "Web server" },
+  // Grouped by category for better organization (P2-5: Enhanced Environment Variables)
+  const envVarCategories = [
+    {
+      name: "Web Server",
+      description: "Configuration for the web dashboard and API server",
+      vars: [
+        {
+          name: "RALPH_BACKEND_PORT",
+          description: "Port for the backend API server (default: 3000)",
+          example: "3000",
+          requiredFor: "Web server",
+        },
+        {
+          name: "RALPH_WORKSPACE_ROOT",
+          description: "Override the default workspace root directory",
+          example: "/path/to/workspace",
+          requiredFor: "Web server",
+        },
+        {
+          name: "RALPH_DB_PATH",
+          description: "Custom path for the SQLite database file",
+          example: "/custom/path/ralph.db",
+          requiredFor: "Database",
+        },
+      ],
+    },
+    {
+      name: "RObot (Telegram Integration)",
+      description: "Human-in-the-loop interaction via Telegram bot",
+      vars: [
+        {
+          name: "RALPH_TELEGRAM_BOT_TOKEN",
+          description: "Telegram bot token for human-in-the-loop communication",
+          example: "123456:ABC-DEF1234...",
+          requiredFor: "RObot",
+          sensitive: true,
+        },
+        {
+          name: "RALPH_ROBOT_TIMEOUT",
+          description: "Timeout in seconds for waiting for human response (default: 300)",
+          example: "300",
+          requiredFor: "RObot",
+        },
+      ],
+    },
+    {
+      name: "Diagnostics & Logging",
+      description: "Control output verbosity and debugging information",
+      vars: [
+        {
+          name: "RALPH_DIAGNOSTICS",
+          description: "Enable detailed diagnostics output to .ralph/diagnostics/",
+          example: "1",
+          requiredFor: "Debugging",
+        },
+        {
+          name: "RALPH_VERBOSE",
+          description: "Enable verbose output with additional logging",
+          example: "1",
+          requiredFor: "Debugging",
+        },
+        {
+          name: "RALPH_QUIET",
+          description: "Suppress non-essential output for cleaner logs",
+          example: "1",
+          requiredFor: "Quiet mode",
+        },
+      ],
+    },
+    {
+      name: "Advanced",
+      description: "Advanced configuration options",
+      vars: [
+        {
+          name: "RALPH_DATA_DIR",
+          description: "Override the default Ralph data directory (~/.ralph)",
+          example: "/custom/ralph/data",
+          requiredFor: "Data storage",
+        },
+        {
+          name: "RALPH_DISABLE_TELEMETRY",
+          description: "Disable anonymous usage telemetry",
+          example: "1",
+          requiredFor: "Privacy",
+        },
+      ],
+    },
   ];
 
   const handleCopyEnvVar = (varName: string) => {
@@ -195,47 +282,85 @@ export function SettingsPage() {
             Environment Variables
           </CardTitle>
           <CardDescription>
-            Ralph configuration via environment variables. Set these in your shell profile
-            (.bashrc, .zshrc) or system environment variables.
+            Configure Ralph through environment variables. Set these in your shell profile
+            (.bashrc, .zshrc), system environment, or a .env file.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {envVars.map((envVar) => (
-              <div
-                key={envVar.name}
-                className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-              >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <code className="text-sm font-mono text-primary">{envVar.name}</code>
-                    {envVar.requiredFor && (
-                      <Badge variant="outline" className="text-xs">
-                        {envVar.requiredFor}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">{envVar.description}</p>
+          <div className="space-y-6">
+            {envVarCategories.map((category) => (
+              <div key={category.name} className="space-y-3">
+                <div>
+                  <h4 className="text-sm font-semibold flex items-center gap-2">
+                    {category.name}
+                  </h4>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {category.description}
+                  </p>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-2 flex-shrink-0"
-                  onClick={() => handleCopyEnvVar(envVar.name)}
-                  title="Copy variable name"
-                >
-                  {copiedVar === envVar.name ? (
-                    <Check className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
+                <div className="space-y-2 ml-4">
+                  {category.vars.map((envVar) => (
+                    <div
+                      key={envVar.name}
+                      className="group flex items-start justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <code className="text-sm font-mono text-primary">
+                            {envVar.name}
+                          </code>
+                          <Badge
+                            variant={envVar.sensitive ? "destructive" : "outline"}
+                            className="text-xs"
+                          >
+                            {envVar.requiredFor}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {envVar.description}
+                        </p>
+                        {envVar.example && (
+                          <p className="text-xs text-muted-foreground mt-1 font-mono bg-muted px-2 py-1 rounded">
+                            Example: {envVar.example}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="ml-2 flex-shrink-0"
+                        onClick={() => handleCopyEnvVar(envVar.name)}
+                        title={`Copy ${envVar.name}`}
+                      >
+                        {copiedVar === envVar.name ? (
+                          <Check className="h-4 w-4 text-green-500" />
+                        ) : (
+                          <Copy className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground mt-4">
-            Note: Environment variables must be set before starting Ralph. Changes require a restart.
-          </p>
+          <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div className="text-xs text-blue-900 dark:text-blue-100">
+                <p className="font-semibold mb-1">How to set environment variables:</p>
+                <ul className="space-y-1 list-disc list-inside">
+                  <li><strong>Temporary:</strong> Run <code>export KEY=value</code> in your terminal</li>
+                  <li><strong>Permanent:</strong> Add to ~/.bashrc, ~/.zshrc, or shell profile</li>
+                  <li><strong>.env file:</strong> Create a .env file in the project root</li>
+                  <li><strong>System:</strong> Set via system settings (requires restart)</li>
+                </ul>
+                <p className="mt-2 text-muted-foreground">
+                  Note: Changes to environment variables require restarting the Ralph server.
+                </p>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
 

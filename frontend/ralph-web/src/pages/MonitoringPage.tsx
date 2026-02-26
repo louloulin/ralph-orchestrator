@@ -6,6 +6,7 @@
  */
 
 import * as React from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Activity, Loader2, RefreshCw, AlertTriangle, Server, BarChart3 } from "lucide-react";
 import { trpc } from "@/trpc";
@@ -185,20 +186,26 @@ export function MonitoringPage() {
   } = trpc.process.stats.useQuery();
 
   // Stop process mutation
-  const stopMutation = trpc.process.stop.useMutation({
-    onSuccess: () => {
-      refetchProcesses();
-      refetchStats();
-    },
-  });
+  const stopMutation = trpc.process.stop.useMutation();
 
   // Restart process mutation
-  const restartMutation = trpc.process.restart.useMutation({
-    onSuccess: () => {
+  const restartMutation = trpc.process.restart.useMutation();
+
+  // Handle stop mutation success
+  useEffect(() => {
+    if (stopMutation.isSuccess) {
       refetchProcesses();
       refetchStats();
-    },
-  });
+    }
+  }, [stopMutation.isSuccess, refetchProcesses, refetchStats]);
+
+  // Handle restart mutation success
+  useEffect(() => {
+    if (restartMutation.isSuccess) {
+      refetchProcesses();
+      refetchStats();
+    }
+  }, [restartMutation.isSuccess, refetchProcesses, refetchStats]);
 
   // Fetch health for each process
   const healthQueries = trpc.useQueries((t) =>

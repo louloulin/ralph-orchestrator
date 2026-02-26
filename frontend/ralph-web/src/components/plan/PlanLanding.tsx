@@ -5,7 +5,7 @@
  * Shows existing planning sessions and allows starting a new session.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -56,26 +56,31 @@ export function PlanLanding({ onStart }: PlanLandingProps) {
   const { data: sessions, isLoading } = trpc.planning.list.useQuery();
 
   // Start session mutation
-  const startMutation = trpc.planning.start.useMutation({
-    onSuccess: (result) => {
-      onStart(result.sessionId);
-      utils.planning.list.invalidate();
-    },
-  });
+  const startMutation = trpc.planning.start.useMutation();
+  const resumeMutation = trpc.planning.resume.useMutation();
+  const deleteMutation = trpc.planning.delete.useMutation();
 
-  // Resume session mutation
-  const resumeMutation = trpc.planning.resume.useMutation({
-    onSuccess: () => {
+  // Handle start mutation success
+  useEffect(() => {
+    if (startMutation.isSuccess && startMutation.data) {
+      onStart(startMutation.data.sessionId);
       utils.planning.list.invalidate();
-    },
-  });
+    }
+  }, [startMutation.isSuccess, startMutation.data, onStart, utils.planning.list]);
 
-  // Delete session mutation
-  const deleteMutation = trpc.planning.delete.useMutation({
-    onSuccess: () => {
+  // Handle resume mutation success
+  useEffect(() => {
+    if (resumeMutation.isSuccess) {
       utils.planning.list.invalidate();
-    },
-  });
+    }
+  }, [resumeMutation.isSuccess, utils.planning.list]);
+
+  // Handle delete mutation success
+  useEffect(() => {
+    if (deleteMutation.isSuccess) {
+      utils.planning.list.invalidate();
+    }
+  }, [deleteMutation.isSuccess, utils.planning.list]);
 
   const handleStartSession = () => {
     const trimmed = prompt.trim();

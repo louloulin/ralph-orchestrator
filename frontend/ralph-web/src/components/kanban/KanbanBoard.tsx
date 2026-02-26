@@ -8,7 +8,7 @@
  * @see https://docs.dndkit.com/
  */
 
-import { useMemo, useCallback, useState } from "react";
+import { useMemo, useCallback, useState, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -111,11 +111,14 @@ export function KanbanBoard({ className }: KanbanBoardProps) {
 
   // Task update mutation
   const utils = trpc.useUtils();
-  const updateMutation = trpc.task.update.useMutation({
-    onSuccess: () => {
+  const updateMutation = trpc.task.update.useMutation();
+
+  // Handle update mutation success
+  useEffect(() => {
+    if (updateMutation.isSuccess) {
       utils.task.list.invalidate();
-    },
-  });
+    }
+  }, [updateMutation.isSuccess, utils.task.list]);
 
   // Build loop map for task↔loop association
   const loopMap = useMemo(() => {

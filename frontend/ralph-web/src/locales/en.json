@@ -50,7 +50,13 @@
     "theme": "Theme",
     "commandPaletteHint": "to open command palette",
     "openMenu": "Open menu",
-    "closeMenu": "Close menu"
+    "closeMenu": "Close menu",
+    "sections": {
+      "orchestration": "Orchestration",
+      "team": "Team",
+      "operations": "Operations",
+      "configuration": "Configuration"
+    }
   },
   "a11y": {
     "mainNavigation": "Main navigation",

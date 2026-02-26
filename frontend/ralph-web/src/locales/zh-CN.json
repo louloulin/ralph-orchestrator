@@ -50,7 +50,13 @@
     "theme": "主题",
     "commandPaletteHint": "打开命令面板",
     "openMenu": "打开菜单",
-    "closeMenu": "关闭菜单"
+    "closeMenu": "关闭菜单",
+    "sections": {
+      "orchestration": "编排",
+      "team": "团队",
+      "operations": "运维",
+      "configuration": "配置"
+    }
   },
   "a11y": {
     "mainNavigation": "主导航",

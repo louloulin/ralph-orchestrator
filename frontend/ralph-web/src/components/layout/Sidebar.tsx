@@ -9,8 +9,9 @@
  * Mobile: Hidden by default, slides in as overlay when toggled
  */
 
-import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X, Activity, Users, Save, Heart, BookOpen, Folder, Lightbulb } from "lucide-react";
+import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X, Activity, Users, Save, Heart, BookOpen, Folder, Lightbulb, Sparkles, Wrench, Layers } from "lucide-react";
 import { NavItem } from "./NavItem";
+import { NavSection } from "./NavSection";
 import { useUIStore } from "@/store";
 import { ThemeToggleMinimal, LocaleSwitcherMinimal } from "@/components/shared";
 import { useTranslation } from "@/hooks";
@@ -38,7 +39,66 @@ function RalphLogo({ className }: { className?: string }) {
   );
 }
 
-/** Navigation items configuration with route paths */
+/** Navigation section with grouped items */
+interface NavSection {
+  id: string;
+  labelKey: string;
+  icon: LucideIcon;
+  items: readonly NavItemConfig[];
+}
+
+/** Individual navigation item configuration */
+interface NavItemConfig {
+  to: string;
+  icon: LucideIcon;
+  labelKey: string;
+}
+
+/** Hierarchical navigation structure */
+const NAV_SECTIONS: NavSection[] = [
+  {
+    id: "orchestration",
+    labelKey: "nav.sections.orchestration",
+    icon: Sparkles,
+    items: [
+      { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
+      { to: "/tasks", icon: ListTodo, labelKey: "nav.tasks" },
+      { to: "/kanban", icon: Columns3, labelKey: "nav.kanban" },
+      { to: "/plan", icon: Lightbulb, labelKey: "nav.planning" },
+    ],
+  },
+  {
+    id: "team",
+    labelKey: "nav.sections.team",
+    icon: Users,
+    items: [
+      { to: "/teams", icon: Users, labelKey: "nav.teams" },
+      { to: "/skills", icon: BookOpen, labelKey: "nav.skills" },
+    ],
+  },
+  {
+    id: "operations",
+    labelKey: "nav.sections.operations",
+    icon: Activity,
+    items: [
+      { to: "/monitoring", icon: Activity, labelKey: "nav.monitoring" },
+      { to: "/checkpoints", icon: Save, labelKey: "nav.checkpoints" },
+      { to: "/healing", icon: Heart, labelKey: "nav.healing" },
+    ],
+  },
+  {
+    id: "configuration",
+    labelKey: "nav.sections.configuration",
+    icon: Wrench,
+    items: [
+      { to: "/projects", icon: Folder, labelKey: "nav.projects" },
+      { to: "/builder", icon: Workflow, labelKey: "nav.builder" },
+      { to: "/settings", icon: Settings, labelKey: "nav.settings" },
+    ],
+  },
+];
+
+/** Legacy flat structure for backward compatibility */
 const NAV_ITEMS = [
   { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
   { to: "/tasks", icon: ListTodo, labelKey: "nav.tasks" },
@@ -131,17 +191,28 @@ export function Sidebar() {
         )}
       </div>
 
-      {/* Navigation items */}
-      <nav aria-label={t("a11y.primaryNavigation")} className="flex-1 p-2 space-y-1">
-        {NAV_ITEMS.map((item) => (
-          <NavItem
-            key={item.to}
-            to={item.to}
-            icon={item.icon}
-            label={t(item.labelKey)}
-            collapsed={!sidebarOpen}
-            onClick={handleNavClick}
-          />
+      {/* Navigation items - hierarchical sections */}
+      <nav aria-label={t("a11y.primaryNavigation")} className="flex-1 p-2 space-y-2 overflow-y-auto">
+        {NAV_SECTIONS.map((section) => (
+          <div key={section.id}>
+            <NavSection
+              label={t(section.labelKey)}
+              icon={section.icon}
+              collapsed={!sidebarOpen}
+            />
+            <div className={cn("space-y-1", !sidebarOpen && "mt-1")}>
+              {section.items.map((item) => (
+                <NavItem
+                  key={item.to}
+                  to={item.to}
+                  icon={item.icon}
+                  label={t(item.labelKey)}
+                  collapsed={!sidebarOpen}
+                  onClick={handleNavClick}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </nav>
 

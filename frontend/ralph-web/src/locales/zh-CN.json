@@ -40,7 +40,6 @@
     "monitoring": "监控",
     "checkpoints": "检查点",
     "healing": "自愈",
-    "skills": "技能",
     "projects": "项目",
     "builder": "构建器",
     "settings": "设置",
@@ -148,7 +147,12 @@
     "runTask": "运行任务",
     "stopTask": "停止任务",
     "viewLogs": "查看日志",
-    "openInEditor": "在编辑器中打开"
+    "openInEditor": "在编辑器中打开",
+    "create": "创建",
+    "filters": "筛选",
+    "quickAddPlaceholder": "快速添加任务...",
+    "showingCount": "显示 {{count}} 个任务",
+    "showingCount_other": "显示 {{count}} 个任务"
   },
   "kanban": {
     "title": "看板",
@@ -190,9 +194,43 @@
     "showingMetrics": "显示 {{count}} / {{total}} 个指标",
     "noMatchingMetrics": "没有匹配的指标",
     "noMetrics": "尚未注册任何指标",
-    "metricStoreNotConfigured": "指标存储未配置"
-  }
-,
+    "metricStoreNotConfigured": "指标存储未配置",
+    "searchPlaceholder": "搜索进程...",
+    "filterByStatus": "按状态筛选",
+    "noResults": "没有匹配的进程",
+    "showingCount": "显示 {{count}} 个进程",
+    "startLoopFirst": "启动一个循环以查看监控数据",
+    "activeAlerts": "活跃告警",
+    "criticalAlerts": "严重告警",
+    "warnings": "警告",
+    "enableAutoRefresh": "启用自动刷新",
+    "disableAutoRefresh": "禁用自动刷新",
+    "status": {
+      "running": "运行中",
+      "stopped": "已停止",
+      "crashed": "崩溃",
+      "starting": "启动中"
+    }
+  },
+  "plan": {
+    "title": "规划",
+    "create": "创建规范",
+    "createFirst": "创建你的第一个规范",
+    "searchPlaceholder": "搜索规范...",
+    "filterByStatus": "按状态筛选",
+    "noSpecs": "暂无规范",
+    "noResults": "没有匹配的规范",
+    "showingCount": "显示 {{count}} 个规范",
+    "sessionTitle": "规划会话",
+    "sessionViewPlaceholder": "活跃的规划会话",
+    "fullSessionOnPage": "完整会话在规划页面可用",
+    "status": {
+      "draft": "草稿",
+      "inProgress": "进行中",
+      "approved": "已批准",
+      "implemented": "已实现"
+    }
+  },
   "builder": {
     "title": "Hat 构建器",
     "createCollection": "创建集合",

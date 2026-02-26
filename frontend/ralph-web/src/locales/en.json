@@ -40,7 +40,6 @@
     "monitoring": "Monitoring",
     "checkpoints": "Checkpoints",
     "healing": "Self-Healing",
-    "skills": "Skills",
     "projects": "Projects",
     "builder": "Builder",
     "settings": "Settings",
@@ -148,7 +147,12 @@
     "runTask": "Run Task",
     "stopTask": "Stop Task",
     "viewLogs": "View Logs",
-    "openInEditor": "Open in Editor"
+    "openInEditor": "Open in Editor",
+    "create": "Create",
+    "filters": "Filters",
+    "quickAddPlaceholder": "Quick add task...",
+    "showingCount": "Showing {{count}} tasks",
+    "showingCount_other": "Showing {{count}} tasks"
   },
   "kanban": {
     "title": "Kanban Board",
@@ -190,11 +194,44 @@
     "showingMetrics": "Showing {{count}} of {{total}} metrics",
     "noMatchingMetrics": "No metrics match your search",
     "noMetrics": "No metrics have been registered yet",
-    "metricStoreNotConfigured": "MetricStore is not configured"
-  }
-,
+    "metricStoreNotConfigured": "MetricStore is not configured",
+    "searchPlaceholder": "Search processes...",
+    "filterByStatus": "Filter by status",
+    "noResults": "No processes match your search",
+    "showingCount": "Showing {{count}} processes",
+    "startLoopFirst": "Start a loop to see monitoring data",
+    "activeAlerts": "Active Alerts",
+    "criticalAlerts": "Critical Alerts",
+    "warnings": "Warnings",
+    "enableAutoRefresh": "Enable auto refresh",
+    "disableAutoRefresh": "Disable auto refresh",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "crashed": "Crashed",
+      "starting": "Starting"
+    }
+  },
+  "plan": {
+    "title": "Planning",
+    "create": "Create Spec",
+    "createFirst": "Create your first spec",
+    "searchPlaceholder": "Search specs...",
+    "filterByStatus": "Filter by status",
+    "noSpecs": "No specs yet",
+    "noResults": "No specs match your search",
+    "showingCount": "Showing {{count}} specs",
+    "sessionTitle": "Plan Session",
+    "sessionViewPlaceholder": "Active plan session",
+    "fullSessionOnPage": "Full session available on Plan page",
+    "status": {
+      "draft": "Draft",
+      "inProgress": "In Progress",
+      "approved": "Approved",
+      "implemented": "Implemented"
+    }
+  },
   "builder": {
-    "title": "Hat Builder",
     "createCollection": "Create Collection",
     "editCollection": "Edit Collection",
     "nodes": "Nodes",

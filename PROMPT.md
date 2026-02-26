@@ -1,716 +1,1276 @@
-# Ralph Web Dashboard 全面分析与改进计划
+# Ralph Web Dashboard UI改造计划
 
-> 生成时间: 2026-02-25
-> 分析版本: feature-web3 分支
-
----
-
-## 一、UI验证结果
-
-### 1.1 当前状态
-- **前端**: 运行在 localhost:5175 (Vite + React)
-- **后端**: 运行在 localhost:3002 (Bun + Fastify + tRPC)
-- **数据库**: SQLite + Drizzle ORM
-
-### 1.2 页面验证
-
-| 页面 | 状态 | 问题 |
-|------|------|------|
-| Dashboard | ✅ 正常 | WebSocket状态硬编码为true |
-| Tasks | ✅ 正常 | 项目筛选可能不同步 |
-| Projects | ✅ 正常 | 无数据时显示正常 |
-| Kanban | ✅ 正常 | 键盘导航不完整 |
-| Monitoring | ⚠️ 部分功能 | LoopSupervisor未配置时优雅降级 |
-| Skills | ✅ 正常 | - |
-| Builder | ✅ 正常 | - |
-| Settings | ✅ 正常 | - |
-
-### 1.3 控制台错误
-```
-[ERROR] Failed to load resource: trpc/project.list - 404 (多次)
-```
-**原因**: project.router可能未完全实现或路由配置问题
+> **创建时间**: 2026-02-26
+> **分析目标**: 对比主流AI平台UI设计，制定Ralph Dashboard改造计划，构建类似Codex/Claude Cowork的AI Chatbox体验
+> **版本**: v2.0
 
 ---
 
-## 二、代码结构分析
+## 目录
 
-### 2.1 前端架构 (frontend/ralph-web/src/)
-
-```
-src/
-├── components/          # 组件库
-│   ├── builder/        # Hat Collection 可视化构建器 (React Flow)
-│   ├── dashboard/      # 仪表盘组件 (StatCard, ActivityTimeline)
-│   ├── kanban/         # 看板组件 (KanbanBoard, KanbanCard)
-│   ├── layout/         # 布局组件 (AppShell, Sidebar, ProjectSelector)
-│   ├── shared/         # 共享组件 (ErrorBoundary, Toast, ThemeToggle)
-│   ├── tasks/          # 任务组件 (TaskThread, LiveStatus, TaskInput)
-│   ├── monitoring/     # 监控组件 (MetricCard, AlertList)
-│   ├── healing/        # 自愈组件 (CircuitBreakerStatus)
-│   ├── teams/          # 团队组件
-│   └── ui/             # 基础UI组件 (shadcn/ui风格)
-├── stores/             # Zustand状态管理
-├── hooks/              # 自定义Hooks
-├── pages/              # 页面组件
-├── types/              # TypeScript类型定义
-└── lib/                # 工具函数
-```
-
-### 2.2 后端架构 (backend/ralph-web-server/src/)
-
-```
-src/
-├── api/                # tRPC路由定义
-│   ├── trpc.ts        # 主路由聚合
-│   └── LogBroadcaster.ts # WebSocket日志广播
-├── services/           # 业务逻辑层
-├── repositories/       # 数据访问层 (Drizzle ORM)
-├── types/              # TypeScript类型定义
-├── runner/             # 任务执行器
-└── index.ts           # 服务器入口
-```
+- [一、竞品分析](#一竞品分析)
+- [二、AI Chatbox UI设计模式](#二ai-chatbox-ui设计模式)
+- [三、Ralph Dashboard现状分析](#三ralph-dashboard现状分析)
+- [四、架构设计](#四架构设计)
+- [五、交互式AI功能设计](#五交互式ai功能设计)
+- [六、差距分析](#六差距分析)
+- [七、改造方案](#七改造方案)
+- [八、实施路线图](#八实施路线图)
 
 ---
 
-## 三、发现的问题
+## 一、竞品分析
 
-### 🔴 高优先级 (安全/正确性)
+### 1.1 Codex App (OpenAI, 2026-02-03发布)
 
-#### 3.1 WebSocket URL 配置问题
-**文件**: `frontend/ralph-web/src/hooks/useTaskWebSocket.ts:112-115`
+**产品定位**: macOS原生Agent编排应用
+
+**UI设计亮点**:
+- **Agent管理中心**: 专门设计用于管理多个AI代理的界面，支持平滑任务切换
+- **多线程并行界面**: 不同任务的并行代理线程(重构、测试、前端更新)
+- **Git Worktrees集成**: 隐式后端支持，允许代理在隔离沙箱中工作
+- **视觉设计**: 用户反馈UI美学"比Cursor高几个等级"
+- **中文本地化**: 支持个性化设置中文输出
+- **Skills库UI**: 内置技能库界面，包括Figma-to-Code实现、图片生成、云部署等
+
+**设计隐喻**: "指挥中心"模式 - 高度视觉化、专业感强
+
+---
+
+### 1.2 Claude Cowork (Anthropic, 2026-01-12发布)
+
+**产品定位**: "Claude Code for the rest of your work" - 面向普通知识工作者的AI代理
+
+**UI设计亮点**:
+- **桌面GUI替代命令行**: 移除终端障碍，友好的桌面界面
+- **任务可视化**: 视觉化显示任务执行进度
+- **上下文支持**: 用户可附加文件夹作为工作上下文
+- **提示词驱动**: 简洁的任务启动方式
+- **任务与聊天分离**: 明确区分任务执行和对话交互
+
+**设计理念**:
+1. 去除任务特定输入框和脚手架
+2. 系统更好地理解用户意图
+3. 根据上下文动态分支界面(如检测使用应用X时弹出相关UI)
+
+---
+
+### 1.3 OpenCode (开源替代品)
+
+**产品定位**: 免费开源的AI编码替代方案
+
+**UI设计亮点**:
+- **跨平台支持**: Mac、Windows、Linux
+- **多提供商UI**: 统一界面支持GLM-4.7等多个提供商
+- **免费开源**: 社区驱动
+
+---
+
+## 二、AI Chatbox UI设计模式
+
+### 2.1 核心交互模式 (2026最佳实践)
+
+基于最新AI UX研究([来源](https://juejin.cn/post/7556142470908919848), [来源](https://juejin.cn/post/7583971282892455988))：
+
+#### 2.1.1 多模态交互支持
+
+| 模态 | 最佳使用场景 | 实现优先级 |
+|------|-------------|-----------|
+| **文本** | 快速查询、详细指令 | P0 - 已实现 |
+| **语音** | 免提场景、无障碍访问 | P1 |
+| **图片** | 视觉分析、创意任务 | P2 |
+| **文件拖拽** | 上下文附件 | P1 |
+
+**实现建议**:
 ```typescript
-function getDefaultWsUrl(): string {
-  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const host = window.location.host;
-  return `${protocol}//${host}/ws/logs`;
+// 统一输入组件支持多种模态
+interface MultimodalInput {
+  text: string;
+  voice?: Blob;           // 语音转文字
+  images?: File[];        // 图片OCR/分析
+  files?: File[];         // 文件上下文
 }
 ```
-**问题**: WebSocket URL 从 window.location 派生，在反向代理或嵌入式部署场景可能失败
-**建议**: 添加环境变量配置选项
 
-#### 3.2 配置路径硬编码
-**文件**: `backend/ralph-web-server/src/api/trpc.ts:599-600`
-```typescript
-const REPO_ROOT = path.resolve(__dirname, "../../../..");
-const CONFIG_PATH = path.join(REPO_ROOT, "ralph.yml");
+---
+
+#### 2.1.2 主动式UX设计
+
+**核心理念**: AI系统应该预测用户需求，而非等待命令
+
+**实现模式**:
+1. **预测性建议** - 根据当前上下文提供下一步操作建议
+2. **自适应界面** - 根据用户行为动态调整布局
+3. **智能提示** - 在用户卡住时主动提供帮助
+4. **上下文连续性** - 跨会话记住历史和偏好
+
+**示例UX**:
+```mermaid
+graph LR
+    A[用户打开任务] --> B[AI检测上下文]
+    B --> C[显示相关建议]
+    C --> D[用户选择或忽略]
+    D --> E[AI学习偏好]
 ```
-**问题**: 配置路径相对于 __dirname 解析，在打包或嵌入式模式可能失败
-**建议**: 支持 RALPH_CONFIG_PATH 环境变量
 
-#### 3.3 日志存储无界增长
-**文件**: `frontend/ralph-web/src/stores/logStore.ts`
-**问题**: 日志无限期存储在内存中，无清理机制
-**建议**: 添加最大条目限制 (如每任务1000条)
+---
 
-### 🟡 中优先级 (性能/稳定性)
+#### 2.1.3 渐进式披露
 
-#### 3.4 事件数组无界增长
-**文件**: `frontend/ralph-web/src/hooks/useTaskWebSocket.ts:46`
+**原则**: 避免信息过载，按需展示高级功能
+
+| 层级 | 内容 | 触发条件 |
+|------|------|----------|
+| **基础** | 简单任务输入框 | 首次使用 |
+| **进阶** | 技能选择、参数配置 | 3次使用后 |
+| **专家** | 完整Hat配置、事件流 | 用户主动开启 |
+
+---
+
+#### 2.1.4 AI透明度设计
+
+**信任构建关键要素**:
+1. **置信度显示** - AI对建议的确定程度(高/中/低)
+2. **决策解释** - AI为什么采取某个行动
+3. **能力边界** - 明确说明AI能做什么/不能做什么
+4. **错误恢复** - AI失败时的优雅降级
+
+**UI模式**:
 ```typescript
-const [events, setEvents] = useState<RalphEvent[]>([]);
+// AI置信度指示器
+interface AIConfidence {
+  level: 'high' | 'medium' | 'low';
+  explanation?: string;  // "基于3个相似任务..."
+  alternatives?: string[];  // 低置信度时提供备选
+}
 ```
-**问题**: WebSocket连接期间事件数组无限增长
-**建议**: 实现滑动窗口或定期清理
 
-#### 3.5 已废弃的 onSuccess 回调
-**文件**: `frontend/ralph-web/src/components/layout/ProjectSelector.tsx:19-26`
-**问题**: 使用 @tanstack/react-query v5 已废弃的 onSuccess 回调
-**建议**: 迁移到 useEffect 模式
+---
 
-#### 3.6 类型安全问题
-**位置**: 多处
-- `backend/.../TaskRepository.ts:80-83` - @ts-expect-error 抑制
-- `frontend/.../CollectionBuilder.tsx:47-51` - 使用 any 类型
-- `frontend/.../MonitoringPage.tsx:317-318` - 类型强制转换
+### 2.2 对话式界面模式
 
-**建议**: 修复类型定义而非抑制错误
+#### 2.2.1 消息类型设计
 
-### 🟢 低优先级 (代码质量)
+| 消息类型 | UI表现 | 用途 |
+|---------|--------|------|
+| **用户消息** | 右对齐气泡 | 用户输入 |
+| **AI响应** | 左对齐卡片 | AI回复 |
+| **系统通知** | 顶部Toast | 非阻塞提示 |
+| **进度更新** | 行内进度条 | 长时间任务 |
+| **错误消息** | 红色警告框 | 失败处理 |
+| **行动卡片** | 可交互按钮 | AI建议操作 |
 
-#### 3.7 未实现的 CommandPalette 功能
-**文件**: `frontend/ralph-web/src/components/shared/CommandPalette.tsx`
+---
+
+#### 2.2.2 输入状态模式
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Typing: 用户开始输入
+    Typing --> Processing: 发送消息
+    Processing --> Thinking: AI思考中
+    Thinking --> Executing: 开始执行
+    Executing --> Completed: 任务完成
+    Executing --> Error: 执行失败
+    Error --> Idle: 用户确认
+    Completed --> Idle: 自动返回
+```
+
+**UI表现**:
+- **Thinking**: 脉动动画 + "正在分析..."
+- **Executing**: 进度条 + "正在执行步骤 3/5"
+- **Error**: 红色高亮 + 重试/修改选项
+
+---
+
+### 2.3 视觉设计趋势 (2026)
+
+#### 2.3.1 流行UI风格
+
+| 风格 | 特点 | 适用场景 |
+|------|------|----------|
+| **Glassmorphism** | 毛玻璃效果、半透明 | 悬停面板、卡片 |
+| **Claymorphism** | 3D粘土质感、软阴影 | 按钮、图标 |
+| **Neumorphism** | 凹凸浮雕、低对比 | 开关、滑块 |
+| **Bento Grid** | 网格模块化布局 | 仪表盘、功能区 |
+
+**推荐组合**:
+- 主布局: Bento Grid (模块化仪表盘)
+- 悬浮元素: Glassmorphism (现代感)
+- 交互控件: Claymorphism (触感反馈)
+
+---
+
+#### 2.3.2 色彩系统
+
+**2026流行配色** ([来源](https://m.blog.csdn.net/gitblog_00568/article/details/151938575)):
+
+```css
+/* 暗色主题优化 */
+--bg-primary: #09090b;      /* 深黑背景 */
+--bg-secondary: #18181b;    /* 卡片背景 */
+--accent-primary: #8b5cf6;  /* 紫色主色 - AI感 */
+--accent-secondary: #06b6d4;/* 青色辅色 - 科技感 */
+--text-primary: #fafafa;    /* 主文本 */
+--text-muted: #a1a1aa;      /* 次要文本 */
+--success: #10b981;         /* 成功绿 */
+--warning: #f59e0b;         /* 警告黄 */
+--error: #ef4444;           /* 错误红 */
+```
+
+---
+
+### 2.4 动画与微交互
+
+#### 2.4.1 必需动画清单
+
+| 动画类型 | 时长 | 缓动函数 | 用途 |
+|---------|------|---------|------|
+| **页面过渡** | 300ms | ease-in-out | 路由切换 |
+| **卡片悬停** | 200ms | ease-out | 鼠标悬停 |
+| **状态变化** | 150ms | ease | 进度更新 |
+| **消息弹出** | 250ms | spring | 新消息 |
+| **加载骨架** | 循环 | linear | 数据加载 |
+
+**实现建议**:
 ```typescript
-// TODO: Connect to tRPC mutation
-const defaultCreateTask = (prompt: string) => {
-  console.log("Create task:", prompt);
+// 使用Framer Motion统一动画管理
+import { motion } from 'framer-motion';
+
+const variants = {
+  pageTransition: {
+    initial: { opacity: 0, y: 20 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -20 },
+    transition: { duration: 0.3 }
+  }
 };
 ```
-**未实现功能**:
-- 创建任务
-- 启动循环
-- 取消循环
 
-#### 3.8 看板状态映射问题
-**文件**: `frontend/ralph-web/src/components/kanban/KanbanBoard.tsx:39-53`
+---
+
+## 三、Ralph Dashboard现状分析
+
+### 3.1 技术架构
+
+| 组件 | 技术 | 状态 |
+|------|------|------|
+| 前端框架 | React + Vite | ✅ |
+| UI库 | TailwindCSS + shadcn/ui | ✅ |
+| 状态管理 | Zustand | ✅ |
+| 图标库 | lucide-react | ✅ |
+| 数据获取 | tRPC | ✅ |
+| 国际化 | i18n | ✅ |
+| 主题系统 | 明/暗/系统切换 | ✅ |
+| WebSocket | 实时日志流 | ✅ |
+
+---
+
+### 3.2 当前UI结构
+
+**布局**: 左侧可折叠导航栏 + 主内容区域
+
+**导航分组** (13个页面，4个分组):
+1. **Orchestration** - Dashboard, Tasks, Kanban, Planning
+2. **Team** - Teams, Skills
+3. **Operations** - Monitoring, Checkpoints, Healing
+4. **Configuration** - Projects, Builder, Settings
+
+---
+
+### 3.3 设计风格特点
+
+- ✅ 暗色主题为主(hacker美学)
+- ✅ 卡片式布局
+- ✅ Lucide图标
+- ✅ 响应式设计
+- ✅ 移动端适配
+- ✅ 无障碍支持
+- ✅ 国际化支持
+
+**缺失**:
+- ❌ AI Chatbox界面
+- ❌ Agent协作可视化
+- ❌ 流畅过渡动画
+- ❌ 主动式UX
+
+---
+
+## 四、架构设计
+
+### 4.1 整体系统架构
+
+```mermaid
+graph TB
+    subgraph "Frontend Layer - React UI"
+        A[AppShell] --> B[Chatbox Interface]
+        A --> C[Dashboard Views]
+        A --> D[Agent Canvas]
+
+        B --> E[ConversationPanel]
+        B --> F[ContextPanel]
+        B --> G[ActionCards]
+
+        D --> H[AgentFlowGraph]
+        D --> I[ParallelTasksView]
+        D --> J[TimelineView]
+    end
+
+    subgraph "State Management - Zustand"
+        K[chatStore]
+        L[agentStore]
+        M[taskStore]
+        N[projectStore]
+    end
+
+    subgraph "Communication Layer"
+        O[tRPC Client]
+        P[WebSocket Client]
+    end
+
+    subgraph "Backend Layer - Fastify"
+        Q[tRPC Router]
+        R[WebSocket Server]
+        S[LogBroadcaster]
+    end
+
+    subgraph "Core Orchestration - Ralph"
+        T[Event Loop]
+        U[Hat System]
+        V[Memory System]
+        W[Task Queue]
+    end
+
+    A --> K
+    A --> L
+    A --> M
+    A --> N
+
+    K --> O
+    L --> O
+    M --> O
+    N --> O
+
+    B --> P
+    D --> P
+
+    O --> Q
+    P --> R
+
+    Q --> T
+    R --> S
+
+    T --> U
+    T --> V
+    T --> W
+```
+
+---
+
+### 4.2 AI Chatbox组件架构
+
+```mermaid
+graph TB
+    subgraph "Chatbox Core Components"
+        A[ChatboxContainer]
+
+        A --> B[ConversationView]
+        A --> C[InputArea]
+        A --> D[ContextPanel]
+
+        B --> E[MessageList]
+        B --> F[TypingIndicator]
+        B --> G[ActionCards]
+
+        C --> H[MultimodalInput]
+        C --> I[SuggestionChips]
+        C --> J[SendButton]
+
+        D --> K[ActiveTaskContext]
+        D --> L[AgentStatusCards]
+        D --> M[RelatedMemories]
+    end
+
+    subgraph "Data Layer"
+        N[chatStore]
+        O[taskStore]
+        P[agentStore]
+    end
+
+    subgraph "API Layer"
+        Q[tRPC chatRouter]
+        R[WebSocket /ws/chat]
+    end
+
+    E --> N
+    H --> N
+    K --> O
+    L --> P
+
+    N --> Q
+    B --> R
+```
+
+**组件职责**:
+
+| 组件 | 职责 | Props |
+|------|------|-------|
+| `ChatboxContainer` | 容器，管理状态 | `activeProjectId` |
+| `ConversationView` | 消息列表展示 | `messages`, `onAction` |
+| `InputArea` | 多模态输入 | `onSend`, `suggestions` |
+| `ContextPanel` | 上下文信息面板 | `task`, `agents`, `memories` |
+| `MessageList` | 虚拟滚动消息 | `messages[]` |
+| `ActionCards` | AI建议操作 | `actions[]` |
+| `MultimodalInput` | 文本/语音/文件输入 | `onSubmit` |
+
+---
+
+### 4.3 Agent可视化架构
+
+```mermaid
+graph TB
+    subgraph "Agent Canvas Components"
+        A[AgentCanvas]
+
+        A --> B[AgentFlowGraph]
+        A --> C[AgentTimeline]
+        A --> D[ParallelTasks]
+
+        B --> E[AgentNodes]
+        B --> F[ConnectionEdges]
+        B --> G[StatusIndicators]
+
+        C --> H[TimeScale]
+        C --> I[ExecutionBars]
+        C --> J[MilestoneMarkers]
+
+        D --> K[TaskCards]
+        D --> L[ProgressBars]
+        D --> M[DependencyLines]
+    end
+
+    subgraph "Data Source"
+        N[WebSocket /ws/agents]
+        O[agentStore]
+    end
+
+    subgraph "Visualization Lib"
+        P[React Flow]
+    end
+
+    N --> O
+    O --> A
+    B --> P
+```
+
+---
+
+### 4.4 状态管理架构
+
+```mermaid
+graph TB
+    subgraph "Zustand Stores"
+        A[chatStore]
+        B[agentStore]
+        C[taskStore]
+        D[projectStore]
+        E[uiStore]
+    end
+
+    subgraph "chatStore State"
+        A1[messages: Message[]]
+        A2[isThinking: boolean]
+        A3[currentTask: Task]
+        A4[suggestions: Suggestion[]]
+    end
+
+    subgraph "agentStore State"
+        B1[agents: Agent[]]
+        B2[activeHats: Hat[]]
+        B3[relationships: Connection[]]
+    end
+
+    subgraph "taskStore State"
+        C1[tasks: Task[]]
+        C2[queue: QueuedTask[]]
+        C3[activeTask: Task]
+    end
+
+    A --> A1
+    A --> A2
+    A --> A3
+    A --> A4
+
+    B --> B1
+    B --> B2
+    B --> B3
+
+    C --> C1
+    C --> C2
+    C --> C3
+```
+
+**Store接口定义**:
+
 ```typescript
-{ id: "in-review", title: "In Review", statuses: ["blocked"], ... }
-```
-**问题**: "blocked" 状态映射到 "In Review" 语义不正确
-**建议**: blocked 应该是独立的 "Blocked" 列
+// stores/chatStore.ts
+interface ChatStore {
+  // State
+  messages: Message[];
+  isThinking: boolean;
+  currentTask: Task | null;
+  suggestions: Suggestion[];
 
-#### 3.9 WebSocket 状态硬编码
-**文件**: `frontend/ralph-web/src/pages/DashboardPage.tsx:53`
+  // Actions
+  sendMessage: (content: string, context?: Context) => Promise<void>;
+  executeAction: (action: Action) => Promise<void>;
+  clearHistory: () => void;
+}
+
+// stores/agentStore.ts
+interface AgentStore {
+  // State
+  agents: Agent[];
+  activeHats: Hat[];
+  relationships: Connection[];
+
+  // Actions
+  subscribeToAgents: (loopId: string) => void;
+  updateAgentStatus: (agentId: string, status: AgentStatus) => void;
+}
+```
+
+---
+
+### 4.5 WebSocket实时通信架构
+
+```mermaid
+sequenceDiagram
+    participant F as Frontend
+    participant W as WebSocket Client
+    participant B as Backend (Fastify)
+    participant L as LogBroadcaster
+    participant R as Ralph Core
+
+    F->>W: Connect /ws/logs
+    W->>B: WebSocket Upgrade
+    B-->>L: Register client
+    L-->>B: Send backlog
+
+    R->>L: Emit log event
+    L->>B: Broadcast to clients
+    B->>W: Send {type: 'log', data: {...}}
+    W->>F: Update UI
+
+    R->>L: Emit status event
+    L->>B: Broadcast
+    B->>W: Send {type: 'status', data: {...}}
+    W->>F: Update agent status
+```
+
+**消息协议**:
+
 ```typescript
-wsConnected={true} // Hardcoded to true
-```
-**问题**: 不反映实际连接状态
-**建议**: 使用 useTaskWebSocket 返回的连接状态
+// WebSocket Message Types
+type WSMessage =
+  | { type: 'log'; taskId: string; data: LogEntry }
+  | { type: 'status'; loopId: string; data: LoopStatus }
+  | { type: 'event'; eventType: string; data: unknown }
+  | { type: 'agent'; agentId: string; data: AgentState }
+  | { type: 'progress'; taskId: string; data: ProgressUpdate };
 
----
+// Frontend Hook
+function useTaskWebSocket(taskId: string) {
+  const [messages, setMessages] = useState<LogEntry[]>([]);
 
-## 四、数据流问题
+  useEffect(() => {
+    const ws = new WebSocket(`ws://localhost:3000/ws/logs?taskId=${taskId}`);
 
-### 4.1 项目上下文未完全传播
-**问题**: 项目选择器更改状态，但某些查询可能不遵循项目筛选
+    ws.onmessage = (event) => {
+      const message: WSMessage = JSON.parse(event.data);
+      if (message.type === 'log') {
+        setMessages(prev => [...prev, message.data]);
+      }
+    };
 
-### 4.2 任务-循环关联时序问题
-**文件**: `frontend/ralph-web/src/components/tasks/ThreadList.tsx:107-119`
-**问题**: 使用 loopId 和 pid 回退，PID重用时可能显示陈旧关联
+    return () => ws.close();
+  }, [taskId]);
 
-### 4.3 日志缓冲区竞态条件
-**文件**: `frontend/ralph-web/src/hooks/useTaskWebSocket.ts:170-177`
-**问题**: flushLogBuffer 使用 ref 和 taskId 闭包，taskId 变化时日志可能归属错误任务
-
----
-
-## 五、对标 Vibe Kanban 差距分析
-
-### 5.1 缺失功能
-
-| 功能 | Vibe Kanban | Ralph Web | 优先级 |
-|------|-------------|-----------|--------|
-| 自然语言任务创建 | ✅ | ❌ 占位符 | P1 |
-| AI 驱动任务分类 | ✅ | ❌ | P2 |
-| 智能任务优先级 | ✅ | ⚠️ 基础 | P2 |
-| 智能冲刺规划 | ✅ | ❌ | P3 |
-| 任务依赖可视化 | ✅ | ❌ | P2 |
-| 任务悬停预览 | ✅ | ❌ | P3 |
-| 右键上下文菜单 | ✅ | ❌ | P3 |
-| 进度条可视化 | ✅ | ⚠️ 迭代计数 | P3 |
-
-### 5.2 UI/UX 改进建议
-
-1. **看板列设计** - 更清晰的视觉层次
-2. **拖放动画** - 更流畅的过渡效果
-3. **快速操作菜单** - 右键菜单替代按钮
-4. **键盘导航** - 完整的键盘支持
-
-### 5.3 Vibe Kanban 核心功能详析
-
-| 功能 | 描述 | 借鉴价值 |
-|------|------|---------|
-| 多AI代理支持 | Claude Code, Codex, Gemini CLI, Cursor, Amp | ⭐⭐⭐ 高 - 扩展后端适配器 |
-| 实时日志流 | WebSocket实时通信 | ⭐⭐⭐ 高 - 已有但可优化 |
-| 代码差异查看 | 实时代码变更可视化（Diff渲染器） | ⭐⭐⭐ 高 - Ralph已有DiffViewer |
-| IDE图标系统 | VS Code, Cursor, Windsurf图标适配主题 | ⭐⭐ 中 - UI增强 |
-| 本地执行 | 不向外部服务器发送代码 | ⭐⭐⭐ 高 - Ralph核心优势 |
-
-**设计理念：**
-> 当大多数代码由 AI 编写时，人的角色变成规划、审查和协调。Vibe Kanban 将 AI 编码代理视为"同事"——使用看板分配任务、并行运行多个代理、可视化审查变更、将结果合并回主分支。
-
-**未来计划：** 通过 MCP (Model Context Protocol) 服务器使编码代理能够自动创建任务工单
-
-**可借鉴：**
-- ✅ 响应式拖拽看板界面设计
-- ✅ 亮/暗主题自动检测
-- ✅ "在编辑器中打开"快捷按钮
-- ✅ Git worktree 隔离状态可视化
-- ✅ 实时代码差异显示
-- ✅ 本地执行保证代码安全
-
-### 5.4 Cursor IDE 关键特性 (2025-2026)
-
-| 版本 | 发布时间 | 关键特性 |
-|------|----------|---------|
-| Cursor 2.0 | 2025.10 | 自研Composer模型(MoE架构)，4x速度提升 |
-| Cursor 2.1 | 2025.11 | 改进Plan模式，AI代码审查 |
-| Cursor 2.2 | 2025.12 | **Debug Mode**, **Visual Editor** |
-
-**Composer 核心能力：**
-- 多文件同时编辑和重构
-- 自然语言到代码生成
-- Agent模式自主完成复杂任务
-- 最多8个并行Agent
-
-**设计哲学（Ryo Lu）：**
-- AI原生集成：AI嵌入骨髓，不是附加功能
-- 上下文优先：本地索引理解多文件关系
-- 意图优于交互：工具适应用户意图
-
-**可借鉴：**
-- ✅ 命令面板（Cmd+K）设计 - Ralph已有CommandPalette
-- ✅ 上下文感知自动完成
-- ✅ 意图预测机制
-- ✅ Visual Editor 可视化编辑
-
-### 5.5 Windsurf IDE (Cascade) 核心创新
-
-| 能力 | 描述 | 借鉴价值 |
-|------|------|---------|
-| 深度上下文 | 追踪光标移动和依赖图 | ⭐⭐⭐ 高 |
-| 多文件理解 | 长会话中保持上下文 | ⭐⭐⭐ 高 |
-| 意图预测 | 理解用户下一步想做什么 | ⭐⭐⭐ 高 |
-| Flow State | 与用户操作同步 | ⭐⭐ 中 |
-| 自动错误检测 | 右键检测并修复错误 | ⭐⭐⭐ 高 |
-
-**UI特性：**
-- **Cascade面板：** 实时显示 AI 思考过程 - 可集成到Ralph
-- **写模式 vs 聊天模式：** 切换自主执行与指导
-- **图片上传：** 多模态支持
-- **实时预览：** IDE内实时Web应用预览
-
-**可借鉴：**
-- ✅ 思考过程可视化面板 - Ralph可增强ThinkingPanel
-- ✅ 写/聊模式切换 - Ralph的任务模式已有类似概念
-- ✅ 多模态输入支持
-- ✅ 实时预览集成
-
-### 5.6 AI Agent 趋势 (2025-2026)
-
-**市场规模：**
-- 全球市场：$5.1B (2024) → **$11.3B (2025)** — 一年翻倍
-- 预测：到2028年，约33%的企业软件将内置自主AI Agent系统
-
-**主要平台发布 (2025)：**
-| 平台 | 关键特性 |
-|------|---------|
-| **AWS re:Invent 2025** | 3个自主AI Agent：Kiro、Security Agent、DevOps Agent — 可**连续工作数小时到数天** |
-| **Microsoft Dynamics 365** | Copilot提供**24x7**自主代理 |
-| **Anthropic** | 开发可**连续工作数周**的Agent |
-
-**自愈与自主能力：**
-| 能力 | 描述 | Ralph现状 |
-|------|------|----------|
-| **Self-Reflection** | 自动检测和修复错误 | ✅ P4-4已实现 |
-| **Long-term Memory** | 跨会话存储和检索信息 | ✅ 已有 |
-| **Tool Integration** | 自主使用浏览器、API、CRM系统 | ✅ MCP支持 |
-| **Autonomous Decision** | 处理复杂多步骤工作流 | ✅ 任务系统 |
-
-**实际案例：** Claude Code 自主工作**7小时**处理1250万行代码，准确率99.9%
-
-### 5.7 轻量化本地部署方案
-
-| 项目 | 描述 | 适用场景 |
-|------|------|---------|
-| **Youtu-Tip** | 腾讯优图1.96B轻量Agent模型 | 移动端/嵌入式 |
-| **WebLLM** | 浏览器端零服务器推理 | 纯前端场景 |
-| **LiteLLM** | 轻量级LLM网关代理 | 多模型统一接口 |
-| **LlamaEdge** | 无守护进程的本地LLM API服务 | 服务器部署 |
-| **LocalAGI** | 100%本地运行的AGI项目 | 隐私敏感场景 |
-
-**本地部署优势：**
-- ✅ 零延迟响应
-- ✅ 100%隐私保护
-- ✅ 无服务器成本
-- ✅ 离线可用
-
----
-
-## 六、OpenCode (1Code) 分析与借鉴
-
-### 6.1 OpenCode 核心特性 (2025-2026)
-
-| 特性 | 描述 | Ralph现状 | 借鉴价值 |
-|------|------|----------|---------|
-| **多实例管理** | `--project` flag支持多项目并发处理 | ⚠️ P5-1/2基础完成 | ⭐⭐⭐ 高 |
-| **Git Worktree** | 推荐使用worktree实现项目隔离 | ✅ 已支持 | ⭐⭐⭐ 高 |
-| **模块化架构** | 可扩展的模块设计 | ⚠️ 需优化 | ⭐⭐⭐ 高 |
-| **Plan/Build模式** | Tab键切换计划与执行模式 | ⚠️ 需实现 | ⭐⭐⭐ 高 |
-| **多后端支持** | 75+ AI提供商支持 | ✅ Claude/Gemini/Kiro等 | ⭐⭐⭐ 高 |
-| **终端UI组件** | 增强的TUI组件库 | ⚠️ 需增强 | ⭐⭐ 中 |
-| **多模态交互** | 图片等多模态输入支持 | ❌ 需开发 | ⭐⭐ 中 |
-| **本地优化** | 本地执行保证代码安全 | ✅ 核心优势 | ⭐⭐⭐ 高 |
-
-**OpenCode 关键数据：**
-- GitHub Stars: **69,800+** (2026年1月)
-- 编程语言: TypeScript
-- 支持模型: 75+ AI提供商
-
-### 6.2 OpenCode 多项目管理模式
-
-```bash
-# 单项目处理
-opencode --project user-service "优化用户服务"
-
-# 多项目批处理
-opencode --project user-service,order-service,payment-service "批量更新"
-
-# Git Worktree 隔离
-git worktree add ../project-b feature-branch
-opencode --project ../project-b
+  return messages;
+}
 ```
 
-### 6.3 Ralph 多项目架构优化建议
-
-#### 当前实现 (P5-1, P5-2)
-- ✅ 项目数据模型和CRUD API
-- ✅ 项目切换机制
-- ✅ 任务级项目隔离 (projectId)
-- ✅ 前端项目选择器
-
-#### 缺失功能
-| 功能 | 描述 | 优先级 |
-|------|------|--------|
-| **Worktree集成** | 自动创建/管理git worktree | P1 |
-| **Plan模式** | Tab切换计划与执行 | P1 |
-| **多实例并行** | 并行运行多个Ralph实例 | P2 |
-| **实例监控** | 跨实例状态聚合 | P2 |
-
 ---
 
-## 六、Vibe Kanban 核心功能与UI分析 (2025-2026)
+### 4.6 前端路由架构
 
-### 6.1 Vibe Kanban 概述
-- **GitHub Stars**: 18,000+ ⭐
-- **技术栈**: Rust高性能调度引擎 + MCP集成
-- **核心理念**: "AI编排时代" - 多智能体并行协作
+```mermaid
+graph TB
+    subgraph "Routes"
+        A[/ - Home]
+        B[/tasks - Tasks]
+        C[/agents - Agents]
+        D[/runtime - Runtime]
+        E[/settings - Settings]
+    end
 
-### 6.2 核心UI特性
+    subgraph "Home View"
+        A1[UnifiedDashboard]
+        A2[QuickActions]
+        A3[RecentTasks]
+        A4[SystemStatus]
+    end
 
-| 特性 | 描述 | Ralph现状 | 借鉴价值 |
-|------|------|----------|---------|
-| **可视化看板** | 拖放任务管理、实时状态跟踪 | ✅ 已实现 | 需优化 |
-| **多Agent支持** | Claude Code, Codex, Gemini CLI, Cursor等 | ⚠️ 需扩展 | ⭐⭐⭐ 高 |
-| **Git Worktree隔离** | 每个任务运行在独立worktree | ⚠️ 需增强UI | ⭐⭐⭐ 高 |
-| **代码审查UI** | 可视化diff比较、人工审批流程 | ⚠️ 需完善 | ⭐⭐⭐ 高 |
-| **并行执行** | 多Agent同时运行 | ✅ 已支持 | 需增强UI |
-| **实时日志流** | WebSocket实时通信 | ✅ 已实现 | 需优化 |
+    subgraph "Tasks View"
+        B1[TaskKanban]
+        B2[TaskList]
+        B3[TaskDetail]
+        B4[ChatboxOverlay]
+    end
 
-### 6.3 Vibe Kanban UI设计模式
+    subgraph "Agents View"
+        C1[AgentCanvas]
+        C2[TeamsList]
+        C3[SkillsLibrary]
+    end
 
-**核心价值主张：**
-| 问题 | Vibe Kanban 解决方案 |
-|------|---------------------|
-| AI随意修改代码 | 隔离Git分支每个任务 |
-| 变更不清晰 | 可视化代码diff对比 |
-| 多任务混乱 | 看板管理 |
-| 失控风险 | 人工审批后再合并 |
+    subgraph "Runtime View"
+        D1[LiveMonitoring]
+        D2[CheckpointTimeline]
+        D3[HealingHistory]
+    end
 
-**可借鉴UI元素：**
-- ✅ 响应式拖拽看板界面设计
-- ✅ Worktree状态可视化Badge
-- ✅ 实时代码差异显示
-- ✅ "在编辑器中打开"快捷按钮
-- ✅ 任务依赖关系可视化
-- ✅ Agent状态指示器
+    subgraph "Settings View"
+        E1[Preferences]
+        E2[ProjectManager]
+        E3[Builder]
+    end
 
-### 6.4 Ralph与Vibe Kanban差距分析
+    A --> A1
+    A --> A2
+    A --> A3
+    A --> A4
 
-| 功能 | Vibe Kanban | Ralph Web | 改进优先级 |
-|------|-------------|-----------|-----------|
-| 多AI后端支持 | 6+ | 4+ | P2 |
-| Worktree隔离UI | 完整 | 基础Badge | **P1** |
-| 代码审查流程 | 完整diff+审批 | 仅diff | P2 |
-| 任务依赖可视化 | 有 | 无 | P2 |
-| Agent状态面板 | 详细 | 基础 | P1 |
-| 人工审批流程 | 有 | 无 | P2 |
+    B --> B1
+    B --> B2
+    B --> B3
+    B --> B4
 
----
+    C --> C1
+    C --> C2
+    C --> C3
 
-## 七、Worktree vs Local 模式设计
+    D --> D1
+    D --> D2
+    D --> D3
 
-### 7.1 两种模式对比
-
-| 特性 | Local模式 | Worktree模式 |
-|------|----------|--------------|
-| **隔离级别** | 进程级 | 文件系统级 |
-| **资源消耗** | 低 | 中 |
-| **并行能力** | 单实例 | 多实例 |
-| **状态共享** | 需配置 | 自动同步 |
-| **适用场景** | 小型项目 | 大型项目/并行开发 |
-
-### 7.2 架构设计
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Ralph Web Dashboard                      │
-├─────────────────────────────────────────────────────────────┤
-│  ProjectSelector (工作模式切换)                              │
-│  ├── [Local Mode]  ─────────────────────────────────────   │
-│  │   └── ProjectContext (项目上下文)                       │
-│  │       ├── TaskRepository (项目过滤)                     │
-│  │       └── LoopRegistry (单实例)                         │
-│  │                                                        │
-│  └── [Worktree Mode] ──────────────────────────────────    │
-│      └── WorktreeManager (Worktree协调器)                  │
-│          ├── GitWorktreeService (创建/删除/列表)           │
-│          ├── WorktreeLoopRunner (每个worktree一个实例)    │
-│          └── WorktreeStateAggregator (状态聚合)            │
-└─────────────────────────────────────────────────────────────┘
+    E --> E1
+    E --> E2
+    E --> E3
 ```
 
-### 7.3 实施路线
+**路由配置**:
 
-#### Phase 1: Worktree支持 (1-2周)
-| 任务 | 描述 |
-|------|------|
-| WorktreeService | 创建Git worktree管理服务 |
-| Worktree项目类型 | 项目区分local/worktree类型 |
-| Worktree状态同步 | 实时显示各worktree状态 |
-| Worktree Badge | Kanban看板显示worktree标识 |
-
-#### Phase 2: Plan模式 (1周)
-| 任务 | 描述 |
-|------|------|
-| PlanModeToggle | Tab键切换计划/执行模式 |
-| PlanEditor | 可视化计划编辑界面 |
-| PlanApproval | 计划确认后执行 |
-| PlanHistory | 历史计划记录 |
-
-#### Phase 3: 多实例并行 (2周)
-| 任务 | 描述 |
-|------|------|
-| InstanceManager | 多实例生命周期管理 |
-| InstanceMonitor | 实例状态聚合监控 |
-| InstanceBalancer | 负载均衡 (可选) |
-| InstanceCommunicator | 实例间通信 |
+```typescript
+// App.tsx
+const routes = [
+  {
+    path: '/',
+    element: <HomeView />,
+    children: [
+      { index: true, element: <UnifiedDashboard /> }
+    ]
+  },
+  {
+    path: '/tasks',
+    element: <TasksView />,
+    children: [
+      { index: true, element: <TaskKanban /> },
+      { path: ':taskId', element: <TaskDetail /> }
+    ]
+  },
+  {
+    path: '/agents',
+    element: <AgentsView />,
+    children: [
+      { index: true, element: <AgentCanvas /> },
+      { path: 'teams', element: <TeamsList /> },
+      { path: 'skills', element: <SkillsLibrary /> }
+    ]
+  },
+  {
+    path: '/runtime',
+    element: <RuntimeView />,
+    children: [
+      { index: true, element: <LiveMonitoring /> },
+      { path: 'checkpoints', element: <CheckpointTimeline /> },
+      { path: 'healing', element: <HealingHistory /> }
+    ]
+  },
+  {
+    path: '/settings',
+    element: <SettingsView />,
+    children: [
+      { index: true, element: <Preferences /> },
+      { path: 'projects', element: <ProjectManager /> },
+      { path: 'builder', element: <Builder /> }
+    ]
+  }
+];
+```
 
 ---
 
-## 八、改进计划 (更新版)
+## 五、交互式AI功能设计
 
-### Phase 1: 稳定性修复 (1-2天)
+### 5.1 AI Chatbox核心功能
 
-| 任务 | 文件 | 描述 |
+#### 5.1.1 对话式任务创建
+
+**用户流程**:
+```mermaid
+sequenceDiagram
+    participant U as 用户
+    participant C as Chatbox
+    participant AI as Ralph AI
+    participant T as TaskSystem
+
+    U->>C: "帮我创建一个登录组件"
+    C->>AI: 发送自然语言请求
+    AI->>AI: 分析意图 → 检测上下文
+    AI->>C: 显示思考状态
+    AI->>T: 创建任务 + 生成计划
+    T-->>AI: 返回任务ID
+    AI->>C: 显示任务卡片 + 确认
+    C->>U: 展示任务详情 + 开始按钮
+    U->>C: 点击"开始执行"
+    C->>T: 启动任务
+```
+
+**UI实现**:
+
+```typescript
+// components/chatbox/ConversationView.tsx
+export function ConversationView() {
+  const { messages, isThinking } = useChatStore();
+  const { scrollToBottom } = useChatScroll();
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Message List */}
+      <div className="flex-1 overflow-y-auto p-4">
+        {messages.map((msg) => (
+          <MessageBubble key={msg.id} message={msg} />
+        ))}
+
+        {/* Thinking Indicator */}
+        {isThinking && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-center gap-2 text-muted-foreground"
+          >
+            <Loader2 className="animate-spin" />
+            <span>正在分析...</span>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Action Cards */}
+      <ActionCardsContainer />
+
+      {/* Input Area */}
+      <InputArea />
+    </div>
+  );
+}
+```
+
+---
+
+#### 5.1.2 上下文感知建议
+
+**智能提示模式**:
+
+| 触发场景 | AI建议类型 | UI表现 |
+|---------|-----------|--------|
+| **首次使用** | 功能引导 | 高亮新手教程 |
+| **重复任务** | 快捷模板 | "再次创建类似任务?" |
+| **错误发生** | 修复建议 | "应用已知修复?" |
+| **任务完成** | 下一步 | "现在可以测试/部署" |
+| **空闲状态** | 探索建议 | "查看团队配置" |
+
+**实现**:
+
+```typescript
+// components/chatbox/SuggestionChips.tsx
+export function SuggestionChips() {
+  const { suggestions } = useChatStore();
+  const { executeSuggestion } = useChatActions();
+
+  if (suggestions.length === 0) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2 p-2">
+      {suggestions.map((suggestion) => (
+        <Button
+          key={suggestion.id}
+          variant="outline"
+          size="sm"
+          onClick={() => executeSuggestion(suggestion)}
+          className="gap-2"
+        >
+          <Sparkles className="w-4 h-4" />
+          {suggestion.label}
+          <Badge variant="secondary">
+            {suggestion.confidence}%
+          </Badge>
+        </Button>
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+#### 5.1.3 多模态输入支持
+
+**统一输入界面**:
+
+```typescript
+// components/chatbox/MultimodalInput.tsx
+export function MultimodalInput() {
+  const [input, setInput] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [isRecording, setIsRecording] = useState(false);
+
+  const handleSend = async () => {
+    const message: MultimodalInput = {
+      text: input,
+      files: files.length > 0 ? files : undefined,
+      voice: isRecording ? await captureVoice() : undefined
+    };
+
+    await sendMessage(message);
+    setInput('');
+    setFiles([]);
+  };
+
+  return (
+    <div className="border-t p-4">
+      {/* Context Files */}
+      {files.length > 0 && (
+        <div className="flex gap-2 mb-2">
+          {files.map((file) => (
+            <FileChip key={file.name} file={file} onRemove={() => removeFile(file)} />
+          ))}
+        </div>
+      )}
+
+      {/* Input Area */}
+      <div className="flex gap-2">
+        <AttachmentButton onFilesSelected={setFiles} />
+        <Textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder="输入任务描述，或拖拽文件..."
+          onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSend()}
+        />
+        <VoiceButton
+          isRecording={isRecording}
+          onToggle={setIsRecording}
+        />
+        <SendButton onClick={handleSend} disabled={!input.trim()} />
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+### 5.2 Agent协作可视化
+
+#### 5.2.1 Agent关系图
+
+**基于React Flow的节点图**:
+
+```typescript
+// components/agents/AgentFlowGraph.tsx
+import { Flow, Node, Edge } from 'reactflow';
+
+export function AgentFlowGraph() {
+  const { agents, relationships } = useAgentStore();
+
+  // Convert agents to nodes
+  const nodes: Node[] = agents.map((agent) => ({
+    id: agent.id,
+    type: 'agentNode',
+    position: agent.position,
+    data: {
+      label: agent.name,
+      hat: agent.hat,
+      status: agent.status,
+      task: agent.currentTask
+    }
+  }));
+
+  // Convert relationships to edges
+  const edges: Edge[] = relationships.map((rel) => ({
+    id: rel.id,
+    source: rel.from,
+    target: rel.to,
+    type: 'smoothstep',
+    animated: rel.active,
+    label: rel.type
+  }));
+
+  return (
+    <div className="h-full w-full">
+      <Flow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={{ agentNode: AgentNodeComponent }}
+        fitView
+      >
+        <Background />
+        <Controls />
+      </Flow>
+    </div>
+  );
+}
+```
+
+**Agent节点组件**:
+
+```typescript
+// components/agents/AgentNode.tsx
+export function AgentNode({ data }: NodeProps) {
+  return (
+    <div className="px-4 py-2 shadow-md rounded-md bg-white dark:bg-gray-800 border-2">
+      {/* Status Indicator */}
+      <div className={`w-3 h-3 rounded-full ${getStatusColor(data.status)}`} />
+
+      {/* Agent Info */}
+      <div className="font-bold">{data.label}</div>
+      <div className="text-xs text-gray-500">{data.hat}</div>
+
+      {/* Current Task */}
+      {data.task && (
+        <Badge variant="outline" className="mt-1">
+          {data.task}
+        </Badge>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+#### 5.2.2 并行任务时间线
+
+```typescript
+// components/agents/AgentTimeline.tsx
+export function AgentTimeline() {
+  const { tasks } = useTaskStore();
+
+  return (
+    <div className="relative">
+      {/* Time Scale */}
+      <div className="flex justify-between text-xs text-muted-foreground mb-2">
+        <span>00:00</span>
+        <span>00:30</span>
+        <span>01:00</span>
+      </div>
+
+      {/* Task Bars */}
+      {tasks.map((task) => (
+        <div key={task.id} className="mb-2">
+          <div className="text-sm font-medium">{task.title}</div>
+          <div className="relative h-8 bg-secondary rounded">
+            <div
+              className="absolute h-full bg-primary rounded"
+              style={{
+                left: `${task.startTime}%`,
+                width: `${task.duration}%`
+              }}
+            >
+              <div className="px-2 text-xs text-white">{task.status}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Current Time Indicator */}
+      <div
+        className="absolute top-0 bottom-0 w-0.5 bg-red-500"
+        style={{ left: `${currentTimePercent}%` }}
+      />
+    </div>
+  );
+}
+```
+
+---
+
+### 5.3 任务执行可视化
+
+#### 5.3.1 细粒度进度条
+
+```typescript
+// components/tasks/TaskProgress.tsx
+export function TaskProgress({ task }: { task: Task }) {
+  const progress = useTaskProgress(task.id);
+
+  return (
+    <div className="space-y-2">
+      {/* Overall Progress */}
+      <div>
+        <div className="flex justify-between text-sm mb-1">
+          <span>{task.status}</span>
+          <span>{progress.percentage}%</span>
+        </div>
+        <Progress value={progress.percentage} />
+      </div>
+
+      {/* Current Step */}
+      {progress.currentStep && (
+        <div className="flex items-center gap-2 text-sm">
+          <Loader2 className="animate-spin w-4 h-4" />
+          <span>{progress.currentStep}</span>
+        </div>
+      )}
+
+      {/* Step List */}
+      <div className="space-y-1">
+        {progress.steps.map((step, index) => (
+          <div
+            key={index}
+            className={cn(
+              "flex items-center gap-2 text-sm",
+              step.completed && "text-muted-foreground line-through"
+            )}
+          >
+            <CheckCircle className={cn(step.completed ? "text-green-500" : "text-gray-300")} />
+            <span>{step.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+---
+
+#### 5.3.2 实时日志流
+
+```typescript
+// components/tasks/LiveLogs.tsx
+export function LiveLogs({ taskId }: { taskId: string }) {
+  const logs = useTaskLogs(taskId);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight;
+    }
+  }, [logs]);
+
+  return (
+    <div ref={containerRef} className="h-64 overflow-y-auto font-mono text-sm bg-black text-green-400 p-2">
+      {logs.map((log, index) => (
+        <div key={index} className={cn(
+          "whitespace-pre-wrap",
+          log.level === 'error' && "text-red-400",
+          log.level === 'warning' && "text-yellow-400"
+        )}>
+          <span className="text-gray-500">[{log.timestamp}]</span>
+          <span>{log.message}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+## 六、差距分析
+
+### 6.1 导航复杂度问题
+
+| 问题 | 描述 | 影响 |
 |------|------|------|
-| 修复日志存储 | logStore.ts | 添加最大条目限制 |
-| 修复事件数组 | useTaskWebSocket.ts | 实现滑动窗口 |
-| WebSocket状态 | DashboardPage.tsx | 使用真实连接状态 |
-| 环境变量配置 | trpc.ts, useTaskWebSocket.ts | 支持 RALPH_BACKEND_URL |
+| **页面过多** | 13个页面分散在4个分组 | 用户迷失、学习成本高 |
+| **分组抽象** | "Orchestration/Team/Operations/Configuration"不够直观 | 非技术用户理解困难 |
+| **层级过深** | 折叠导航需要多次点击 | 效率降低 |
 
-### Phase 2: Worktree UI 增强 (P5-3) (3-5天)
+---
 
-基于Vibe Kanban分析，增强Worktree可视化：
+### 6.2 AI Chatbox缺失
 
-| 任务 | 文件 | 描述 | 借鉴 |
-|------|------|------|------|
-| Worktree状态面板 | KanbanColumn.tsx | 实时显示各worktree状态 | Vibe Kanban |
-| Worktree Badge增强 | WorktreeBadge.tsx | 显示branch/commit/状态 | Vibe Kanban |
-| Worktree创建UI | ProjectsPage.tsx | 一键创建worktree | OpenCode |
-| Worktree监控 | MonitoringPage.tsx | 资源使用/健康状态 | Vibe Kanban |
-
-### Phase 3: 类型安全 (2-3天)
-
-| 任务 | 文件 | 描述 |
+| 问题 | 描述 | 影响 |
 |------|------|------|
-| 修复 Drizzle 类型 | TaskRepository.ts | 正确类型动态条件 |
-| React Flow 类型 | CollectionBuilder.tsx | 消除 any 类型 |
-| 前后端类型同步 | types/ | 共享类型定义 |
+| **无对话式界面** | 当前只有表单式任务创建 | 非技术用户门槛高 |
+| **缺少上下文感知** | 无智能建议系统 | 用户需要手动配置 |
+| **无多模态输入** | 仅支持文本输入 | 交互方式单一 |
+| **AI透明度不足** | AI决策过程不透明 | 信任度低 |
 
-### Phase 4: 功能完善 (3-5天)
+---
 
-| 任务 | 文件 | 描述 |
+### 6.3 Agent协作可视化缺失
+
+| 问题 | 描述 | 影响 |
 |------|------|------|
-| CommandPalette | CommandPalette.tsx | 连接实际实现 |
-| 看板状态映射 | KanbanBoard.tsx | 添加 Blocked 列 |
-| 项目筛选同步 | TasksPage.tsx | 确保所有查询遵循项目 |
+| **多Agent视图缺失** | 当前主要是单任务/单Loop视图 | 无法直观看到Agent协作 |
+| **并行执行不可见** | 后台loop运行状态分散 | 难以把握整体进度 |
+| **Agent关系不清晰** | Hat系统、Loop之间的协作关系不明确 | 调试困难 |
 
-### Phase 5: Local/Worktree模式支持 (P5-3) (5-7天)
+---
 
-支持两种项目模式：
+### 6.4 任务执行可视化不足
 
-| 任务 | 描述 | 模式 |
+| 问题 | 描述 | 影响 |
 |------|------|------|
-| 项目类型字段 | 区分local/worktree类型 | Both |
-| 模式选择UI | 创建项目时选择模式 | UI |
-| WorktreeService | Git worktree管理 | Backend |
-| Local模式优化 | 单进程模式资源管理 | Backend |
-| 模式切换 | 项目可在两种模式间切换 | UI |
-
-### Phase 6: 体验提升 (5-7天)
-
-| 任务 | 文件 | 描述 |
-|------|------|------|
-| CommandPalette | CommandPalette.tsx | 连接实际实现 |
-| 看板状态映射 | KanbanBoard.tsx | 添加 Blocked 列 |
-| 项目筛选同步 | TasksPage.tsx | 确保所有查询遵循项目 |
-| 任务悬放预览 | KanbanCard.tsx | 添加预览弹窗 |
-| 右键菜单 | TaskThread.tsx | 添加上下文菜单 |
-| 键盘导航 | KanbanBoard.tsx | 完整键盘支持 |
-| 进度可视化 | TaskThread.tsx | 添加进度条 |
-
-### Phase 7: AI 增强 (7-10天)
-
-| 任务 | 描述 |
-|------|------|
-| 自然语言任务创建 | 集成 LLM 解析任务描述 |
-| 智能分类建议 | AI 驱动的任务分类 |
-| 依赖分析 | 自动检测任务依赖关系 |
-
-### Phase 8: 竞争优势构建 (5-7天)
-
-基于竞品分析，构建差异化竞争优势：
-
-| 任务 | 描述 | 竞品借鉴 |
-|------|------|---------|
-| 多后端适配器扩展 | 支持更多AI后端(Cursor, Windsurf等) | Vibe Kanban |
-| 意图预测机制 | 理解用户下一步操作意图 | Windsurf Cascade |
-| 写/聊模式切换 | 自主执行与指导模式切换 | Windsurf |
-| 思考过程可视化 | 实时显示AI推理过程 | Windsurf Cascade面板 |
-| MCP任务自动创建 | MCP服务器自动创建任务 | Vibe Kanban未来计划 |
-| IDE集成增强 | "在编辑器中打开"功能 | Vibe Kanban |
-
-### Phase 9: 本地部署优化 (3-5天)
-
-| 任务 | 描述 |
-|------|------|
-| WebLLM集成 | 浏览器端零服务器推理支持 |
-| 轻量级部署配置 | 移动端/嵌入式部署方案 |
-| 离线模式 | 无网络环境下基本功能 |
-
-### Phase 10: 多项目架构增强 (P5-3, P5-4) (3-4周)
-
-基于当前P5-1/P5-2实现，增强多项目管理：
-
-| 任务 | 描述 | 优先级 |
-|------|------|--------|
-| **P5-3: Worktree隔离** | | |
-| WorktreeService | 创建Git worktree管理服务 | P1 |
-| Worktree项目类型 | 项目区分local/worktree类型 | P1 |
-| Worktree状态同步 | 实时显示各worktree状态 | P1 |
-| Worktree Badge | Kanban看板显示worktree标识 | P1 |
-| **P5-4: 多Agent协作** | | |
-| AgentRegistry | 多Agent注册与管理 | P2 |
-| ContextSharing | Agent间上下文共享机制 | P2 |
-| TaskDistributor | 任务分发策略 (并行/流水线/专家/投票) | P2 |
-| TeamUI | 团队协作Web界面 | P2 |
-| **P5-5: 代码审查** | | |
-| DiffReview | 代码差异审查流程 | P2 |
-| ReviewComments | 审查评论与讨论 | P3 |
-| **P5-6: Plan模式** | | |
-| PlanModeToggle | Tab键切换计划/执行模式 | P1 |
-| PlanEditor | 可视化计划编辑界面 | P1 |
-| PlanApproval | 计划确认后执行 | P2 |
+| **执行进度抽象** | 状态显示(open/in_progress/closed) | 无法感知具体进度 |
+| **实时反馈弱** | WebSocket日志流但缺乏可视化进度条 | 焦虑感强 |
+| **上下文切换难** | 多任务时需要在不同页面切换 | 工作流中断 |
 
 ---
 
-## 九、技术债务清单
+## 七、改造方案
 
-### 需要立即处理
-1. [ ] 日志存储内存泄漏风险
-2. [ ] WebSocket 配置灵活性
-3. [ ] 类型安全问题
+### 7.1 阶段一: AI Chatbox实现 (优先级 P0)
 
-### 需要尽快处理
-1. [ ] onSuccess 迁移到 useEffect
-2. [ ] CommandPalette 功能连接
-3. [ ] 项目上下文传播
+**目标**: 构建类似Claude Cowork的对话式任务界面
 
-### 可以延后处理
-1. [ ] 键盘可访问性
-2. [ ] 看板状态映射优化
-3. [ ] UI 动画增强
+**新增组件**:
+1. `ChatboxContainer` - 主容器
+2. `ConversationView` - 对话视图
+3. `MultimodalInput` - 多模态输入
+4. `SuggestionChips` - 智能建议
+5. `ActionCards` - AI建议操作
 
----
-
-## 十、测试覆盖
-
-### 当前状态
-- **后端测试**: 589+ 测试通过
-- **前端测试**: 存在但部分因内存问题禁用
-
-### 建议补充
-1. WebSocket 连接/断开/重连测试
-2. 项目上下文切换集成测试
-3. 日志存储边界测试
-4. 类型安全编译测试
+**实施**:
+- 创建 `/chatbox` 路由
+- 实现 `chatStore` (Zustand)
+- 集成 tRPC `chatRouter`
+- WebSocket实时流
 
 ---
 
-## 十一、部署建议
+### 7.2 阶段二: 导航简化 (优先级 P1)
 
-### 环境变量
-```bash
-# 后端
-RALPH_PORT=3000
-RALPH_CONFIG_PATH=/path/to/ralph.yml
-RALPH_FRONTEND_DIR=/path/to/frontend/dist
+**目标**: 从13页面简化到5个核心视图
 
-# 前端
-VITE_API_URL=http://localhost:3000
-VITE_WS_URL=ws://localhost:3000
-```
+**新导航结构**:
 
-### Docker 配置
-```dockerfile
-# 建议添加健康检查
-HEALTHCHECK --interval=30s --timeout=3s \
-  CMD curl -f http://localhost:3000/health || exit 1
-```
+| 视图 | 描述 | 合并的原页面 |
+|------|------|--------------|
+| **Home** | 统一仪表盘 + Chatbox | Dashboard + Chatbox |
+| **Tasks** | 任务看板 + 执行视图 | Tasks + Kanban + Plan |
+| **Agents** | Agent团队 + Skills | Teams + Skills + Canvas |
+| **Runtime** | 实时执行 + 监控 | Monitoring + Checkpoints + Healing |
+| **Settings** | 配置 + 项目 | Settings + Projects + Builder |
 
 ---
 
-## 十二、总结
+### 7.3 阶段三: Agent协作可视化 (优先级 P1)
 
-### 当前完成度评估
+**目标**: 创建实时Agent协作视图
 
-| Phase | 功能 | 完成度 |
-|-------|------|--------|
-| P1 | 错误处理、持久化、代码分割 | ✅ 100% |
-| P2 | Dashboard、Kanban、Thinking、Diff、CommandPalette、TaskSearch | ✅ 100% |
-| P3 | 主题系统、i18n、a11y、移动端 | ✅ 100% |
-| P4 | 进程守护、检查点、监控告警、自愈 | ✅ 100% |
-| P4.5 | Agent Teams、Skills | ✅ 100% |
-| P5-1 | 多项目架构 | ✅ 100% |
-| P5-2 | 项目隔离 | ✅ 100% |
-| **总计** | | **83%** |
-
-### 优点
-- 清晰的组件结构
-- 良好的关注点分离
-- 完整的 tRPC 类型安全
-- 丰富的功能集 (监控、自愈、技能)
-- 多项目基础架构已完成 (P5-1, P5-2)
-- Git Worktree 并行循环已支持
-- WebSocket 实时日志流已实现
-- 差异查看器 (DiffViewer) 已完成
-
-### 主要问题
-- 内存管理需要优化 (日志/事件数组)
-- 部分功能未完全实现 (CommandPalette)
-- 类型安全存在漏洞
-- 配置灵活性不足
-- **缺少 Worktree 集成 UI** (对标 Vibe Kanban - 重点)
-- **缺少 Plan 模式** (对标 OpenCode)
-- **缺少多 Agent 协作 UI**
-- **缺少人工审批流程**
-- 看板 UX 待优化 (Blocked列、拖放动画)
-
-### 下一步行动 (优先级排序)
-1. **P1**: 修复内存泄漏风险 (logStore, events数组)
-2. **P1**: 完成 CommandPalette 后端连接
-3. **P1**: 实现 P5-3 Worktree UI 增强 (对标 Vibe Kanban)
-4. **P2**: 实现 P5-6 Plan 模式 (对标 OpenCode)
-5. **P2**: 增强类型安全
-6. **P2**: 添加 Blocked 看板列
-7. **P3**: 实现 P5-4 多 Agent 协作 UI
-8. **P3**: 实现 P5-5 代码审查/审批流程
-9. **P3**: 逐步添加 AI 功能
-
-### 关键参考
-- **OpenCode**: 多项目管理、Plan/Build 模式切换、UI/UX Pro Max
-- **Vibe Kanban**: 多 AI 代理支持、实时日志流、代码差异可视化、Git Worktree隔离
-- **Cursor**: Composer 多文件编辑、Visual Editor、Debug Mode
-- **Windsurf**: Cascade 面板、意图预测、写/聊模式切换
-
-### 核心差距分析 (vs Vibe Kanban)
-| 功能 | Ralph现状 | Vibe Kanban | 改进方向 |
-|------|----------|------------|----------|
-| Worktree UI | 基础Badge | 完整状态面板 | **重点** |
-| 代码审查 | 仅Diff | Diff+审批流程 | 需增强 |
-| 多Agent并行 | 后端支持 | 可视化调度 | UI需完善 |
+**新增组件**:
+1. `AgentFlowGraph` - Agent关系图 (React Flow)
+2. `AgentTimeline` - 执行时间线
+3. `ParallelTasks` - 并行任务视图
 
 ---
 
-*此文档由 Ralph 自动生成，基于代码库全面分析 + OpenCode/Cursor/Vibe Kanban 竞品分析*
+### 7.4 阶段四: 视觉升级 (优先级 P2)
 
-**Sources:**
-- [OpenCode创新功能前瞻：2025年路线图深度解析](https://blog.csdn.net/gitblog_00978/article/details/153715425)
-- [OpenCode实例管理：多项目并发处理](https://m.blog.csdn.net/gitblog_00561/article/details/151200959)
-- [OpenCode GitHub](https://github.com/opencode-ai/opencode)
-- [2026年OpenCode 替代方案](https://k.sina.cn/article_7879848900_1d5acf3c401902p3nc.html)
-- [Vibe Kanban – 开源的AI编程Agent任务管理工具](https://ai-bot.cn/vibe-kanban/)
-- [Vibe Kanban未来路线图：项目发展规划和功能演进计划](https://m.blog.csdn.net/gitblog_00075/article/details/139208240)
-- [Vibe Kanban：AI 编程时代的协作中枢](https://m.toutiao.com/a7599198952356905510/)
-- [AI 编程最大的风险：失控](https://www.appinn.com/vibe-kanban/feed/)
+**目标**: 打造"Vibe"感
+
+**改进项**:
+1. Glassmorphism/Claymorphism效果
+2. 流畅页面过渡动画
+3. 增加留白，降低信息密度
+4. 统一阴影和圆角
+
+---
+
+## 八、实施路线图
+
+### 8.1 Sprint 1 (2周): AI Chatbox核心
+
+- [ ] ChatboxContainer + ConversationView
+- [ ] MultimodalInput组件
+- [ ] chatStore实现
+- [ ] tRPC chatRouter
+- [ ] 基础WebSocket集成
+
+---
+
+### 8.2 Sprint 2 (2周): 智能建议系统
+
+- [ ] SuggestionChips组件
+- [ ] ActionCards系统
+- [ ] 上下文感知逻辑
+- [ ] AI置信度显示
+
+---
+
+### 8.3 Sprint 3 (2周): 导航简化
+
+- [ ] 修改Sidebar导航
+- [ ] 合并页面组件
+- [ ] 调整路由
+- [ ] 更新i18n
+
+---
+
+### 8.4 Sprint 4 (3周): Agent可视化
+
+- [ ] AgentFlowGraph实现
+- [ ] AgentTimeline实现
+- [ ] WebSocket agent事件流
+- [ ] 实时状态更新
+
+---
+
+### 8.5 Sprint 5 (2周): 视觉升级
+
+- [ ] Glassmorphism效果
+- [ ] 页面过渡动画
+- [ ] 微交互优化
+- [ ] 色彩系统调整
+
+---
+
+## 九、参考资源
+
+### 竞品研究
+- [Codex App](https://openai.com/codex) - OpenAI Agent编排应用
+- [Claude Cowork](https://anthropic.com) - Anthropic桌面AI代理
+
+### AI/UX设计资源
+- [2026 UX/UI设计趋势](https://www.163.com/dy/article/KMF6RRBS0556BKC3.html) - 网易分析
+- [AI UX设计终极指南](https://m.blog.csdn.net/gitblog_00568/article/details/151938575) - CSDN
+- [建构AI Agent应用UX](https://juejin.cn/post/7556142470908919848) - 掘金
+- [2025 AI产品设计原则](https://juejin.cn/post/7583971282892455988) - 掘金
+
+### 技术框架
+- [shadcn/ui](https://ui.shadcn.com) - React组件库
+- [React Flow](https://reactflow.dev) - 流程图可视化
+- [Framer Motion](https://www.framer.com/motion) - 动画库
+- [Zustand](https://zustand-demo.pmnd.rs) - 状态管理
+
+---
+
+**文档版本**: v2.0
+**最后更新**: 2026-02-26
+**作者**: Ralph AI Orchestrator

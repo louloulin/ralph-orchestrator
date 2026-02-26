@@ -9,7 +9,7 @@
  * Mobile: Hidden by default, slides in as overlay when toggled
  */
 
-import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Workflow, Settings, Columns3, Menu, X, Activity, Users, Save, Heart, BookOpen, Folder, Lightbulb, Sparkles, Wrench, Layers } from "lucide-react";
+import { LayoutDashboard, ListTodo, PanelLeftClose, PanelLeft, Settings, Columns3, Menu, X, Activity, Users, Save, Heart, BookOpen, Folder, Lightbulb, Sparkles, Wrench, Layers, Home, Bot, Play, Gauge } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { NavSection } from "./NavSection";
 import { useUIStore } from "@/store";
@@ -54,46 +54,53 @@ interface NavItemConfig {
   labelKey: string;
 }
 
-/** Hierarchical navigation structure */
+/** Hierarchical navigation structure - 5 core views */
 const NAV_SECTIONS: NavSection[] = [
   {
-    id: "orchestration",
-    labelKey: "nav.sections.orchestration",
-    icon: Sparkles,
+    id: "home",
+    labelKey: "nav.sections.home",
+    icon: Home,
     items: [
       { to: "/dashboard", icon: LayoutDashboard, labelKey: "nav.dashboard" },
+    ],
+  },
+  {
+    id: "tasks",
+    labelKey: "nav.sections.tasks",
+    icon: ListTodo,
+    items: [
       { to: "/tasks", icon: ListTodo, labelKey: "nav.tasks" },
       { to: "/kanban", icon: Columns3, labelKey: "nav.kanban" },
       { to: "/plan", icon: Lightbulb, labelKey: "nav.planning" },
     ],
   },
   {
-    id: "team",
-    labelKey: "nav.sections.team",
-    icon: Users,
+    id: "agents",
+    labelKey: "nav.sections.agents",
+    icon: Bot,
     items: [
       { to: "/teams", icon: Users, labelKey: "nav.teams" },
       { to: "/skills", icon: BookOpen, labelKey: "nav.skills" },
     ],
   },
   {
-    id: "operations",
-    labelKey: "nav.sections.operations",
-    icon: Activity,
+    id: "runtime",
+    labelKey: "nav.sections.runtime",
+    icon: Play,
     items: [
-      { to: "/monitoring", icon: Activity, labelKey: "nav.monitoring" },
+      { to: "/monitoring", icon: Gauge, labelKey: "nav.monitoring" },
       { to: "/checkpoints", icon: Save, labelKey: "nav.checkpoints" },
       { to: "/healing", icon: Heart, labelKey: "nav.healing" },
     ],
   },
   {
-    id: "configuration",
-    labelKey: "nav.sections.configuration",
-    icon: Wrench,
+    id: "settings",
+    labelKey: "nav.sections.settings",
+    icon: Settings,
     items: [
       { to: "/projects", icon: Folder, labelKey: "nav.projects" },
-      { to: "/builder", icon: Workflow, labelKey: "nav.builder" },
-      { to: "/settings", icon: Settings, labelKey: "nav.settings" },
+      { to: "/builder", icon: Sparkles, labelKey: "nav.builder" },
+      { to: "/settings", icon: Wrench, labelKey: "nav.settings" },
     ],
   },
 ];

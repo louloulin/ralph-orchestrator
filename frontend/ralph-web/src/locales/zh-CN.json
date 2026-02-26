@@ -52,10 +52,11 @@
     "openMenu": "打开菜单",
     "closeMenu": "关闭菜单",
     "sections": {
-      "orchestration": "编排",
-      "team": "团队",
-      "operations": "运维",
-      "configuration": "配置"
+      "home": "主页",
+      "tasks": "任务",
+      "agents": "代理",
+      "runtime": "运行",
+      "settings": "设置"
     }
   },
   "a11y": {

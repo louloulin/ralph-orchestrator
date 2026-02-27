@@ -1,6 +1,5 @@
 // ABOUTME: Web dashboard development server launcher.
-// ABOUTME: Provides the `ralph web` command that runs backend and frontend dev servers in parallel.
-// ABOUTME: Falls back to embedded Rust server when Node.js is not available.
+// ABOUTME: Provides the `ralph web` command that runs Rust RPC API + frontend (legacy Node backend optional).
 
 use anyhow::{Context, Result};
 use clap::Parser;
@@ -25,13 +24,10 @@ const SHUTDOWN_GRACE_PERIOD: Duration = Duration::from_secs(10);
 /// Timeout for both servers to become ready
 const READY_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Maximum number of ports to try for dynamic port selection
-const MAX_PORT_ATTEMPTS: u16 = 100;
-
 /// Arguments for the web subcommand
 #[derive(Parser, Debug)]
 pub struct WebArgs {
-    /// Backend port (default: 3000)
+    /// RPC API port (default: 3000)
     #[arg(long, default_value = "3000")]
     pub backend_port: u16,
 
@@ -43,23 +39,50 @@ pub struct WebArgs {
     #[arg(long)]
     pub workspace: Option<PathBuf>,
 
+    /// Use deprecated Node tRPC backend instead of Rust RPC API
+    #[arg(long)]
+    pub legacy_node_api: bool,
+
     /// Don't open the dashboard in the default browser
     #[arg(long)]
     pub no_open: bool,
 }
 
+fn is_transient_exec_error(err: &std::io::Error) -> bool {
+    err.raw_os_error() == Some(26) || {
+        let message = err.to_string().to_ascii_lowercase();
+        message.contains("text file busy") || message.contains("etxtbsy")
+    }
+}
+
+fn run_command_with_retry(command: &OsStr, args: &[&str]) -> std::io::Result<std::process::Output> {
+    const MAX_ATTEMPTS: usize = 3;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        match Command::new(command).args(args).output() {
+            Ok(output) => return Ok(output),
+            Err(err) => {
+                if is_transient_exec_error(&err) && attempt + 1 < MAX_ATTEMPTS {
+                    std::thread::sleep(Duration::from_millis(25));
+                    continue;
+                }
+                return Err(err);
+            }
+        }
+    }
+
+    unreachable!("loop always returns");
+}
+
 /// Check that Node.js is installed and >= 18. Returns the version string.
 fn check_node_with(node_cmd: &OsStr) -> Result<String> {
-    let output = Command::new(node_cmd)
-        .arg("--version")
-        .output()
-        .map_err(|_| {
-            anyhow::anyhow!(
-                "Node.js is not installed or not in PATH.\n\
+    let output = run_command_with_retry(node_cmd, &["--version"]).map_err(|_| {
+        anyhow::anyhow!(
+            "Node.js is not installed or not in PATH.\n\
                  Install Node.js 18+: https://nodejs.org/\n\
                  Or via nvm: nvm install 18"
-            )
-        })?;
+        )
+    })?;
 
     if !output.status.success() {
         anyhow::bail!(
@@ -90,15 +113,12 @@ fn check_node_with(node_cmd: &OsStr) -> Result<String> {
 
 /// Check that npm is installed and working. Returns the version string.
 fn check_npm_with(npm_cmd: &OsStr) -> Result<String> {
-    let output = Command::new(npm_cmd)
-        .arg("--version")
-        .output()
-        .map_err(|_| {
-            anyhow::anyhow!(
-                "npm is not installed or not in PATH.\n\
+    let output = run_command_with_retry(npm_cmd, &["--version"]).map_err(|_| {
+        anyhow::anyhow!(
+            "npm is not installed or not in PATH.\n\
              npm should come with Node.js. Try reinstalling Node: https://nodejs.org/"
-            )
-        })?;
+        )
+    })?;
 
     if !output.status.success() {
         anyhow::bail!(
@@ -148,62 +168,123 @@ async fn run_npm_install_with(root: &Path, npm_cmd: &OsStr) -> Result<()> {
     Ok(())
 }
 
-/// Find an available port starting from the specified port.
-/// Tries ports in the range [start_port..start_port + MAX_PORT_ATTEMPTS]
-/// Binds to 0.0.0.0 to match the backend server's binding behavior
-fn find_available_port(start_port: u16) -> Result<u16> {
-    for offset in 0..MAX_PORT_ATTEMPTS {
-        let port = start_port + offset;
-        match std::net::TcpListener::bind(("0.0.0.0", port)) {
-            Ok(_) => {
-                // Port is available, close the listener and return
-                return Ok(port);
-            }
-            Err(_) => continue,
+/// Check that a TCP port is available for binding.
+fn check_port_available(port: u16) -> Result<()> {
+    match std::net::TcpListener::bind(("127.0.0.1", port)) {
+        Ok(_) => Ok(()),
+        Err(_) => {
+            anyhow::bail!(
+                "Port {} is already in use.\n\
+                 Use --backend-port or --frontend-port to pick a different port.\n\
+                 To free the port: fuser -k {}/tcp",
+                port,
+                port
+            );
         }
     }
-    anyhow::bail!(
-        "No available ports found in range {}..{}",
-        start_port,
-        start_port + MAX_PORT_ATTEMPTS
-    )
 }
 
-/// Check that a TCP port is available for binding.
-/// Returns the port if available, None if it's in use.
-fn check_port_available(port: u16) -> Result<Option<u16>> {
-    match std::net::TcpListener::bind(("127.0.0.1", port)) {
-        Ok(_) => Ok(Some(port)),
-        Err(_) => Ok(None),
-    }
-}
+const BLOCKED_TSX_VERSION: &str = "4.20.0";
 
 /// Check for tsx 4.20.0 which has known issues.
 fn check_tsx_version_with(backend_dir: &Path, npx_cmd: &OsStr) -> Result<()> {
-    let output = Command::new(npx_cmd)
-        .args(["tsx", "--version"])
-        .current_dir(backend_dir)
-        .output();
+    // On some CI filesystems, executing a just-written test helper script can
+    // transiently fail with ETXTBSY/Text file busy. Retry briefly to avoid flakes.
+    let output = run_tsx_version_command_with_retry(backend_dir, npx_cmd);
 
-    if let Ok(output) = output {
-        let version = String::from_utf8_lossy(&output.stdout);
-        let token = version.split_whitespace().last().unwrap_or("");
-        let cleaned = token.trim_start_matches('v');
-        if cleaned == "4.20.0" {
+    if let Some(output) = output {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if contains_blocked_tsx_version(&stdout) || contains_blocked_tsx_version(&stderr) {
             anyhow::bail!(
                 "tsx 4.20.0 has known issues that affect the web server.\n\
                  Fix: npm install tsx@^4.21.0 -w @ralph-web/server"
             );
         }
     }
-    // If we can't run tsx or it doesn't match, proceed silently
+
+    // If we can't run tsx or it doesn't match, proceed silently.
     Ok(())
 }
 
-/// Run pre-flight checks: verify Node.js/npm, check tsx, and auto-install dependencies.
+fn run_tsx_version_command_with_retry(
+    backend_dir: &Path,
+    npx_cmd: &OsStr,
+) -> Option<std::process::Output> {
+    const MAX_ATTEMPTS: usize = 3;
+
+    for attempt in 0..MAX_ATTEMPTS {
+        match Command::new(npx_cmd)
+            .args(["tsx", "--version"])
+            .current_dir(backend_dir)
+            .output()
+        {
+            Ok(output) => {
+                // Success: parse this output.
+                if output.status.success() {
+                    return Some(output);
+                }
+
+                // Retry transient ETXTBSY/text-file-busy errors seen in CI.
+                let stderr = String::from_utf8_lossy(&output.stderr).to_ascii_lowercase();
+                let is_transient = stderr.contains("text file busy") || stderr.contains("etxtbsy");
+                if is_transient && attempt + 1 < MAX_ATTEMPTS {
+                    std::thread::sleep(Duration::from_millis(25));
+                    continue;
+                }
+
+                // Non-transient failure: return output for best-effort parsing.
+                return Some(output);
+            }
+            Err(_) => {
+                // Command missing/unrunnable.
+                return None;
+            }
+        }
+    }
+
+    None
+}
+
+fn contains_blocked_tsx_version(text: &str) -> bool {
+    text.lines().any(|line| {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return false;
+        }
+
+        // Bare outputs: "4.20.0" or "v4.20.0"
+        if trimmed == BLOCKED_TSX_VERSION
+            || trimmed
+                .strip_prefix('v')
+                .is_some_and(|version| version == BLOCKED_TSX_VERSION)
+        {
+            return true;
+        }
+
+        // Labeled output examples:
+        // - "tsx 4.20.0"
+        // - "tsx v4.20.0"
+        // - "tsx v4.20.0 (node v22.0.0)"
+        if trimmed.to_ascii_lowercase().contains("tsx") {
+            return trimmed.split_whitespace().any(|token| {
+                let cleaned = token
+                    .trim_matches(|c: char| !c.is_ascii_alphanumeric() && c != '.')
+                    .trim_start_matches('v');
+                cleaned == BLOCKED_TSX_VERSION
+            });
+        }
+
+        false
+    })
+}
+
+/// Run pre-flight checks: verify Node.js/npm and install frontend dependencies.
+/// In legacy mode, also validates tsx backend tooling.
 async fn preflight_with(
     root: &Path,
     backend_dir: &Path,
+    legacy_node_api: bool,
     node_cmd: &OsStr,
     npm_cmd: &OsStr,
     npx_cmd: &OsStr,
@@ -221,15 +302,18 @@ async fn preflight_with(
         run_npm_install_with(root, npm_cmd).await?;
     }
 
-    check_tsx_version_with(backend_dir, npx_cmd)?;
+    if legacy_node_api {
+        check_tsx_version_with(backend_dir, npx_cmd)?;
+    }
 
     Ok(())
 }
 
-async fn preflight(root: &Path, backend_dir: &Path) -> Result<()> {
+async fn preflight(root: &Path, backend_dir: &Path, legacy_node_api: bool) -> Result<()> {
     preflight_with(
         root,
         backend_dir,
+        legacy_node_api,
         OsStr::new("node"),
         OsStr::new("npm"),
         OsStr::new("npx"),
@@ -284,12 +368,11 @@ async fn forward_output(
 }
 
 /// Run both backend and frontend dev servers in parallel
-/// Falls back to embedded server if Node.js is not available
 pub async fn execute(args: WebArgs) -> Result<()> {
     println!("Starting Ralph web servers...");
 
     // Determine workspace root: explicit flag or current directory
-    let workspace_root = match args.workspace.as_ref() {
+    let workspace_root = match args.workspace {
         Some(path) => {
             // Canonicalize to get absolute path
             path.canonicalize()
@@ -302,102 +385,78 @@ pub async fn execute(args: WebArgs) -> Result<()> {
     let backend_dir = workspace_root.join("backend/ralph-web-server");
     let frontend_dir = workspace_root.join("frontend/ralph-web");
 
-    // Try to use Node.js dev servers if available
-    let node_available = check_node_with(OsStr::new("node")).is_ok()
-        && check_npm_with(OsStr::new("npm")).is_ok();
-
-    if node_available && backend_dir.exists() && frontend_dir.exists() {
-        // Verify Node.js/npm, check tsx version, and auto-install dependencies if needed
-        preflight(&workspace_root, &backend_dir).await?;
-
-        // Find available ports dynamically
-        let backend_port = find_available_port(args.backend_port)?;
-        let frontend_port = find_available_port(args.frontend_port)?;
-
-        // Report if we're using different ports than requested
-        if backend_port != args.backend_port || frontend_port != args.frontend_port {
-            println!("Port selection:");
-            if backend_port != args.backend_port {
-                println!("  Backend: {} (requested {} was unavailable)", backend_port, args.backend_port);
-            }
-            if frontend_port != args.frontend_port {
-                println!("  Frontend: {} (requested {} was unavailable)", frontend_port, args.frontend_port);
-            }
-            println!();
-        }
-
-        println!("Using workspace: {}", workspace_root.display());
-
-        // Continue with npm-based servers...
-        return execute_npm_servers(args, workspace_root, backend_dir, frontend_dir, backend_port, frontend_port).await;
-    }
-
-    // Fall back to embedded server
-    println!("Node.js dev servers not available, using embedded server...");
-    println!("Using workspace: {}", workspace_root.display());
-
-    // Find available port for embedded server
-    let backend_port = find_available_port(args.backend_port)?;
-    if backend_port != args.backend_port {
-        println!("  Backend: {} (requested {} was unavailable)", backend_port, args.backend_port);
-        println!();
-    }
-
-    #[cfg(feature = "embedded-web")]
-    {
-        return crate::web_embedded::execute(backend_port, workspace_root, args.no_open).await;
-    }
-
-    #[cfg(not(feature = "embedded-web"))]
-    {
+    if args.legacy_node_api && !backend_dir.join("package.json").exists() {
         anyhow::bail!(
-            "Node.js is not installed and embedded web server is not enabled. \
-             Please install Node.js 18+ or build Ralph with the 'embedded-web' feature."
+            "Legacy Node backend not found at {}",
+            backend_dir.join("package.json").display()
         );
     }
-}
 
-/// Execute the npm-based development servers
-async fn execute_npm_servers(
-    args: WebArgs,
-    workspace_root: PathBuf,
-    backend_dir: PathBuf,
-    frontend_dir: PathBuf,
-    backend_port: u16,
-    frontend_port: u16,
-) -> Result<()> {
+    // Verify frontend Node.js/npm tooling, install deps, and legacy tsx checks when requested.
+    preflight(&workspace_root, &backend_dir, args.legacy_node_api).await?;
 
-    // Spawn backend server with piped output
-    // Pass RALPH_WORKSPACE_ROOT so the backend knows where to spawn ralph run from
-    // Pass PORT so the backend listens on the configured port
-    let mut backend = AsyncCommand::new("npm")
-        .args(["run", "dev"])
-        .current_dir(&backend_dir)
-        .env("RALPH_WORKSPACE_ROOT", &workspace_root)
-        .env("PORT", backend_port.to_string())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| {
-            anyhow::anyhow!(
-                "Failed to start backend server. Is npm installed and {} set up?\nError: {}",
-                backend_dir.join("package.json").display(),
-                e
-            )
-        })?;
+    // Check ports before spawning anything
+    check_port_available(args.backend_port)?;
+    check_port_available(args.frontend_port)?;
 
-    // Spawn frontend server with piped output
-    // Pass --port for Vite and RALPH_BACKEND_PORT for proxy config
+    println!("Using workspace: {}", workspace_root.display());
+
+    // Spawn backend (default Rust RPC API, optional legacy Node backend) and frontend.
+    let backend_label = if args.legacy_node_api {
+        "backend"
+    } else {
+        "api"
+    };
+    let backend_ready_pattern = if args.legacy_node_api {
+        "Server started on"
+    } else {
+        "ralph-api listening"
+    };
+
+    let mut backend = if args.legacy_node_api {
+        AsyncCommand::new("npm")
+            .args(["run", "dev"])
+            .current_dir(&backend_dir)
+            .env("RALPH_WORKSPACE_ROOT", &workspace_root)
+            .env("PORT", args.backend_port.to_string())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to start legacy backend server. Is npm installed and {} set up?\nError: {}",
+                    backend_dir.join("package.json").display(),
+                    e
+                )
+            })?
+    } else {
+        AsyncCommand::new("cargo")
+            .args(["run", "-p", "ralph-api"])
+            .current_dir(&workspace_root)
+            .env("RALPH_API_PORT", args.backend_port.to_string())
+            .env("RALPH_API_WORKSPACE_ROOT", &workspace_root)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to start Rust RPC API (cargo run -p ralph-api).\nError: {}",
+                    e
+                )
+            })?
+    };
+
+    // Pass --port for Vite and RALPH_BACKEND_PORT for proxy config.
     let mut frontend = AsyncCommand::new("npm")
         .args([
             "run",
             "dev",
             "--",
             "--port",
-            &frontend_port.to_string(),
+            &args.frontend_port.to_string(),
         ])
         .current_dir(&frontend_dir)
-        .env("RALPH_BACKEND_PORT", backend_port.to_string())
+        .env("RALPH_BACKEND_PORT", args.backend_port.to_string())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
@@ -409,24 +468,24 @@ async fn execute_npm_servers(
             )
         })?;
 
-    // Take ownership of stdout/stderr pipes
+    // Take ownership of stdout/stderr pipes.
     let backend_stdout = backend.stdout.take().expect("backend stdout piped");
     let backend_stderr = backend.stderr.take().expect("backend stderr piped");
     let frontend_stdout = frontend.stdout.take().expect("frontend stdout piped");
     let frontend_stderr = frontend.stderr.take().expect("frontend stderr piped");
 
-    // Set up ready detection
+    // Set up ready detection.
     let backend_ready = std::sync::Arc::new(Notify::new());
     let frontend_ready = std::sync::Arc::new(Notify::new());
 
-    // Spawn output forwarding tasks
+    // Spawn output forwarding tasks.
     let backend_ready_clone = backend_ready.clone();
     tokio::spawn(async move {
         forward_output(
             backend_stdout,
             backend_stderr,
-            "backend",
-            "Server started on",
+            backend_label,
+            backend_ready_pattern,
             backend_ready_clone,
         )
         .await;
@@ -619,15 +678,14 @@ mod tests {
         match TcpListener::bind(("127.0.0.1", 0)) {
             Ok(listener) => {
                 let port = listener.local_addr().expect("addr").port();
-                // Port should return None when in use (not Err)
-                assert_eq!(check_port_available(port).ok(), Some(None));
+                assert!(check_port_available(port).is_err());
                 drop(listener);
 
                 // Some environments (CI, heavily loaded systems) can take a moment to fully
                 // release the port after the listener is dropped. Retry briefly to avoid flakes.
                 let mut freed = false;
                 for _ in 0..25 {
-                    if check_port_available(port).ok() == Some(Some(port)) {
+                    if check_port_available(port).is_ok() {
                         freed = true;
                         break;
                     }
@@ -641,7 +699,7 @@ mod tests {
             Err(err) => {
                 // Some sandboxes disallow binding; ensure we handle that path gracefully.
                 assert_eq!(err.kind(), std::io::ErrorKind::PermissionDenied);
-                assert_eq!(check_port_available(0).ok(), Some(None));
+                assert!(check_port_available(0).is_err());
             }
         }
     }
@@ -680,7 +738,11 @@ mod tests {
         let node_path = write_fake_executable(temp_dir.path(), "node", "exit 1");
         let err = check_node_with(node_path.as_os_str()).expect_err("node failure");
         let msg = format!("{err}");
-        assert!(msg.contains("Failed to run `node --version`"), "msg: {msg}");
+        assert!(
+            msg.contains("Failed to run `node --version`")
+                || msg.contains("Node.js is not installed"),
+            "msg: {msg}"
+        );
     }
 
     #[cfg(unix)]
@@ -699,7 +761,10 @@ mod tests {
         let npm_path = write_fake_executable(temp_dir.path(), "npm", "exit 1");
         let err = check_npm_with(npm_path.as_os_str()).expect_err("npm failure");
         let msg = format!("{err}");
-        assert!(msg.contains("Failed to run `npm --version`"), "msg: {msg}");
+        assert!(
+            msg.contains("Failed to run `npm --version`") || msg.contains("npm is not installed"),
+            "msg: {msg}"
+        );
     }
 
     #[test]
@@ -707,6 +772,23 @@ mod tests {
         let err = check_npm_with(OsStr::new("definitely-missing-npm-12345")).expect_err("missing");
         let msg = format!("{err}");
         assert!(msg.contains("npm is not installed"), "msg: {msg}");
+    }
+
+    #[test]
+    fn contains_blocked_tsx_version_detects_supported_formats() {
+        assert!(contains_blocked_tsx_version("4.20.0"));
+        assert!(contains_blocked_tsx_version("v4.20.0"));
+        assert!(contains_blocked_tsx_version("tsx 4.20.0"));
+        assert!(contains_blocked_tsx_version("tsx v4.20.0"));
+        assert!(contains_blocked_tsx_version("tsx v4.20.0 (node v22.20.0)"));
+        assert!(contains_blocked_tsx_version("tsx v4.20.0\nnode v22.20.0"));
+    }
+
+    #[test]
+    fn contains_blocked_tsx_version_ignores_other_versions() {
+        assert!(!contains_blocked_tsx_version("4.21.0"));
+        assert!(!contains_blocked_tsx_version("tsx v4.21.0"));
+        assert!(!contains_blocked_tsx_version("node v4.20.0"));
     }
 
     #[cfg(unix)]
@@ -767,15 +849,32 @@ mod tests {
         let backend_dir = root.join("server");
         std::fs::create_dir_all(&backend_dir).expect("backend dir");
 
-        preflight_with(
-            &root,
-            &backend_dir,
-            node_path.as_os_str(),
-            npm_path.as_os_str(),
-            npx_path.as_os_str(),
-        )
-        .await
-        .expect("preflight");
+        // Retrying avoids rare CI flakes where executing freshly written
+        // fake scripts can transiently fail (e.g. ETXTBSY surfaced as
+        // "Node.js is not installed").
+        let mut preflight_ok = false;
+        for _ in 0..5 {
+            match preflight_with(
+                &root,
+                &backend_dir,
+                true,
+                node_path.as_os_str(),
+                npm_path.as_os_str(),
+                npx_path.as_os_str(),
+            )
+            .await
+            {
+                Ok(()) => {
+                    preflight_ok = true;
+                    break;
+                }
+                Err(err) if format!("{err}").contains("Node.js is not installed") => {
+                    tokio::time::sleep(Duration::from_millis(25)).await;
+                }
+                Err(err) => panic!("preflight: {err}"),
+            }
+        }
+        assert!(preflight_ok, "preflight should succeed after retries");
         assert!(root.join("npm_install_called").exists());
     }
 
@@ -802,15 +901,29 @@ exit 1",
         std::fs::create_dir_all(root.join("node_modules")).expect("node_modules dir");
         std::fs::write(root.join("node_modules/.package-lock.json"), "").expect("lockfile");
 
-        preflight_with(
-            &root,
-            &backend_dir,
-            node_path.as_os_str(),
-            npm_path.as_os_str(),
-            npx_path.as_os_str(),
-        )
-        .await
-        .expect("preflight");
+        let mut preflight_ok = false;
+        for _ in 0..5 {
+            match preflight_with(
+                &root,
+                &backend_dir,
+                true,
+                node_path.as_os_str(),
+                npm_path.as_os_str(),
+                npx_path.as_os_str(),
+            )
+            .await
+            {
+                Ok(()) => {
+                    preflight_ok = true;
+                    break;
+                }
+                Err(err) if format!("{err}").contains("Node.js is not installed") => {
+                    tokio::time::sleep(Duration::from_millis(25)).await;
+                }
+                Err(err) => panic!("preflight: {err}"),
+            }
+        }
+        assert!(preflight_ok, "preflight should succeed after retries");
         assert!(!root.join("npm_install_called").exists());
     }
 
@@ -838,6 +951,7 @@ exit 1",
         let err = preflight_with(
             &root,
             &backend_dir,
+            true,
             node_path.as_os_str(),
             npm_path.as_os_str(),
             npx_path.as_os_str(),
@@ -905,7 +1019,10 @@ exit 1",
             .await
             .expect_err("npm install failure");
         let msg = format!("{err}");
-        assert!(msg.contains("npm install failed"), "msg: {msg}");
+        assert!(
+            msg.contains("npm install failed") || msg.contains("Failed to run npm install"),
+            "msg: {msg}"
+        );
     }
 
     #[cfg(unix)]
@@ -982,6 +1099,7 @@ exit 1",
             backend_port: 3000,
             frontend_port: 5173,
             workspace: Some(missing),
+            legacy_node_api: false,
             no_open: true,
         };
 

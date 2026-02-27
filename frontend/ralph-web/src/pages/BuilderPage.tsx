@@ -11,7 +11,7 @@
  * This implements the n8n-style builder for hat collections.
  */
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { trpc } from "../trpc";
 import { CollectionBuilder } from "@/components/builder";
 import { Button } from "@/components/ui/button";
@@ -40,14 +40,9 @@ function CollectionList({
   onCreate: () => void;
 }) {
   const collectionsQuery = trpc.collection.list.useQuery();
-  const deleteMutation = trpc.collection.delete.useMutation();
-
-  // Handle delete mutation success
-  useEffect(() => {
-    if (deleteMutation.isSuccess) {
-      collectionsQuery.refetch();
-    }
-  }, [deleteMutation.isSuccess, collectionsQuery]);
+  const deleteMutation = trpc.collection.delete.useMutation({
+    onSuccess: () => collectionsQuery.refetch(),
+  });
 
   const handleDelete = (id: string, name: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -101,7 +96,7 @@ function CollectionList({
         </Card>
       ) : (
         <div className="grid gap-3">
-          {collections.map((collection) => (
+          {collections.map((collection: any) => (
             <Card
               key={collection.id}
               className="cursor-pointer hover:border-primary/50 transition-colors"
@@ -172,15 +167,12 @@ export function BuilderPage() {
   );
 
   // Mutations
-  const createMutation = trpc.collection.create.useMutation();
-
-  // Handle create mutation success
-  useEffect(() => {
-    if (createMutation.isSuccess && createMutation.data) {
-      setSelectedId(createMutation.data.id);
+  const createMutation = trpc.collection.create.useMutation({
+    onSuccess: (data: any) => {
+      setSelectedId(data.id);
       setViewMode("edit");
-    }
-  }, [createMutation.isSuccess, createMutation.data]);
+    },
+  });
 
   const updateMutation = trpc.collection.update.useMutation();
 

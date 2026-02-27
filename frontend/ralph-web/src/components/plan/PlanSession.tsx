@@ -86,9 +86,11 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
   }, [submitMutation.isSuccess, utils.planning.get, utils.planning.list, sessionId]);
 
   // Track current pending question (first unanswered prompt)
-  const pendingPrompt = session?.conversation?.find((entry) => entry.type === "prompt");
+  const pendingPrompt = session?.conversation?.find(
+    (entry: ConversationEntry) => entry.type === "prompt"
+  );
   const isAnswered = session?.conversation?.some(
-    (entry) => entry.type === "response" && entry.id === pendingPrompt?.id
+    (entry: ConversationEntry) => entry.type === "response" && entry.id === pendingPrompt?.id
   );
 
   // Auto-scroll to bottom when conversation updates
@@ -135,24 +137,28 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
   );
 
   // Group conversation into message pairs
-  const conversationGroups = session?.conversation?.reduce<
-    Array<{
-      prompt?: ConversationEntry;
-      response?: ConversationEntry;
-    }>
-  >((acc, entry) => {
-    if (entry.type === "prompt") {
-      acc.push({ prompt: entry });
-    } else if (entry.type === "response" && acc.length > 0) {
-      const lastGroup = acc[acc.length - 1];
-      if (lastGroup.prompt && !lastGroup.response) {
-        lastGroup.response = entry;
-      } else {
-        acc.push({ response: entry });
+  const conversationGroups = (session?.conversation as ConversationEntry[] | undefined)?.reduce(
+    (
+      acc: Array<{
+        prompt?: ConversationEntry;
+        response?: ConversationEntry;
+      }>,
+      entry: ConversationEntry
+    ) => {
+      if (entry.type === "prompt") {
+        acc.push({ prompt: entry });
+      } else if (entry.type === "response" && acc.length > 0) {
+        const lastGroup = acc[acc.length - 1];
+        if (lastGroup.prompt && !lastGroup.response) {
+          lastGroup.response = entry;
+        } else {
+          acc.push({ response: entry });
+        }
       }
-    }
-    return acc;
-  }, []);
+      return acc;
+    },
+    []
+  );
 
   const isMac = typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
 
@@ -251,7 +257,7 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
             </div>
           ) : (
             <div className="space-y-4">
-              {conversationGroups.map((group, idx) => (
+              {conversationGroups.map((group: { prompt?: ConversationEntry; response?: ConversationEntry }, idx: number) => (
                 <div key={`group-${idx}`} className="space-y-2">
                   {/* Agent question */}
                   {group.prompt && (
@@ -304,7 +310,7 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
               ))}
 
               {/* Pending question - show if exists and not answered */}
-              {pendingPrompt && !isAnswered && !conversationGroups.some(g => g.prompt?.id === pendingPrompt.id) && (
+              {pendingPrompt && !isAnswered && !conversationGroups.some((g: { prompt?: ConversationEntry }) => g.prompt?.id === pendingPrompt.id) && (
                 <div className="flex gap-3">
                   <div className="flex-shrink-0">
                     <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -353,7 +359,7 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
                         </button>
                         {artifactsExpanded && (
                           <div className="mt-2 space-y-1">
-                            {session.artifacts.map((artifact) => (
+                            {session.artifacts.map((artifact: string) => (
                               <button
                                 key={artifact}
                                 onClick={() => setSelectedArtifact(artifact)}
@@ -394,7 +400,7 @@ export function PlanSession({ sessionId, onBack }: PlanSessionProps) {
                       </button>
                       {artifactsExpanded && (
                         <div className="mt-2 space-y-1">
-                          {session.artifacts.map((artifact) => (
+                          {session.artifacts.map((artifact: string) => (
                             <button
                               key={artifact}
                               onClick={() => setSelectedArtifact(artifact)}

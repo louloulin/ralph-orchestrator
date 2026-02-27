@@ -4,9 +4,10 @@ Complete reference for Ralph's YAML configuration.
 
 ## Configuration File
 
-Ralph uses `ralph.yml` by default. Override with:
+Ralph uses `ralph.yml` by default. Override with `$RALPH_CONFIG` or:
 
 ```bash
+RALPH_CONFIG=/path/to/config.yml ralph run ...
 ralph run -c custom-config.yml
 ```
 
@@ -31,16 +32,27 @@ You can override specific core fields from the command line without creating a s
 
 ```bash
 # Override scratchpad (loads ralph.yml + applies override)
-ralph run -c core.scratchpad=.agent/feature-auth/scratchpad.md
+ralph run -c core.scratchpad=.ralph/agent/feature-auth/scratchpad.md
 
 # Explicit config + override
-ralph run -c ralph.yml -c core.scratchpad=.agent/feature-auth/scratchpad.md
+ralph run -c ralph.yml -c core.scratchpad=.ralph/agent/feature-auth/scratchpad.md
 
 # Multiple overrides
 ralph run -c core.scratchpad=.runs/task-1/scratchpad.md -c core.specs_dir=./custom-specs/
 ```
 
 Overrides are applied after `ralph.yml` is loaded, so they take precedence. The scratchpad directory is auto-created if it doesn't exist.
+
+## Combined Config Compatibility (`-c` + `-H`)
+
+Ralph supports both styles:
+- **Single-file combined config**: `-c ralph.yml` with core + hats in one file
+- **Split config**: `-c <core>` plus `-H <hats source>`
+
+If both are used (`-c` contains hats and `-H` is provided), `-H` wins for workflow sections:
+- `hats` and `events` from `-H` replace `hats`/`events` from `-c`
+- `event_loop` values from `-H` override matching `event_loop` keys from `-c`
+- `-c core.*=...` overrides still apply last
 
 ## Full Configuration Reference
 
@@ -65,7 +77,7 @@ core:
   specs_dir: "./specs/"                 # Specifications directory
   guardrails:                           # Rules injected into every prompt
     - "Fresh context each iteration"
-    - "Backpressure is law"
+    - "Never modify production database"
 
 # Memories — persistent learning
 memories:
@@ -74,7 +86,7 @@ memories:
   budget: 2000                          # Max tokens to inject
   filter:
     types: []                           # Filter by memory type
-    tags: []                            # Filter by tags
+    tags: []                            # Filter by memory tags
     recent: 0                           # Days limit (0 = no limit)
 
 # Tasks — runtime work tracking
@@ -128,6 +140,8 @@ Backend configuration.
 - `amp` — Amp
 - `copilot` — Copilot CLI
 - `opencode` — OpenCode
+- `pi` — Pi
+- `custom` — Custom adapter/backend
 
 **Prompt mode values:**
 - `arg` — Pass as CLI argument: `cli -p "prompt"`

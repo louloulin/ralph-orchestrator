@@ -26,9 +26,9 @@ interface LogStore {
   taskLogs: Record<string, LogEntry[]>;
 
   /**
-   * Metadata per task (e.g., last log id for dedupe)
+   * Metadata per task (used for dedupe + stream resume)
    */
-  taskLogMeta: Record<string, { lastId?: number }>;
+  taskLogMeta: Record<string, { lastId?: number; lastCursor?: string }>;
 
   /**
    * Append a single log entry to a task's log buffer.
@@ -67,6 +67,11 @@ interface LogStore {
    * Get the last persisted log id for a task.
    */
   getLastLogId: (taskId: string) => number | null;
+
+  /**
+   * Get the last stream cursor for a task.
+   */
+  getLastCursor: (taskId: string) => string | null;
 }
 
 /**
@@ -92,6 +97,7 @@ export const useLogStore = create<LogStore>()((set, get) => ({
 
       const newLogs = [...existing, entry];
       const nextLastId = entry.id !== undefined ? entry.id : lastId;
+      const nextLastCursor = entry.cursor ?? meta.lastCursor;
 
       // Trim to MAX_LOGS to prevent memory leaks
       const trimmedLogs = newLogs.length > MAX_LOGS
@@ -105,7 +111,7 @@ export const useLogStore = create<LogStore>()((set, get) => ({
         },
         taskLogMeta: {
           ...state.taskLogMeta,
-          [taskId]: { lastId: nextLastId },
+          [taskId]: { lastId: nextLastId, lastCursor: nextLastCursor },
         },
       };
     });
@@ -118,6 +124,7 @@ export const useLogStore = create<LogStore>()((set, get) => ({
       const existing = state.taskLogs[taskId] || [];
       const meta = state.taskLogMeta[taskId] || {};
       let lastId = meta.lastId;
+      let lastCursor = meta.lastCursor;
       const toAppend: LogEntry[] = [];
 
       for (const entry of entries) {
@@ -127,6 +134,9 @@ export const useLogStore = create<LogStore>()((set, get) => ({
         toAppend.push(entry);
         if (entry.id !== undefined) {
           lastId = entry.id;
+        }
+        if (entry.cursor) {
+          lastCursor = entry.cursor;
         }
       }
 
@@ -148,7 +158,7 @@ export const useLogStore = create<LogStore>()((set, get) => ({
         },
         taskLogMeta: {
           ...state.taskLogMeta,
-          [taskId]: { lastId },
+          [taskId]: { lastId, lastCursor },
         },
       };
     });
@@ -177,5 +187,9 @@ export const useLogStore = create<LogStore>()((set, get) => ({
 
   getLastLogId: (taskId) => {
     return get().taskLogMeta[taskId]?.lastId ?? null;
+  },
+
+  getLastCursor: (taskId) => {
+    return get().taskLogMeta[taskId]?.lastCursor ?? null;
   },
 }));

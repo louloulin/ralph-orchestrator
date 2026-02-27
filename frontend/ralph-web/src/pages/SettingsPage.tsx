@@ -237,7 +237,7 @@ export function SettingsPage() {
               {currentHatCollection && (
                 <option value="default">Default (from config)</option>
               )}
-              {presets.map((preset) => (
+              {presets.map((preset: any) => (
                 <option key={preset.id} value={preset.id}>
                   {preset.name} ({preset.source})
                 </option>

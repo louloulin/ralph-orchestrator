@@ -134,7 +134,7 @@ export function TaskInput({
         )}
       >
         <option value="default">Default (from config)</option>
-        {presetsQuery.data?.map((preset) => (
+        {presetsQuery.data?.map((preset: any) => (
           <option key={preset.id} value={preset.id}>
             {preset.name} ({preset.source})
           </option>

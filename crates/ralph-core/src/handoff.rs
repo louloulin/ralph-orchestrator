@@ -13,6 +13,7 @@ use crate::git_ops::{get_commit_summary, get_current_branch, get_head_sha, get_r
 use crate::loop_context::LoopContext;
 use crate::task::{Task, TaskStatus};
 use crate::task_store::TaskStore;
+use crate::text::floor_char_boundary;
 use std::io;
 use std::path::PathBuf;
 
@@ -275,28 +276,14 @@ impl HandoffWriter {
     }
 }
 
-/// Truncates a prompt to a maximum length, adding ellipsis if needed.
-/// Uses character-aware truncation to avoid panicking on multi-byte UTF-8.
+/// Uses UTF-8 safe truncation to avoid panics on multi-byte characters.
 fn truncate_prompt(prompt: &str, max_len: usize) -> String {
     let prompt = prompt.trim();
     if prompt.len() <= max_len {
         prompt.to_string()
     } else {
-        // Find the largest byte index <= max_len that is a valid char boundary
-        // by iterating through all characters and keeping track of valid boundaries
-        let truncate_at = prompt
-            .char_indices()
-            .filter_map(|(idx, c)| {
-                let end = idx + c.len_utf8();
-                if end <= max_len {
-                    Some(end)
-                } else {
-                    None
-                }
-            })
-            .last()
-            .unwrap_or(0);
-        format!("{}...", &prompt[..truncate_at])
+        let safe_len = floor_char_boundary(prompt, max_len);
+        format!("{}...", &prompt[..safe_len])
     }
 }
 
@@ -395,6 +382,7 @@ mod tests {
     }
 
     #[test]
+<<<<<<< HEAD
     fn test_truncate_prompt_multibyte_utf8() {
         // The bug case: byte index 500 was inside '能' (bytes 499..502)
         // Each Chinese character is 3 bytes in UTF-8
@@ -419,5 +407,27 @@ mod tests {
         // Verify no panic occurred and result is valid UTF-8
         assert!(result.is_char_boundary(result.len() - 3)); // Before "..."
         assert!(result.ends_with("..."));
+=======
+    fn test_truncate_prompt_with_emoji() {
+        // "✅" is 3 bytes (indices 0, 1, 2)
+        // truncate_prompt(prompt, 1) should safely slice at [..0]
+        let prompt = "✅rest";
+        let result = truncate_prompt(prompt, 1);
+        assert_eq!(result, "...");
+    }
+
+    #[test]
+    fn test_truncate_prompt_with_emoji_near_boundary() {
+        // "✅" is 3 bytes (indices 1, 2, 3)
+        let prompt = "x✅rest";
+        // truncate at 1 byte should keep "x"
+        assert_eq!(truncate_prompt(prompt, 1), "x...");
+        // truncate at 2 bytes should still only keep "x" to be safe
+        assert_eq!(truncate_prompt(prompt, 2), "x...");
+        // truncate at 3 bytes should still only keep "x"
+        assert_eq!(truncate_prompt(prompt, 3), "x...");
+        // truncate at 4 bytes should keep "x✅"
+        assert_eq!(truncate_prompt(prompt, 4), "x✅...");
+>>>>>>> main
     }
 }

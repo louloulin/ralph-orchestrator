@@ -12,10 +12,8 @@ import { PageLoading } from "./components/shared";
 
 // Lazy-loaded page components for code splitting
 const ChatPage = lazy(() => import("./pages/ChatPage").then(m => ({ default: m.ChatPage })));
-const DashboardPage = lazy(() => import("./pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
 const TasksPage = lazy(() => import("./pages/TasksPage").then(m => ({ default: m.TasksPage })));
 const TaskDetailPage = lazy(() => import("./pages/TaskDetailPage").then(m => ({ default: m.TaskDetailPage })));
-const KanbanPage = lazy(() => import("./pages/KanbanPage").then(m => ({ default: m.KanbanPage })));
 const BuilderPage = lazy(() => import("./pages/BuilderPage").then(m => ({ default: m.BuilderPage })));
 const PlanPage = lazy(() => import("./pages/PlanPage").then(m => ({ default: m.PlanPage })));
 const SettingsPage = lazy(() => import("./pages/SettingsPage").then(m => ({ default: m.SettingsPage })));
@@ -39,11 +37,9 @@ export function App() {
       <Route element={<AppShell />}>
         {/* Chat is the new AI-native main interface */}
         <Route path="/chat" element={<LazyPage><ChatPage /></LazyPage>} />
-        {/* Legacy routes - will be converted to panels */}
-        <Route path="/dashboard" element={<LazyPage><DashboardPage /></LazyPage>} />
+        {/* Panels and supporting pages */}
         <Route path="/tasks" element={<LazyPage><TasksPage /></LazyPage>} />
         <Route path="/tasks/:id" element={<LazyPage><TaskDetailPage /></LazyPage>} />
-        <Route path="/kanban" element={<LazyPage><KanbanPage /></LazyPage>} />
         <Route path="/builder" element={<LazyPage><BuilderPage /></LazyPage>} />
         <Route path="/plan" element={<LazyPage><PlanPage /></LazyPage>} />
         <Route path="/settings" element={<LazyPage><SettingsPage /></LazyPage>} />

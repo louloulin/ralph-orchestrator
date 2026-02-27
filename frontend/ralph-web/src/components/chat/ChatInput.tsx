@@ -13,7 +13,6 @@ import { useChatStore } from "@/stores/chatStore";
 import { trpc } from "@/trpc";
 import { usePreferences } from "@/hooks";
 import { Send, Loader2, Paperclip, Sparkles, X } from "lucide-react";
-import type { FileAttachment } from "@/stores/chatStore";
 
 interface ChatInputProps {
   /** Placeholder text for the textarea */
@@ -28,13 +27,6 @@ interface ChatInputProps {
  * Detect if running on Mac for keyboard shortcut display
  */
 const isMac = typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
-
-/**
- * Generate a unique message ID.
- */
-function generateMessageId(): string {
-  return `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
 
 /**
  * Format file size for display
@@ -56,7 +48,6 @@ export function ChatInput({
   const inputValue = useChatStore((state) => state.inputValue);
   const isLoading = useChatStore((state) => state.isLoading);
   const isInputDisabled = useChatStore((state) => state.isInputDisabled);
-  const messages = useChatStore((state) => state.messages);
   const attachments = useChatStore((state) => state.attachments);
 
   const setInputValue = useChatStore((state) => state.setInputValue);
@@ -304,7 +295,7 @@ export function ChatInput({
           )}
         >
           <option value="default">Default (from config)</option>
-          {presetsQuery.data?.map((preset) => (
+          {presetsQuery.data?.map((preset: any) => (
             <option key={preset.id} value={preset.id}>
               {preset.name} ({preset.source})
             </option>

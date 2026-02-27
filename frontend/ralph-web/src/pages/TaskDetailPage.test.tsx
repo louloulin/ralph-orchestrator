@@ -142,6 +142,20 @@ vi.mock("@/trpc", () => ({
           isPending: false,
         })),
       },
+      getFileChanges: {
+        useQuery: vi.fn(() => ({
+          data: [],
+          isLoading: false,
+          isError: false,
+        })),
+      },
+      getFileChangesStats: {
+        useQuery: vi.fn(() => ({
+          data: null,
+          isLoading: false,
+          isError: false,
+        })),
+      },
     },
     loops: {
       list: {

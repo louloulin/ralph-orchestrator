@@ -21,6 +21,7 @@ import { BunSQLiteDatabase } from "drizzle-orm/bun-sqlite";
 import * as schema from "../db/schema";
 import { getLogBroadcaster } from "./LogBroadcaster";
 import { registerRestRoutes } from "./rest";
+import { registerRpcHandler } from "./rpc";
 import { TaskBridge } from "../services/TaskBridge";
 import { LoopsManager } from "../services/LoopsManager";
 import { PlanningService } from "../services/PlanningService";
@@ -97,7 +98,7 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
       const url = request.url;
 
       // Don't fallback for API routes
-      if (url.startsWith("/api/") || url.startsWith("/trpc/") || url.startsWith("/ws/")) {
+      if (url.startsWith("/api/") || url.startsWith("/trpc/") || url.startsWith("/ws/") || url.startsWith("/rpc/")) {
         reply.code(404).send({ error: "Not Found" });
         return;
       }
@@ -174,6 +175,9 @@ export async function createServer(options: ServerOptions = {}): Promise<Fastify
   // Register REST API routes at /api/v1/*
   const ctx = createContext(db, taskBridge, loopsManager, planningService, loopSupervisor, agentTeamsService, metricStore, alertEngine);
   await registerRestRoutes(server, ctx);
+
+  // Register custom RPC handler at /rpc/v1
+  await registerRpcHandler(server, ctx);
 
   return server;
 }

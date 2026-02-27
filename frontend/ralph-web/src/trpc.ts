@@ -177,6 +177,40 @@ function useRpcUtils() {
             : invalidateExact("collection", "collection.get", input),
       },
     },
+    healing: {
+      getEvents: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("healing", "healing.getEvents")
+            : invalidateExact("healing", "healing.getEvents", input),
+      },
+      getPolicy: {
+        invalidate: () => invalidatePrefix("healing", "healing.getPolicy"),
+      },
+      getKnownFixes: {
+        invalidate: () => invalidatePrefix("healing", "healing.getKnownFixes"),
+      },
+      getCircuitBreakerStatus: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("healing", "healing.getCircuitBreakerStatus")
+            : invalidateExact("healing", "healing.getCircuitBreakerStatus", input),
+      },
+    },
+    skills: {
+      list: {
+        invalidate: () => invalidatePrefix("skills", "skills.list"),
+      },
+      get: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("skills", "skills.get")
+            : invalidateExact("skills", "skills.get", input),
+      },
+      getCategories: {
+        invalidate: () => invalidatePrefix("skills", "skills.getCategories"),
+      },
+    },
   };
 }
 
@@ -184,9 +218,23 @@ export const trpc = {
   useUtils: useRpcUtils,
 
   task: {
-    list: createQueryProcedure<{ status?: string; includeArchived?: boolean }, { tasks: any[] }, any[]>({
+    list: createQueryProcedure<{ status?: string; includeArchived?: boolean; projectId?: string }, { tasks: any[] }, any[]>({
       scope: "task",
       method: "task.list",
+      mapInput: (input) => input ?? {},
+      mapResult: (result) => result.tasks ?? [],
+    }),
+
+    search: createQueryProcedure<{
+      query: string;
+      status?: string[];
+      projectId?: string;
+      includeArchived?: boolean;
+      includeClosed?: boolean;
+      dateRange?: { start?: string; end?: string };
+    }, { tasks: any[] }, any[]>({
+      scope: "task",
+      method: "task.search",
       mapInput: (input) => input ?? {},
       mapResult: (result) => result.tasks ?? [],
     }),
@@ -297,6 +345,20 @@ export const trpc = {
         deletedTasks: 0,
         deletedLogs: 0,
       }),
+    }),
+
+    getFileChanges: createQueryProcedure<{ id: string }, { files: any[] }, any[]>({
+      scope: "task",
+      method: "task.get_file_changes",
+      mapInput: (input) => input ?? {},
+      mapResult: (result) => (result as any)?.files ?? [],
+    }),
+
+    getFileChangesStats: createQueryProcedure<{ id: string }, { stats: any }, any>({
+      scope: "task",
+      method: "task.get_file_changes_stats",
+      mapInput: (input) => input ?? {},
+      mapResult: (result) => (result as any)?.stats ?? null,
     }),
   },
 
@@ -471,6 +533,233 @@ export const trpc = {
     importYaml: createMutationProcedure<{ yaml: string; name: string; description?: string }, { collection: any }, any>({
       method: "collection.import",
       mapResult: (result) => result.collection,
+    }),
+  },
+
+  project: {
+    list: createQueryProcedure<void, any[], any[]>({
+      scope: "project",
+      method: "project.list",
+      mapInput: () => ({}),
+      mapResult: (result) => result ?? [],
+    }),
+
+    get: createQueryProcedure<{ id: string }, any, any>({
+      scope: "project",
+      method: "project.get",
+      mapResult: (result) => result,
+    }),
+
+    getActive: createQueryProcedure<void, any, any>({
+      scope: "project",
+      method: "project.getActive",
+      mapInput: () => ({}),
+    }),
+
+    create: createMutationProcedure<{ name: string; path: string; description?: string }, any, any>({
+      method: "project.create",
+      mapResult: (result) => result,
+    }),
+
+    update: createMutationProcedure<{ id: string; name?: string; description?: string }, any, any>({
+      method: "project.update",
+      mapResult: (result) => result,
+    }),
+
+    delete: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "project.delete",
+    }),
+
+    validatePath: createMutationProcedure<{ path: string }, { valid: boolean; error?: string }, { valid: boolean; error?: string }>({
+      method: "project.validatePath",
+    }),
+
+    setActive: createMutationProcedure<{ id: string }, any, any>({
+      method: "project.setActive",
+      mapResult: (result) => result,
+    }),
+  },
+
+  process: {
+    list: createQueryProcedure<void, { processes: any[] }, any[]>({
+      scope: "process",
+      method: "process.list",
+      mapInput: () => ({}),
+      mapResult: (result) => result?.processes ?? [],
+    }),
+
+    get: createQueryProcedure<{ id: string }, any, any>({
+      scope: "process",
+      method: "process.get",
+      mapResult: (result) => result,
+    }),
+
+    getHealth: createQueryProcedure<{ id: string }, any, any>({
+      scope: "process",
+      method: "process.getHealth",
+      mapResult: (result) => result,
+    }),
+
+    start: createMutationProcedure<{ id: string; config?: any }, { success: boolean; process?: any }, { success: boolean; process?: any }>({
+      method: "process.start",
+    }),
+
+    stop: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "process.stop",
+    }),
+
+    restart: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "process.restart",
+    }),
+
+    getRestartHistory: createQueryProcedure<{ id: string; limit?: number }, any[], any[]>({
+      scope: "process",
+      method: "process.getRestartHistory",
+      mapResult: (result) => result ?? [],
+    }),
+
+    stats: createQueryProcedure<void, any, any>({
+      scope: "process",
+      method: "process.stats",
+      mapInput: () => ({}),
+    }),
+
+    resetCircuitBreaker: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "process.resetCircuitBreaker",
+    }),
+  },
+
+  monitoring: {
+    getMetrics: createQueryProcedure<void, any[], any[]>({
+      scope: "monitoring",
+      method: "monitoring.getMetrics",
+      mapInput: () => ({}),
+      mapResult: (result) => result ?? [],
+    }),
+
+    getSnapshot: createQueryProcedure<void, any, any>({
+      scope: "monitoring",
+      method: "monitoring.getSnapshot",
+      mapInput: () => ({}),
+    }),
+
+    getMetricsByNames: createQueryProcedure<{ names: string[] }, any[], any[]>({
+      scope: "monitoring",
+      method: "monitoring.getMetricsByNames",
+      mapResult: (result) => result ?? [],
+    }),
+
+    getPrometheusMetrics: createQueryProcedure<void, string, string>({
+      scope: "monitoring",
+      method: "monitoring.getPrometheusMetrics",
+      mapInput: () => ({}),
+    }),
+
+    getAlertRules: createQueryProcedure<void, any[], any[]>({
+      scope: "monitoring",
+      method: "monitoring.getAlertRules",
+      mapInput: () => ({}),
+      mapResult: (result) => result ?? [],
+    }),
+
+    getAlertRule: createQueryProcedure<{ id: string }, any, any>({
+      scope: "monitoring",
+      method: "monitoring.getAlertRule",
+      mapResult: (result) => result,
+    }),
+
+    getActiveAlerts: createQueryProcedure<void, { alerts: any[] }, any[]>({
+      scope: "monitoring",
+      method: "monitoring.getActiveAlerts",
+      mapInput: () => ({}),
+      mapResult: (result) => result?.alerts ?? [],
+    }),
+
+    getAlertsByRule: createQueryProcedure<{ ruleId: string }, any[], any[]>({
+      scope: "monitoring",
+      method: "monitoring.getAlertsByRule",
+      mapResult: (result) => result ?? [],
+    }),
+
+    getAlertHistory: createQueryProcedure<{ limit?: number }, any[], any[]>({
+      scope: "monitoring",
+      method: "monitoring.getAlertHistory",
+      mapResult: (result) => result ?? [],
+    }),
+  },
+
+  healing: {
+    getEvents: createQueryProcedure<{ loopId: string; limit?: number }, { events: any[] }, any[]>({
+      scope: "healing",
+      method: "healing.getEvents",
+      mapResult: (result) => result?.events ?? [],
+    }),
+
+    getPolicy: createQueryProcedure<void, { policy: any }, any>({
+      scope: "healing",
+      method: "healing.getPolicy",
+      mapInput: () => ({}),
+      mapResult: (result) => result?.policy,
+    }),
+
+    updatePolicy: createMutationProcedure<{ policy: any }, { success: boolean }, { success: boolean }>({
+      method: "healing.updatePolicy",
+    }),
+
+    getKnownFixes: createQueryProcedure<void, { fixes: any[] }, any[]>({
+      scope: "healing",
+      method: "healing.getKnownFixes",
+      mapInput: () => ({}),
+      mapResult: (result) => result?.fixes ?? [],
+    }),
+
+    addKnownFix: createMutationProcedure<{ name: string; pattern: string; action: string }, { success: boolean }, { success: boolean }>({
+      method: "healing.addKnownFix",
+    }),
+
+    testFix: createMutationProcedure<{ fixId: string }, { success: boolean; output: string }, { success: boolean; output: string }>({
+      method: "healing.testFix",
+    }),
+
+    triggerHealing: createMutationProcedure<{ loopId: string; action?: string }, { success: boolean }, { success: boolean }>({
+      method: "healing.triggerHealing",
+    }),
+
+    getCircuitBreakerStatus: createQueryProcedure<{ loopId: string }, any, any>({
+      scope: "healing",
+      method: "healing.getCircuitBreakerStatus",
+      mapResult: (result) => result,
+    }),
+
+    resetCircuitBreaker: createMutationProcedure<{ loopId: string }, { success: boolean }, { success: boolean }>({
+      method: "healing.resetCircuitBreaker",
+    }),
+  },
+
+  skills: {
+    list: createQueryProcedure<{ source?: string }, { skills: any[] }, any[]>({
+      scope: "skills",
+      method: "skills.list",
+      mapResult: (result) => result?.skills ?? [],
+    }),
+
+    get: createQueryProcedure<{ name: string }, { skill: any }, any>({
+      scope: "skills",
+      method: "skills.get",
+      mapResult: (result) => result?.skill,
+    }),
+
+    getContent: createQueryProcedure<{ name: string }, { content: string }, string>({
+      scope: "skills",
+      method: "skills.getContent",
+      mapResult: (result) => result?.content ?? "",
+    }),
+
+    getCategories: createQueryProcedure<void, { categories: string[] }, string[]>({
+      scope: "skills",
+      method: "skills.getCategories",
+      mapInput: () => ({}),
+      mapResult: (result) => result?.categories ?? [],
     }),
   },
 };

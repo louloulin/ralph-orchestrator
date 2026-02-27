@@ -17,20 +17,12 @@ vi.mock("./pages/ChatPage", () => ({
   ChatPage: () => <div data-testid="chat-page">Chat Page</div>,
 }));
 
-vi.mock("./pages/DashboardPage", () => ({
-  DashboardPage: () => <div data-testid="dashboard-page">Dashboard Page</div>,
-}));
-
 vi.mock("./pages/TasksPage", () => ({
   TasksPage: () => <div data-testid="tasks-page">Tasks Page</div>,
 }));
 
 vi.mock("./pages/TaskDetailPage", () => ({
   TaskDetailPage: () => <div data-testid="task-detail-page">Task Detail Page</div>,
-}));
-
-vi.mock("./pages/KanbanPage", () => ({
-  KanbanPage: () => <div data-testid="kanban-page">Kanban Page</div>,
 }));
 
 vi.mock("./pages/BuilderPage", () => ({
@@ -108,14 +100,6 @@ describe("App routing", () => {
       });
     });
 
-    it("renders DashboardPage for /dashboard route", async () => {
-      renderWithRoute("/dashboard");
-
-      await waitFor(() => {
-        expect(screen.getByTestId("dashboard-page")).toBeInTheDocument();
-      });
-    });
-
     it("redirects root to /chat", async () => {
       renderWithRoute("/");
 
@@ -124,11 +108,27 @@ describe("App routing", () => {
       });
     });
 
-    it("renders KanbanPage for /kanban route", async () => {
+    it("redirects legacy /dashboard to /chat", async () => {
+      renderWithRoute("/dashboard");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-page")).toBeInTheDocument();
+      });
+    });
+
+    it("redirects legacy /kanban to /chat", async () => {
       renderWithRoute("/kanban");
 
       await waitFor(() => {
-        expect(screen.getByTestId("kanban-page")).toBeInTheDocument();
+        expect(screen.getByTestId("chat-page")).toBeInTheDocument();
+      });
+    });
+
+    it("redirects legacy /skills to /chat", async () => {
+      renderWithRoute("/skills");
+
+      await waitFor(() => {
+        expect(screen.getByTestId("chat-page")).toBeInTheDocument();
       });
     });
   });

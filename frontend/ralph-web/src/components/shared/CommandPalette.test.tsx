@@ -7,6 +7,7 @@
 import { render, screen, fireEvent, waitFor, cleanup } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { CommandPalette } from "./CommandPalette";
 
 // Mock ResizeObserver for cmdk library
@@ -29,9 +30,64 @@ vi.mock("@/stores/commandPaletteStore", () => ({
   })),
 }));
 
+// Mock tRPC hooks
+vi.mock("@/trpc", () => {
+  const noop = () => {};
+  const createMockMutation = () => ({
+    mutate: noop,
+    mutateAsync: async () => ({}),
+    isPending: false,
+    isError: false,
+    error: null,
+  });
+
+  return {
+    trpc: {
+      task: {
+        create: { useMutation: () => createMockMutation() },
+        run: { useMutation: () => createMockMutation() },
+        list: {
+          useQuery: () => ({
+            data: [],
+            isLoading: false,
+            isError: false,
+          }),
+        },
+      },
+      loops: {
+        list: {
+          useQuery: () => ({
+            data: [],
+            isLoading: false,
+            isError: false,
+          }),
+        },
+      },
+      useUtils: () => ({
+        task: { list: { invalidate: noop } },
+        loops: { list: { invalidate: noop } },
+      }),
+    },
+  };
+});
+
+function createTestWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+  return ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>{children}</BrowserRouter>
+    </QueryClientProvider>
+  );
+}
+
 // Helper to render with router context
 function renderWithRouter(ui: React.ReactElement) {
-  return render(<BrowserRouter>{ui}</BrowserRouter>);
+  const wrapper = createTestWrapper();
+  return render(ui, { wrapper });
 }
 
 describe("CommandPalette", () => {

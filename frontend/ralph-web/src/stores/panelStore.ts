@@ -9,7 +9,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 /** Available panel types */
-export type PanelId = "tasks" | "plan" | "monitor" | "teams" | "projects" | null;
+export type PanelId = "tasks" | "plan" | "monitor" | "teams" | "projects";
 
 /** Panel entry for history tracking */
 interface PanelHistoryEntry {
@@ -19,7 +19,7 @@ interface PanelHistoryEntry {
 
 interface PanelState {
   // Active panel
-  activePanel: PanelId;
+  activePanel: PanelId | null;
 
   // Panel history for back navigation (max 5 entries)
   history: PanelHistoryEntry[];
@@ -28,7 +28,7 @@ interface PanelState {
   panelData: Partial<Record<PanelId, unknown>>;
 
   // Actions
-  openPanel: (panelId: PanelId, data?: unknown) => void;
+  openPanel: (panelId: PanelId | null, data?: unknown) => void;
   closePanel: () => void;
   togglePanel: (panelId: PanelId) => void;
   setPanelData: <T extends PanelId>(panelId: T, data: unknown) => void;
@@ -53,12 +53,12 @@ export const usePanelStore = create<PanelState>()(
           const newHistory =
             state.activePanel === panelId
               ? state.history
-              : [...state.history.slice(-4), { panelId, timestamp: Date.now() }];
+              : [...state.history.slice(-4), { panelId: panelId as PanelId, timestamp: Date.now() }];
 
           return {
             activePanel: panelId,
             history: newHistory,
-            panelData: data !== undefined ? { ...state.panelData, [panelId]: data } : state.panelData,
+            panelData: data !== undefined && panelId !== null ? { ...state.panelData, [panelId]: data } : state.panelData,
           };
         }),
 

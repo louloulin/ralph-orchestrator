@@ -26,10 +26,12 @@ vi.mock("@/trpc", () => {
   const noop = () => {};
   const createMockMutation = () => ({
     mutate: noop,
-    mutateAsync: noop,
+    mutateAsync: async () => ({}),
     isPending: false,
     isError: false,
     error: null,
+    isSuccess: false,
+    data: null,
   });
 
   return {

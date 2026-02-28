@@ -2026,6 +2026,77 @@ export const teamsRouter = router({
     }
     return ctx.agentTeamsService.getStats();
   }),
+
+  /**
+   * Suggest a task for a teammate based on load balancing (Phase 3.1)
+   * Returns the highest priority available task for the specified agent.
+   */
+  suggestTask: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        agentId: z.string(),
+      })
+    )
+    .query(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+
+      // Get the team
+      const team = ctx.agentTeamsService.getTeam(input.teamId);
+      if (!team) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Team with id '${input.teamId}' not found`,
+        });
+      }
+
+      // Find the agent in the team
+      const agent = team.members.find((m) => m.id === input.agentId);
+      if (!agent) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Agent with id '${input.agentId}' not found in team '${input.teamId}'`,
+        });
+      }
+
+      // Check if agent is available (not running and not at max capacity)
+      if (agent.status === "running") {
+        return {
+          taskId: null,
+          reason: "Agent is currently running",
+        };
+      }
+
+      // Get available tasks (open status, no blockers)
+      const readyTasks = ctx.taskRepository.findReady();
+
+      if (readyTasks.length === 0) {
+        return {
+          taskId: null,
+          reason: "No available tasks",
+        };
+      }
+
+      // Sort by priority (lower number = higher priority) and return the first one
+      const sortedTasks = [...readyTasks].sort((a, b) => {
+        const priorityA = a.priority ?? 2;
+        const priorityB = b.priority ?? 2;
+        return priorityA - priorityB;
+      });
+
+      const suggestedTask = sortedTasks[0];
+
+      return {
+        taskId: suggestedTask.id,
+        task: suggestedTask,
+        reason: null,
+      };
+    }),
 });
 
 /**

@@ -239,6 +239,29 @@ function useRpcUtils() {
             : invalidateExact("session", "session.get", input),
       },
     },
+    teams: {
+      list: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("teams", "teams.list")
+            : invalidateExact("teams", "teams.list", input),
+      },
+      get: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("teams", "teams.get")
+            : invalidateExact("teams", "teams.get", input),
+      },
+      stats: {
+        invalidate: () => invalidatePrefix("teams", "teams.stats"),
+      },
+      suggestTask: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("teams", "teams.suggestTask")
+            : invalidateExact("teams", "teams.suggestTask", input),
+      },
+    },
   };
 }
 
@@ -852,6 +875,95 @@ export const trpc = {
 
     delete: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
       method: "checkpoint.delete",
+    }),
+  },
+
+  // Teams procedures (P4.5-1: Agent Teams Architecture)
+  teams: {
+    list: createQueryProcedure<{ status?: "idle" | "running" | "paused" | "completed" | "failed" } | undefined, { teams: any[] }, any[]>({
+      scope: "teams",
+      method: "teams.list",
+      mapInput: (input) => input ?? {},
+      mapResult: (result) => result?.teams ?? [],
+    }),
+
+    get: createQueryProcedure<{ id: string }, { team: any }, any>({
+      scope: "teams",
+      method: "teams.get",
+      mapResult: (result) => result?.team,
+    }),
+
+    create: createMutationProcedure<{
+      name: string;
+      description?: string;
+      prompt: string;
+      coordinatorHatId: string;
+      members: Array<{
+        name: string;
+        description: string;
+        hatId: string;
+      }>;
+      contextSharing?: "full" | "selective" | "hierarchical";
+      taskDistribution?: "parallel" | "pipeline" | "expert" | "voting";
+    }, { team: any }, any>({
+      method: "teams.create",
+      mapResult: (result) => result?.team,
+    }),
+
+    update: createMutationProcedure<{
+      id: string;
+      name?: string;
+      description?: string;
+      taskDistribution?: "parallel" | "pipeline" | "expert" | "voting";
+      contextSharing?: "full" | "selective" | "hierarchical";
+    }, { team: any }, any>({
+      method: "teams.update",
+      mapResult: (result) => result?.team,
+    }),
+
+    start: createMutationProcedure<{ id: string }, { team: any }, any>({
+      method: "teams.start",
+      mapResult: (result) => result?.team,
+    }),
+
+    pause: createMutationProcedure<{ id: string }, { team: any }, any>({
+      method: "teams.pause",
+      mapResult: (result) => result?.team,
+    }),
+
+    stop: createMutationProcedure<{ id: string; reason?: string }, { team: any }, any>({
+      method: "teams.stop",
+      mapResult: (result) => result?.team,
+    }),
+
+    delete: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "teams.delete",
+    }),
+
+    updateAgentStatus: createMutationProcedure<{
+      teamId: string;
+      agentId: string;
+      status: "idle" | "running" | "waiting" | "completed" | "failed";
+    }, { success: boolean }, { success: boolean }>({
+      method: "teams.updateAgentStatus",
+    }),
+
+    getStats: createQueryProcedure<void, any, any>({
+      scope: "teams",
+      method: "teams.stats",
+      mapInput: () => ({}),
+    }),
+
+    suggestTask: createQueryProcedure<{
+      teamId: string;
+      agentId: string;
+    }, { taskId: string | null; task?: any; reason?: string }, {
+      taskId: string | null;
+      task?: any;
+      reason?: string;
+    }>({
+      scope: "teams",
+      method: "teams.suggestTask",
     }),
   },
 };

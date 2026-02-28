@@ -455,13 +455,13 @@ impl TeamStore {
         // Check if dependencies are met
         let all_tasks: Vec<TeamTask> = self.tasks.values().cloned().collect();
         for dep_id in &dependencies {
-            if let Some(dep_task) = all_tasks.iter().find(|t| &t.id == dep_id) {
-                if dep_task.status != TeamTaskStatus::Done {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!("Task {} has unmet dependencies", task_id),
-                    ));
-                }
+            if let Some(dep_task) = all_tasks.iter().find(|t| &t.id == dep_id)
+                && dep_task.status != TeamTaskStatus::Done
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Task {} has unmet dependencies", task_id),
+                ));
             }
         }
 
@@ -624,6 +624,47 @@ impl TeamStore {
     /// limit (`MAX_TASKS_PER_TEAMMATE`).
     pub fn is_teammate_available(&self, loop_id: &LoopId) -> bool {
         self.get_teammate_load(loop_id) < MAX_TASKS_PER_TEAMMATE
+    }
+
+    /// Suggests the best available task for a teammate to claim.
+    ///
+    /// Returns the task ID of the highest priority available task that the
+    /// teammate can claim, or `None` if:
+    /// - The teammate is not in any team
+    /// - The teammate is at max capacity (load >= MAX_TASKS_PER_TEAMMATE)
+    /// - There are no available tasks in the teammate's team
+    ///
+    /// Priority is determined by the task's `priority` field (1 = highest).
+    pub fn suggest_task_for_teammate(&self, loop_id: &LoopId) -> Option<String> {
+        // Check if teammate has capacity
+        if !self.is_teammate_available(loop_id) {
+            return None;
+        }
+
+        // Find the team this teammate belongs to
+        let team = self
+            .teams
+            .values()
+            .find(|t| t.teammates.contains(loop_id))?;
+
+        // Get available tasks for this team
+        let available_task_ids = self.get_available_tasks(&team.id);
+
+        // Find the highest priority available task
+        let mut best_task: Option<&TeamTask> = None;
+
+        for task_id in &available_task_ids {
+            if let Some(task) = self.tasks.get(task_id) {
+                // Compare priorities (lower number = higher priority)
+                best_task = Some(match best_task {
+                    None => task,
+                    Some(current_best) if task.priority < current_best.priority => task,
+                    Some(current_best) => current_best,
+                });
+            }
+        }
+
+        best_task.map(|t| t.id.clone())
     }
 }
 
@@ -994,5 +1035,122 @@ mod tests {
 
         // Teammate should NOT be available (6 == 6)
         assert!(!store.is_teammate_available(&"loop-123".to_string()));
+    }
+
+    #[test]
+    fn test_suggest_task_for_teammate_basic() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create tasks with different priorities
+        let task1 = TeamTask::new("Task 1 - Priority 3".to_string(), team_id.clone(), 3);
+        let _task1_id = store.create_team_task(task1);
+
+        let task2 = TeamTask::new("Task 2 - Priority 1".to_string(), team_id.clone(), 1);
+        let task2_id = store.create_team_task(task2);
+
+        let task3 = TeamTask::new("Task 3 - Priority 2".to_string(), team_id.clone(), 2);
+        let _task3_id = store.create_team_task(task3);
+
+        // Should suggest the highest priority task (priority 1 = task2)
+        let suggested = store.suggest_task_for_teammate(&"loop-123".to_string());
+        assert_eq!(suggested, Some(task2_id));
+    }
+
+    #[test]
+    fn test_suggest_task_for_teammate_respects_capacity() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create and claim 6 tasks (at capacity)
+        for i in 0..MAX_TASKS_PER_TEAMMATE {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store.claim_task(&task_id, "loop-123".to_string()).unwrap();
+        }
+
+        // Create additional available tasks
+        let extra_task = TeamTask::new("Extra Task".to_string(), team_id.clone(), 1);
+        store.create_team_task(extra_task);
+
+        // Should return None because teammate is at capacity
+        let suggested = store.suggest_task_for_teammate(&"loop-123".to_string());
+        assert_eq!(suggested, None);
+    }
+
+    #[test]
+    fn test_suggest_task_for_teammate_priority_ordering() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create tasks with mixed priorities
+        let task1 = TeamTask::new("Task P5".to_string(), team_id.clone(), 5);
+        let _task1_id = store.create_team_task(task1);
+
+        let task2 = TeamTask::new("Task P2".to_string(), team_id.clone(), 2);
+        let task2_id = store.create_team_task(task2);
+
+        let task3 = TeamTask::new("Task P4".to_string(), team_id.clone(), 4);
+        let _task3_id = store.create_team_task(task3);
+
+        let task4 = TeamTask::new("Task P1".to_string(), team_id.clone(), 1);
+        let task4_id = store.create_team_task(task4);
+
+        // Should suggest the highest priority task (priority 1)
+        let suggested = store.suggest_task_for_teammate(&"loop-123".to_string());
+        assert_eq!(suggested, Some(task4_id.clone()));
+
+        // Claim the P1 task
+        store.claim_task(&task4_id, "loop-123".to_string()).unwrap();
+
+        // Now should suggest the next highest priority (priority 2)
+        let suggested = store.suggest_task_for_teammate(&"loop-123".to_string());
+        assert_eq!(suggested, Some(task2_id));
+    }
+
+    #[test]
+    fn test_suggest_task_for_teammate_no_available_tasks() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create and claim all tasks
+        let task = TeamTask::new("Only Task".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store.claim_task(&task_id, "loop-123".to_string()).unwrap();
+
+        // Should return None because no tasks are available
+        let suggested = store.suggest_task_for_teammate(&"loop-123".to_string());
+        assert_eq!(suggested, None);
+    }
+
+    #[test]
+    fn test_suggest_task_for_teammate_not_in_team() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create tasks but don't add the teammate to the team
+        let task = TeamTask::new("Task".to_string(), team_id.clone(), 1);
+        store.create_team_task(task);
+
+        // Should return None because teammate is not in any team
+        let suggested = store.suggest_task_for_teammate(&"loop-123".to_string());
+        assert_eq!(suggested, None);
     }
 }

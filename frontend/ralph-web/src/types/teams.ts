@@ -56,6 +56,31 @@ export type TeamStatus =
   | "failed";
 
 /**
+ * Team task status
+ */
+export type TeamTaskStatus =
+  | "todo"
+  | "in_progress"
+  | "review"
+  | "done";
+
+/**
+ * Team task
+ */
+export interface TeamTask {
+  id: string;
+  teamId: string;
+  title: string;
+  description: string;
+  status: TeamTaskStatus;
+  assignedTo: string | null;
+  dependencies: string[];
+  createdAt: string;
+  claimedAt: string | null;
+  completedAt: string | null;
+}
+
+/**
  * Agent Team configuration
  */
 export interface AgentTeam {
@@ -187,4 +212,14 @@ export const TEAM_STATUS_COLORS: Record<TeamStatus, string> = {
   paused: "bg-yellow-500",
   completed: "bg-green-500",
   failed: "bg-red-500"
+};
+
+/**
+ * Task status colors for UI
+ */
+export const TASK_STATUS_COLORS: Record<TeamTaskStatus, string> = {
+  todo: "bg-gray-500",
+  in_progress: "bg-blue-500",
+  review: "bg-yellow-500",
+  done: "bg-green-500"
 };

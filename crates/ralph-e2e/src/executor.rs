@@ -59,7 +59,7 @@ impl ScenarioConfig {
             config_file: PathBuf::from("ralph.yml"),
             prompt: PromptSource::Inline(prompt.into()),
             max_iterations: 1,
-            timeout: Duration::from_secs(300), // 5 minutes - Claude iterations can take 60-120s
+            timeout: Duration::from_mins(5), // 5 minutes - Claude iterations can take 60-120s
             extra_args: vec![],
         }
     }

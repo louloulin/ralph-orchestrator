@@ -276,7 +276,6 @@ impl HandoffWriter {
     }
 }
 
-/// Truncates a prompt to a maximum length, adding ellipsis if needed.
 /// Uses UTF-8 safe truncation to avoid panics on multi-byte characters.
 fn truncate_prompt(prompt: &str, max_len: usize) -> String {
     let prompt = prompt.trim();
@@ -383,6 +382,38 @@ mod tests {
     }
 
     #[test]
+    fn test_truncate_prompt_multibyte_utf8() {
+        // The bug case: byte index 500 was inside '能' (bytes 499..502)
+        // Each Chinese character is 3 bytes in UTF-8
+        let chinese =
+            "分析PROMPT.md还是哪些功能没有实现写入todo23.md，分析lumosai的playground server和web";
+        assert!(chinese.len() > 50); // Verify we have enough bytes (102 bytes)
+
+        // This should NOT panic - it should truncate at a valid char boundary
+        let result = truncate_prompt(chinese, 50);
+
+        // Verify result is valid UTF-8 and truncated
+        assert!(result.is_char_boundary(result.len()));
+        assert!(result.ends_with("..."));
+        // Verify we truncated to a valid char boundary (48 bytes, not 50)
+        assert!(result.len() < 53); // 48 + 3 for "..."
+
+        // Test the exact case from the bug report - create a longer string that will actually truncate at 500 bytes
+        let long_chinese =
+            "分析PROMPT.md还是哪些功能没有实现写入todo23.md，分析lumosai的playground server和web";
+        let bug_prompt = long_chinese.repeat(5); // 102 bytes * 5 = 510 bytes
+        assert!(
+            bug_prompt.len() > 500,
+            "Prompt must be longer than 500 bytes to trigger truncation"
+        );
+
+        let result = truncate_prompt(&bug_prompt, 500);
+        // Verify no panic occurred and result is valid UTF-8
+        assert!(result.is_char_boundary(result.len() - 3)); // Before "..."
+        assert!(result.ends_with("..."));
+    }
+
+    #[test]
     fn test_truncate_prompt_with_emoji() {
         // "✅" is 3 bytes (indices 0, 1, 2)
         // truncate_prompt(prompt, 1) should safely slice at [..0]
@@ -403,32 +434,5 @@ mod tests {
         assert_eq!(truncate_prompt(prompt, 3), "x...");
         // truncate at 4 bytes should keep "x✅"
         assert_eq!(truncate_prompt(prompt, 4), "x✅...");
-    }
-
-    #[test]
-    fn test_truncate_prompt_multibyte_utf8() {
-        // The bug case: byte index 500 was inside '能' (bytes 499..502)
-        // Each Chinese character is 3 bytes in UTF-8
-        let chinese = "分析PROMPT.md还是哪些功能没有实现写入todo23.md，分析lumosai的playground server和web";
-        assert!(chinese.len() > 50); // Verify we have enough bytes (102 bytes)
-
-        // This should NOT panic - it should truncate at a valid char boundary
-        let result = truncate_prompt(chinese, 50);
-
-        // Verify result is valid UTF-8 and truncated
-        assert!(result.is_char_boundary(result.len()));
-        assert!(result.ends_with("..."));
-        // Verify we truncated to a valid char boundary (48 bytes, not 50)
-        assert!(result.len() < 53); // 48 + 3 for "..."
-
-        // Test the exact case from the bug report - create a longer string that will actually truncate at 500 bytes
-        let long_chinese = "分析PROMPT.md还是哪些功能没有实现写入todo23.md，分析lumosai的playground server和web";
-        let bug_prompt = long_chinese.repeat(5); // 102 bytes * 5 = 510 bytes
-        assert!(bug_prompt.len() > 500, "Prompt must be longer than 500 bytes to trigger truncation");
-
-        let result = truncate_prompt(&bug_prompt, 500);
-        // Verify no panic occurred and result is valid UTF-8
-        assert!(result.is_char_boundary(result.len() - 3)); // Before "..."
-        assert!(result.ends_with("..."));
     }
 }

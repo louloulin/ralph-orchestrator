@@ -4,7 +4,7 @@
 //! for converting loop state to/from checkpoint-serializable format.
 
 use crate::checkpoint::{CheckpointState, SerializableLoopState};
-use crate::{Memory, MemoryType, Task};
+use crate::{Memory, Task};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -99,7 +99,8 @@ pub trait StateSerializer: Send + Sync {
     ///
     /// # Arguments
     /// * `paths` - File paths to hash (relative to workspace root)
-    fn compute_file_hashes(&self, paths: &[String]) -> SerializationResult<HashMap<String, String>>;
+    fn compute_file_hashes(&self, paths: &[String])
+    -> SerializationResult<HashMap<String, String>>;
 }
 
 /// Default implementation of state serializer.
@@ -138,7 +139,11 @@ impl DefaultStateSerializer {
     }
 
     /// Filters out empty memories if configured.
-    fn filter_memories(&self, memories: Vec<Memory>, options: &SerializationOptions) -> Vec<Memory> {
+    fn filter_memories(
+        &self,
+        memories: Vec<Memory>,
+        options: &SerializationOptions,
+    ) -> Vec<Memory> {
         if options.include_empty_entries {
             return memories;
         }
@@ -161,9 +166,7 @@ impl DefaultStateSerializer {
         let full_path = self.workspace_root.join(path);
 
         if !full_path.exists() {
-            return Err(SerializationError::FileNotFound(
-                path.display().to_string(),
-            ));
+            return Err(SerializationError::FileNotFound(path.display().to_string()));
         }
 
         let content = std::fs::read_to_string(&full_path)?;
@@ -253,6 +256,7 @@ pub fn create_serializer(workspace_root: &Path) -> DefaultStateSerializer {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::MemoryType;
     use tempfile::TempDir;
 
     #[test]
@@ -301,7 +305,7 @@ mod tests {
 
         let memories = vec![
             Memory::new(MemoryType::Pattern, "Has content".to_string(), vec![]),
-            Memory::new(MemoryType::Pattern, "".to_string(), vec![]),
+            Memory::new(MemoryType::Pattern, String::new(), vec![]),
             Memory::new(MemoryType::Pattern, "Also has content".to_string(), vec![]),
         ];
 
@@ -321,7 +325,7 @@ mod tests {
 
         let tasks = vec![
             Task::new("Valid task".to_string(), 1),
-            Task::new("".to_string(), 2),
+            Task::new(String::new(), 2),
             Task::new("Another valid".to_string(), 3),
         ];
 

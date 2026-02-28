@@ -22,6 +22,7 @@ const TeamsPage = lazy(() => import("./pages/TeamsPage").then(m => ({ default: m
 const CheckpointsPage = lazy(() => import("./pages/CheckpointsPage").then(m => ({ default: m.default })));
 const HealingPage = lazy(() => import("./pages/HealingPage").then(m => ({ default: m.HealingPage })));
 const ProjectsPage = lazy(() => import("./pages/ProjectsPage").then(m => ({ default: m.ProjectsPage })));
+const SessionsPage = lazy(() => import("./pages/SessionsPage").then(m => ({ default: m.SessionsPage })));
 
 /**
  * Wrapper component for lazy-loaded routes with Suspense
@@ -47,6 +48,7 @@ export function App() {
         <Route path="/checkpoints" element={<LazyPage><CheckpointsPage /></LazyPage>} />
         <Route path="/healing" element={<LazyPage><HealingPage /></LazyPage>} />
         <Route path="/projects" element={<LazyPage><ProjectsPage /></LazyPage>} />
+        <Route path="/sessions" element={<LazyPage><SessionsPage /></LazyPage>} />
         <Route path="/teams" element={<LazyPage><TeamsPage /></LazyPage>} />
         {/* Redirect root to chat */}
         <Route path="/" element={<Navigate to="/chat" replace />} />

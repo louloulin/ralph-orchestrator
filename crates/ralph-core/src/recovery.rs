@@ -111,37 +111,25 @@ pub struct RecoveryEvent {
 #[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum RecoveryEventType {
     /// Recovery started.
-    Started {
-        checkpoint_id: String,
-    },
+    Started { checkpoint_id: String },
 
     /// State validated.
     StateValidated,
 
     /// Files restored.
-    FilesRestored {
-        count: usize,
-    },
+    FilesRestored { count: usize },
 
     /// Memories restored.
-    MemoriesRestored {
-        count: usize,
-    },
+    MemoriesRestored { count: usize },
 
     /// Tasks restored.
-    TasksRestored {
-        count: usize,
-    },
+    TasksRestored { count: usize },
 
     /// Recovery completed.
-    Completed {
-        status: RecoveryStatus,
-    },
+    Completed { status: RecoveryStatus },
 
     /// Recovery failed.
-    Failed {
-        reason: String,
-    },
+    Failed { reason: String },
 }
 
 /// Information about a recovered loop.
@@ -237,10 +225,7 @@ impl DefaultRecoveryManager {
     }
 
     /// Validates file hashes from a checkpoint.
-    fn validate_file_hashes(
-        &self,
-        file_hashes: &HashMap<String, String>,
-    ) -> Vec<String> {
+    fn validate_file_hashes(&self, file_hashes: &HashMap<String, String>) -> Vec<String> {
         let mut warnings = Vec::new();
 
         for (path, expected_hash) in file_hashes {
@@ -288,13 +273,14 @@ impl DefaultRecoveryManager {
 
         // Check for abandoned tasks that are still open
         for abandoned in &checkpoint.state.loop_state.abandoned_tasks {
-            if let Some(task) = checkpoint.state.tasks.iter().find(|t| t.id == *abandoned) {
-                if task.status == crate::TaskStatus::Open || task.status == crate::TaskStatus::InProgress {
-                    warnings.push(format!(
-                        "Abandoned task {} is still marked as {:?}",
-                        abandoned, task.status
-                    ));
-                }
+            if let Some(task) = checkpoint.state.tasks.iter().find(|t| t.id == *abandoned)
+                && (task.status == crate::TaskStatus::Open
+                    || task.status == crate::TaskStatus::InProgress)
+            {
+                warnings.push(format!(
+                    "Abandoned task {} is still marked as {:?}",
+                    abandoned, task.status
+                ));
             }
         }
 
@@ -516,9 +502,11 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = DefaultRecoveryManager::new(temp_dir.path());
 
-        let checkpoints = vec![
-            create_test_checkpoint("other-loop", 1, crate::checkpoint::CheckpointType::Interval),
-        ];
+        let checkpoints = vec![create_test_checkpoint(
+            "other-loop",
+            1,
+            crate::checkpoint::CheckpointType::Interval,
+        )];
 
         let best = manager.select_best_checkpoint(&checkpoints, "loop-test");
         assert!(best.is_none());
@@ -529,7 +517,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = DefaultRecoveryManager::new(temp_dir.path());
 
-        let checkpoint = create_test_checkpoint("loop-test", 5, crate::checkpoint::CheckpointType::Interval);
+        let checkpoint =
+            create_test_checkpoint("loop-test", 5, crate::checkpoint::CheckpointType::Interval);
 
         let warnings = manager
             .validate_checkpoint(&checkpoint, &RecoveryOptions::default())
@@ -544,7 +533,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = DefaultRecoveryManager::new(temp_dir.path());
 
-        let checkpoint = create_test_checkpoint("loop-test", 5, crate::checkpoint::CheckpointType::Interval);
+        let checkpoint =
+            create_test_checkpoint("loop-test", 5, crate::checkpoint::CheckpointType::Interval);
 
         let options = RecoveryOptions {
             allow_partial: true,
@@ -565,7 +555,8 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         let manager = DefaultRecoveryManager::new(temp_dir.path());
 
-        let checkpoint = create_test_checkpoint("loop-test", 5, crate::checkpoint::CheckpointType::Interval);
+        let checkpoint =
+            create_test_checkpoint("loop-test", 5, crate::checkpoint::CheckpointType::Interval);
 
         let options = RecoveryOptions {
             allow_partial: false,
@@ -610,7 +601,7 @@ mod tests {
         checkpoint_type: crate::checkpoint::CheckpointType,
     ) -> LoopCheckpoint {
         LoopCheckpoint {
-            id: format!("cp-20260225-100000"),
+            id: "cp-20260225-100000".to_string(),
             loop_id: loop_id.to_string(),
             created_at: Utc::now(),
             iteration,

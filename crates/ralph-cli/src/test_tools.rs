@@ -107,7 +107,9 @@ pub struct SetupResult {
 
 /// Execute test setup command.
 pub fn execute_setup(args: SetupArgs) -> Result<SetupResult> {
-    let base_path = args.base_path.unwrap_or_else(|| DEFAULT_TEST_BASE.to_string());
+    let base_path = args
+        .base_path
+        .unwrap_or_else(|| DEFAULT_TEST_BASE.to_string());
     let manager = WorkspaceManager::new(&base_path);
 
     // Create workspace directory
@@ -127,8 +129,7 @@ pub fn execute_setup(args: SetupArgs) -> Result<SetupResult> {
         let scratchpad_path = agent_dir.join("scratchpad.md");
         // Allow both literal "\n" and actual newlines for convenience
         let content = scratchpad_content.replace("\\n", "\n");
-        fs::write(&scratchpad_path, content)
-            .context("Failed to write scratchpad")?;
+        fs::write(&scratchpad_path, content).context("Failed to write scratchpad")?;
         created_files.push(".agent/scratchpad.md".to_string());
     }
 
@@ -213,7 +214,9 @@ pub async fn execute_run(args: RunArgs) -> Result<RunResult> {
     use std::time::Duration;
     use tokio::time::Instant;
 
-    let base_path = args.base_path.unwrap_or_else(|| DEFAULT_TEST_BASE.to_string());
+    let base_path = args
+        .base_path
+        .unwrap_or_else(|| DEFAULT_TEST_BASE.to_string());
     let manager = WorkspaceManager::new(&base_path);
 
     let workspace_path = manager.workspace_path(&args.workspace_id);
@@ -224,10 +227,7 @@ pub async fn execute_run(args: RunArgs) -> Result<RunResult> {
     // Create a minimal ralph.yml if it doesn't exist
     let config_path = workspace_path.join("ralph.yml");
     if !config_path.exists() {
-        let default_config = format!(
-            "cli:\n  backend: {}\n  max_iterations: 1\n",
-            args.backend
-        );
+        let default_config = format!("cli:\n  backend: {}\n  max_iterations: 1\n", args.backend);
         std::fs::write(&config_path, default_config)?;
     }
 
@@ -250,12 +250,17 @@ pub async fn execute_run(args: RunArgs) -> Result<RunResult> {
 
     match result {
         Ok(exec_result) => {
-            let session_file = workspace_path.join("session.jsonl").to_string_lossy().to_string();
+            let session_file = workspace_path
+                .join("session.jsonl")
+                .to_string_lossy()
+                .to_string();
             let events_count = exec_result.events.len();
 
             Ok(RunResult {
                 exit_code: exec_result.exit_code.unwrap_or(-1),
-                termination_reason: exec_result.termination_reason.unwrap_or_else(|| "Unknown".to_string()),
+                termination_reason: exec_result
+                    .termination_reason
+                    .unwrap_or_else(|| "Unknown".to_string()),
                 iterations: exec_result.iterations,
                 elapsed_secs: elapsed,
                 session_file,
@@ -266,7 +271,10 @@ pub async fn execute_run(args: RunArgs) -> Result<RunResult> {
         }
         Err(e) => {
             // Return partial result on error
-            let session_file = workspace_path.join("session.jsonl").to_string_lossy().to_string();
+            let session_file = workspace_path
+                .join("session.jsonl")
+                .to_string_lossy()
+                .to_string();
             let events_count = std::fs::read_to_string(&session_file)
                 .map(|s| s.lines().count())
                 .unwrap_or(0);
@@ -529,7 +537,9 @@ pub async fn execute(args: TestToolsArgs) -> Result<()> {
 }
 
 fn execute_cleanup(args: CleanupArgs) -> Result<CleanupResult> {
-    let base_path = args.base_path.unwrap_or_else(|| DEFAULT_TEST_BASE.to_string());
+    let base_path = args
+        .base_path
+        .unwrap_or_else(|| DEFAULT_TEST_BASE.to_string());
     let manager = WorkspaceManager::new(&base_path);
 
     let workspace_path = manager.workspace_path(&args.workspace_id);
@@ -539,7 +549,9 @@ fn execute_cleanup(args: CleanupArgs) -> Result<CleanupResult> {
     if args.preserve_session {
         let session_file = workspace_path.join("session.jsonl");
         if session_file.exists() {
-            let temp_path = std::env::temp_dir().join("ralph-test").join(&args.workspace_id);
+            let temp_path = std::env::temp_dir()
+                .join("ralph-test")
+                .join(&args.workspace_id);
             fs::create_dir_all(&temp_path)?;
             let preserved = temp_path.join("session.jsonl");
             fs::copy(&session_file, &preserved)?;

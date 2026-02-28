@@ -53,7 +53,10 @@ fn main() {
                         return;
                     }
                     Err(e) => {
-                        println!("cargo:warning=npm install error: {}, skipping frontend build", e);
+                        println!(
+                            "cargo:warning=npm install error: {}, skipping frontend build",
+                            e
+                        );
                         return;
                     }
                 }
@@ -71,10 +74,15 @@ fn main() {
                     println!("cargo:warning=Frontend built successfully");
                 }
                 Ok(_) => {
-                    println!("cargo:warning=Frontend build failed, continuing without embedded assets");
+                    println!(
+                        "cargo:warning=Frontend build failed, continuing without embedded assets"
+                    );
                 }
                 Err(e) => {
-                    println!("cargo:warning=Failed to run npm build: {}, continuing without embedded assets", e);
+                    println!(
+                        "cargo:warning=Failed to run npm build: {}, continuing without embedded assets",
+                        e
+                    );
                 }
             }
         } else {
@@ -125,14 +133,22 @@ fn main() {
                             }
                         }
                     } else {
-                        println!("cargo:warning=Frontend dist not found at {:?}", frontend_dist);
+                        println!(
+                            "cargo:warning=Frontend dist not found at {:?}",
+                            frontend_dist
+                        );
                     }
                 }
                 Ok(_) => {
-                    println!("cargo:warning=Backend bundle build failed, continuing without embedded backend");
+                    println!(
+                        "cargo:warning=Backend bundle build failed, continuing without embedded backend"
+                    );
                 }
                 Err(e) => {
-                    println!("cargo:warning=Failed to run bun build: {}, continuing without embedded backend", e);
+                    println!(
+                        "cargo:warning=Failed to run bun build: {}, continuing without embedded backend",
+                        e
+                    );
                 }
             }
         } else {

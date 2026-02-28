@@ -35,6 +35,7 @@ mod task_cli;
 mod test_tools;
 #[cfg(test)]
 mod test_support;
+mod test_tools;
 mod tools;
 mod web;
 #[cfg(feature = "embedded-web")]

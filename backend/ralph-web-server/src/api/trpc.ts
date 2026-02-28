@@ -2463,6 +2463,142 @@ export const skillsRouter = router({
 });
 
 /**
+ * Session router - operations for managing conversation sessions (P1-1, P1-2)
+ * Provides API endpoints for multi-turn conversation sessions.
+ */
+export const sessionRouter = router({
+  /**
+   * List all sessions (metadata only)
+   */
+  list: publicProcedure
+    .input(
+      z.object({
+        cwd: z.string().optional(),
+        status: z.enum(["active", "archived", "completed"]).optional(),
+      }).optional()
+    )
+    .query(async ({ input }) => {
+      const cwd = input?.cwd || process.cwd();
+      const sessionService = (await import("../services/SessionService")).createSessionService(cwd);
+      let sessions = await sessionService.list();
+
+      // Filter by status if provided
+      if (input?.status) {
+        sessions = sessions.filter((s) => s.status === input.status);
+      }
+
+      return sessions;
+    }),
+
+  /**
+   * Get a single session by ID (metadata only)
+   */
+  getMeta: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const sessionService = (await import("../services/SessionService")).createSessionService(cwd);
+      return await sessionService.getMeta(input.id);
+    }),
+
+  /**
+   * Get a single session with full data (including messages)
+   */
+  get: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const sessionService = (await import("../services/SessionService")).createSessionService(cwd);
+      return await sessionService.load(input.id);
+    }),
+
+  /**
+   * Create a new session
+   */
+  create: publicProcedure
+    .input(
+      z.object({
+        name: z.string().min(1),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const sessionService = (await import("../services/SessionService")).createSessionService(cwd);
+      return await sessionService.create(input.name);
+    }),
+
+  /**
+   * Update session metadata
+   */
+  update: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        name: z.string().min(1).optional(),
+        status: z.enum(["active", "archived", "completed"]).optional(),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const sessionService = (await import("../services/SessionService")).createSessionService(cwd);
+      return await sessionService.update(input.id, input.name, input.status);
+    }),
+
+  /**
+   * Delete a session
+   */
+  delete: publicProcedure
+    .input(
+      z.object({
+        id: z.string(),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const sessionService = (await import("../services/SessionService")).createSessionService(cwd);
+      const deleted = await sessionService.delete(input.id);
+      if (!deleted) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Session with id '${input.id}' not found`,
+        });
+      }
+      return { success: true };
+    }),
+
+  /**
+   * Append a message to a session
+   */
+  appendMessage: publicProcedure
+    .input(
+      z.object({
+        sessionId: z.string(),
+        role: z.enum(["user", "assistant", "system"]),
+        content: z.string().min(1),
+        cwd: z.string().optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const cwd = input.cwd || process.cwd();
+      const sessionService = (await import("../services/SessionService")).createSessionService(cwd);
+      return await sessionService.append(input.sessionId, input.role, input.content);
+    }),
+});
+
+/**
  * Main app router combining all sub-routers
  */
 export const appRouter = router({
@@ -2480,6 +2616,7 @@ export const appRouter = router({
   monitoring: monitoringRouter,
   healing: healingRouter,
   skills: skillsRouter,
+  session: sessionRouter,
   planning: router({
     /**
      * List all planning sessions.

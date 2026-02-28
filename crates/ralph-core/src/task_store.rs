@@ -15,6 +15,7 @@
 //! `with_exclusive_lock()` for read-modify-write operations that need atomicity.
 
 use crate::file_lock::FileLock;
+use crate::memory::semantic::{RankOptions, SemanticRanker};
 use crate::task::{Task, TaskStatus};
 use std::io;
 use std::path::Path;
@@ -316,6 +317,62 @@ impl TaskStore {
     /// Use this when you need to check if there's active work remaining.
     pub fn has_pending_tasks(&self) -> bool {
         self.tasks.iter().any(|t| !t.status.is_terminal())
+    }
+
+    /// Searches tasks using semantic ranking.
+    ///
+    /// This method uses LLM-based semantic ranking to find the most relevant
+    /// tasks for a given query. It combines task title and description for
+    /// semantic matching.
+    ///
+    /// # Arguments
+    /// * `query` - Search query
+    /// * `options` - Ranking options (method, limit, min_score)
+    ///
+    /// # Returns
+    /// Tasks sorted by semantic relevance to the query
+    ///
+    /// # Errors
+    /// Returns error if LLM ranking fails and no fallback is available
+    pub async fn search(
+        &self,
+        query: &str,
+        options: &RankOptions,
+    ) -> Result<Vec<&Task>, crate::memory::semantic::RankError> {
+        use crate::memory::Memory;
+
+        // Convert tasks to memory-like format for ranking
+        let task_memories: Vec<Memory> = self
+            .tasks
+            .iter()
+            .map(|task| {
+                let content = match &task.description {
+                    Some(desc) => format!("{}: {}", task.title, desc),
+                    None => task.title.clone(),
+                };
+                Memory {
+                    id: task.id.clone(),
+                    memory_type: crate::memory::MemoryType::Context,
+                    content,
+                    tags: vec![],
+                    created: String::new(),
+                }
+            })
+            .collect();
+
+        // Use SemanticRanker to rank
+        let ranker = SemanticRanker::new();
+        let ranked = ranker.rank(query, &task_memories, options).await?;
+
+        // Extract tasks in ranked order
+        let mut result = Vec::with_capacity(ranked.len());
+        for ranked_item in ranked {
+            if let Some(task) = self.tasks.iter().find(|t| t.id == ranked_item.memory.id) {
+                result.push(task);
+            }
+        }
+
+        Ok(result)
     }
 }
 
@@ -629,5 +686,58 @@ mod tests {
         let loaded = TaskStore::load(&path).unwrap();
         assert_eq!(loaded.all().len(), 1);
         assert_eq!(loaded.all()[0].title, "Valid task");
+    }
+
+    #[tokio::test]
+    async fn test_semantic_search() {
+        use crate::memory::semantic::RankOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("tasks.jsonl");
+
+        let mut store = TaskStore::load(&path).unwrap();
+
+        // Add some tasks
+        let task1 = Task::new("Fix authentication bug".to_string(), 1);
+        let task2 = Task::new("Add unit tests for user service".to_string(), 2);
+        let task3 = Task::new("Update documentation".to_string(), 3);
+
+        store.add(task1);
+        store.add(task2);
+        store.add(task3);
+
+        // Search for "testing" - should rank task2 highest
+        let options = RankOptions::default().use_heuristic();
+        let results = store.search("unit testing", &options).await.unwrap();
+
+        assert!(!results.is_empty());
+        // The testing-related task should be ranked higher
+        assert!(results[0].title.contains("tests") || results[0].title.contains("testing"));
+    }
+
+    #[tokio::test]
+    async fn test_semantic_search_with_limit() {
+        use crate::memory::semantic::RankOptions;
+
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().join("tasks.jsonl");
+
+        let mut store = TaskStore::load(&path).unwrap();
+
+        // Add multiple tasks
+        for i in 0..10 {
+            let task = Task::new(format!("Task {}", i), 1);
+            store.add(task);
+        }
+
+        // Search with limit - use RankOptions::default() and modify it
+        let mut options = RankOptions::default();
+        options.limit = Some(3);
+        options.min_score = 0.0; // Allow all scores
+
+        let results = store.search("task", &options).await.unwrap();
+
+        // Should respect the limit
+        assert_eq!(results.len(), 3);
     }
 }

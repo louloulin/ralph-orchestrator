@@ -11,10 +11,10 @@
 //! - Benchmark task definitions and workspace isolation
 //! - Checkpoint system for state persistence and crash recovery
 
-#[cfg(feature = "recording")]
-mod cli_capture;
 pub mod checkpoint;
 mod checkpoint_manager;
+#[cfg(feature = "recording")]
+mod cli_capture;
 mod config;
 pub mod diagnostics;
 mod event_logger;
@@ -35,20 +35,22 @@ pub mod loop_history;
 pub mod loop_lock;
 mod loop_name;
 pub mod loop_registry;
-mod memory;
+pub mod memory;
+pub mod memory_index;
 pub mod memory_parser;
 mod memory_store;
 pub mod merge_queue;
 pub mod planning_session;
 pub mod preflight;
 mod recovery;
-mod state_serializer;
+mod session;
 #[cfg(feature = "recording")]
 mod session_player;
 #[cfg(feature = "recording")]
 mod session_recorder;
 pub mod skill;
 pub mod skill_registry;
+mod state_serializer;
 mod summary_writer;
 pub mod task;
 pub mod task_definition;
@@ -97,7 +99,9 @@ pub use loop_history::{HistoryError, HistoryEvent, HistoryEventType, HistorySumm
 pub use loop_lock::{LockError, LockGuard, LockMetadata, LoopLock};
 pub use loop_name::{LoopNameGenerator, LoopNamingConfig};
 pub use loop_registry::{LoopEntry, LoopRegistry, RegistryError};
+pub use memory::semantic::{RankError, RankOptions, RankedMemory, RelevanceScore, SemanticRanker};
 pub use memory::{Memory, MemoryType};
+pub use memory_index::{InvertedIndex, MemoryId, SearchOptions, TfidfScore};
 pub use memory_store::{
     DEFAULT_MEMORIES_PATH, MarkdownMemoryStore, format_memories_as_markdown, truncate_to_budget,
 };
@@ -134,13 +138,17 @@ pub use checkpoint::{
 pub use checkpoint_manager::{CheckpointError, CheckpointManager, CheckpointResult};
 // Recovery and serialization exports
 pub use recovery::{
-    create_recovery_manager, DefaultRecoveryManager, RecoveryError, RecoveryEvent,
-    RecoveryEventType, RecoveryManager, RecoveryOptions, RecoveredLoop,
-    RecoveryStatus, restore_result_to_recovered,
+    DefaultRecoveryManager, RecoveredLoop, RecoveryError, RecoveryEvent, RecoveryEventType,
+    RecoveryManager, RecoveryOptions, RecoveryStatus, create_recovery_manager,
+    restore_result_to_recovered,
 };
+pub use session::compress::{
+    CompressedSummary, CompressionConfig, CompressionResult, SessionCompressor,
+};
+pub use session::{ConversationStatus, Session, SessionManager, SessionMessage, SessionMeta};
 pub use state_serializer::{
-    create_serializer, DefaultStateSerializer, SerializationError, SerializationOptions,
-    SerializationResult, StateSerializer,
+    DefaultStateSerializer, SerializationError, SerializationOptions, SerializationResult,
+    StateSerializer, create_serializer,
 };
 pub use text::{floor_char_boundary, truncate_by_bytes, truncate_with_ellipsis};
 pub use workspace::{

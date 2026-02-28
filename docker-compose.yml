@@ -40,34 +40,16 @@ services:
     networks:
       - ralph-network
     restart: unless-stopped
-    command: 
+    command:
       - "--agent=${RALPH_AGENT:-auto}"
       - "--prompt=/workspace/PROMPT.md"
       - "--verbose"
-    depends_on:
-      - redis
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  # Redis for caching and state management
-  redis:
-    image: redis:7-alpine
-    container_name: ralph-redis
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
-    networks:
-      - ralph-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   # PostgreSQL for persistent storage (optional)
   postgres:
@@ -118,7 +100,6 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin123}
-      - GF_INSTALL_PLUGINS=redis-datasource
     volumes:
       - grafana-data:/var/lib/grafana
       - ./monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
@@ -152,8 +133,6 @@ volumes:
   ralph-agent:
     driver: local
   ralph-cache:
-    driver: local
-  redis-data:
     driver: local
   postgres-data:
     driver: local

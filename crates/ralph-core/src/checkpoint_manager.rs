@@ -83,7 +83,7 @@ impl CheckpointManager {
         // Ensure checkpoints directory exists
         fs::create_dir_all(&checkpoints_dir)?;
 
-        let index_lock = FileLock::new(&checkpoints_dir.join("index.lock"))
+        let index_lock = FileLock::new(checkpoints_dir.join("index.lock"))
             .map_err(|e| CheckpointError::Lock(e.to_string()))?;
 
         Ok(Self {
@@ -136,12 +136,8 @@ impl CheckpointManager {
             file_hashes: HashMap::new(),
         };
 
-        let mut checkpoint = LoopCheckpoint::new(
-            loop_id.to_string(),
-            iteration,
-            checkpoint_type,
-            state,
-        );
+        let mut checkpoint =
+            LoopCheckpoint::new(loop_id.to_string(), iteration, checkpoint_type, state);
 
         // Serialize to JSON
         let json = serde_json::to_vec_pretty(&checkpoint)?;
@@ -168,11 +164,7 @@ impl CheckpointManager {
     }
 
     /// Saves a checkpoint to disk.
-    fn save_checkpoint(
-        &self,
-        checkpoint: &LoopCheckpoint,
-        json: &[u8],
-    ) -> CheckpointResult<()> {
+    fn save_checkpoint(&self, checkpoint: &LoopCheckpoint, json: &[u8]) -> CheckpointResult<()> {
         let loop_dir = self.checkpoints_dir.join(&checkpoint.loop_id);
         fs::create_dir_all(&loop_dir)?;
 
@@ -189,8 +181,8 @@ impl CheckpointManager {
         if checkpoint.compressed {
             #[cfg(feature = "checkpoint-compression")]
             {
-                use flate2::write::GzEncoder;
                 use flate2::Compression;
+                use flate2::write::GzEncoder;
                 let mut encoder = GzEncoder::new(writer, Compression::default());
                 encoder.write_all(json)?;
                 encoder.finish()?;
@@ -330,7 +322,7 @@ impl CheckpointManager {
         let mut warnings = Vec::new();
 
         // Check for missing files referenced in file_hashes
-        for (file_path, _hash) in &checkpoint.state.file_hashes {
+        for file_path in checkpoint.state.file_hashes.keys() {
             if !Path::new(file_path).exists() {
                 warnings.push(format!("Referenced file no longer exists: {}", file_path));
             }
@@ -383,9 +375,7 @@ impl CheckpointManager {
 
         // Remove checkpoints beyond max_checkpoints
         if checkpoints.len() > self.config.max_checkpoints {
-            let to_remove: Vec<_> = checkpoints
-                .drain(self.config.max_checkpoints..)
-                .collect();
+            let to_remove: Vec<_> = checkpoints.drain(self.config.max_checkpoints..).collect();
 
             let mut index = self.read_index()?;
 
@@ -408,9 +398,7 @@ impl CheckpointManager {
         let to_remove: Vec<_> = index
             .checkpoints
             .iter()
-            .filter(|m| {
-                m.loop_id == loop_id && now.signed_duration_since(m.created_at) > max_age
-            })
+            .filter(|m| m.loop_id == loop_id && now.signed_duration_since(m.created_at) > max_age)
             .map(|m| m.id.clone())
             .collect();
 
@@ -647,10 +635,7 @@ mod tests {
         assert_eq!(loaded.id, checkpoint.id);
         assert_eq!(loaded.state.iteration, 5);
         assert_eq!(loaded.state.memories.len(), 1);
-        assert_eq!(
-            loaded.state.last_prompt,
-            Some("Test prompt".to_string())
-        );
+        assert_eq!(loaded.state.last_prompt, Some("Test prompt".to_string()));
     }
 
     #[test]
@@ -658,7 +643,7 @@ mod tests {
         let (_temp, manager) = create_test_manager();
 
         let loop_state = SerializableLoopState {
-            iteration: 1,  // Match the checkpoint iteration
+            iteration: 1, // Match the checkpoint iteration
             ..Default::default()
         };
         let checkpoint = manager
@@ -677,7 +662,11 @@ mod tests {
 
         assert!(result.success);
         assert_eq!(result.checkpoint.id, checkpoint.id);
-        assert!(result.warnings.is_empty(), "Warnings: {:?}", result.warnings);
+        assert!(
+            result.warnings.is_empty(),
+            "Warnings: {:?}",
+            result.warnings
+        );
     }
 
     #[test]

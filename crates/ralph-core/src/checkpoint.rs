@@ -30,8 +30,10 @@ use std::collections::{HashMap, HashSet};
 /// Why a checkpoint was created.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(Default)]
 pub enum CheckpointType {
     /// Periodic checkpoint at configured intervals.
+    #[default]
     Interval,
     /// Before starting a new task.
     PreTask,
@@ -43,11 +45,6 @@ pub enum CheckpointType {
     PreRestart,
 }
 
-impl Default for CheckpointType {
-    fn default() -> Self {
-        Self::Interval
-    }
-}
 
 /// Configuration for checkpoint behavior.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -367,15 +364,16 @@ impl LoopCheckpoint {
     /// Format: `cp-{YYYYMMDD}-{HHMMSS}`
     pub fn generate_id() -> String {
         let now = Utc::now();
-        format!(
-            "cp-{}-{}",
-            now.format("%Y%m%d"),
-            now.format("%H%M%S")
-        )
+        format!("cp-{}-{}", now.format("%Y%m%d"), now.format("%H%M%S"))
     }
 
     /// Creates a new checkpoint with the given loop ID and state.
-    pub fn new(loop_id: String, iteration: u32, checkpoint_type: CheckpointType, state: CheckpointState) -> Self {
+    pub fn new(
+        loop_id: String,
+        iteration: u32,
+        checkpoint_type: CheckpointType,
+        state: CheckpointState,
+    ) -> Self {
         Self {
             id: Self::generate_id(),
             loop_id,
@@ -514,12 +512,8 @@ mod tests {
             file_hashes: HashMap::new(),
         };
 
-        let checkpoint = LoopCheckpoint::new(
-            "loop-test".to_string(),
-            5,
-            CheckpointType::Interval,
-            state,
-        );
+        let checkpoint =
+            LoopCheckpoint::new("loop-test".to_string(), 5, CheckpointType::Interval, state);
 
         assert!(checkpoint.id.starts_with("cp-"));
         assert_eq!(checkpoint.loop_id, "loop-test");

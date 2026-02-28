@@ -366,7 +366,7 @@ impl FileReservation {
         if parts.len() > 2 {
             // Handle patterns like *test*.rs
             let mut idx = 0;
-            for (i, part) in parts.iter().enumerate() {
+            for (_i, part) in parts.iter().enumerate() {
                 if part.is_empty() {
                     continue;
                 }
@@ -380,27 +380,6 @@ impl FileReservation {
         }
 
         pattern == segment
-    }
-
-    fn match_segments(pattern: &[&str], path: &[&str]) -> bool {
-        if pattern.len() > path.len() {
-            return false;
-        }
-
-        for (i, p) in pattern.iter().enumerate() {
-            match *p {
-                "**" => return true,
-                "*" => {
-                    if i >= path.len() {
-                        return false;
-                    }
-                }
-                _ if *p != path[i] => return false,
-                _ => {}
-            }
-        }
-
-        true
     }
 }
 
@@ -482,8 +461,10 @@ impl ConflictWarning {
 pub struct TeamStore {
     teams_path: std::path::PathBuf,
     tasks_path: std::path::PathBuf,
+    reservations_path: std::path::PathBuf,
     teams: HashMap<String, Team>,
     tasks: HashMap<String, TeamTask>,
+    reservations: HashMap<String, FileReservation>,
     lock: FileLock,
 }
 
@@ -497,6 +478,7 @@ impl TeamStore {
     pub fn load(base_path: &Path) -> io::Result<Self> {
         let teams_path = base_path.join("teams.jsonl");
         let tasks_path = base_path.join("team_tasks.jsonl");
+        let reservations_path = base_path.join("file_reservations.jsonl");
 
         // Use lock file for coordination
         let lock_path = base_path.join("team_store.lock");
@@ -505,12 +487,15 @@ impl TeamStore {
 
         let teams = Self::load_teams_from_file(&teams_path)?;
         let tasks = Self::load_tasks_from_file(&tasks_path)?;
+        let reservations = Self::load_reservations_from_file(&reservations_path)?;
 
         Ok(Self {
             teams_path,
             tasks_path,
+            reservations_path,
             teams,
             tasks,
+            reservations,
             lock,
         })
     }
@@ -567,6 +552,32 @@ impl TeamStore {
         Ok(tasks)
     }
 
+    fn load_reservations_from_file(path: &Path) -> io::Result<HashMap<String, FileReservation>> {
+        if !path.exists() {
+            return Ok(HashMap::new());
+        }
+
+        let content = std::fs::read_to_string(path)?;
+        let mut reservations = HashMap::new();
+
+        for line in content.lines().filter(|l| !l.trim().is_empty()) {
+            match serde_json::from_str::<FileReservation>(line) {
+                Ok(reservation) => {
+                    reservations.insert(reservation.task_id.clone(), reservation);
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        line = line.chars().take(200).collect::<String>(),
+                        "Skipping malformed reservation line in JSONL"
+                    );
+                }
+            }
+        }
+
+        Ok(reservations)
+    }
+
     /// Saves all teams and tasks to their respective JSONL files.
     ///
     /// Creates parent directories if they don't exist.
@@ -607,6 +618,22 @@ impl TeamStore {
                 String::new()
             } else {
                 tasks_content + "\n"
+            },
+        )?;
+
+        // Save reservations
+        let reservations_content: String = self
+            .reservations
+            .values()
+            .map(|r| serde_json::to_string(r))
+            .collect::<Result<Vec<_>, _>>()?
+            .join("\n");
+        std::fs::write(
+            &self.reservations_path,
+            if reservations_content.is_empty() {
+                String::new()
+            } else {
+                reservations_content + "\n"
             },
         )?;
 
@@ -918,6 +945,94 @@ impl TeamStore {
         }
 
         best_task.map(|t| t.id.clone())
+    }
+
+    // ========== File Reservation Methods ==========
+
+    /// Reserves files for a task to prevent conflicts.
+    ///
+    /// # Arguments
+    /// * `task_id` - The task claiming the files
+    /// * `loop_id` - The agent (loop) claiming the task
+    /// * `file_paths` - List of file paths to reserve (exact paths or glob patterns)
+    ///
+    /// # Returns
+    /// * `Ok(())` - Files reserved successfully
+    /// * `Err(io::Error)` - Failed to acquire lock or save
+    pub fn reserve_files(
+        &mut self,
+        task_id: String,
+        loop_id: LoopId,
+        file_paths: Vec<String>,
+    ) -> io::Result<()> {
+        let reservation = FileReservation::new(task_id.clone(), loop_id, file_paths);
+        self.reservations.insert(task_id, reservation);
+        self.save()
+    }
+
+    /// Releases file reservations for a task.
+    ///
+    /// Called when a task is completed, released, or fails.
+    ///
+    /// # Arguments
+    /// * `task_id` - The task to release reservations for
+    ///
+    /// # Returns
+    /// * `Ok(())` - Reservations released successfully
+    /// * `Err(io::Error)` - Failed to acquire lock or save
+    pub fn release_files(&mut self, task_id: &str) -> io::Result<()> {
+        self.reservations.remove(task_id);
+        self.save()
+    }
+
+    /// Checks for potential file conflicts before claiming a task.
+    ///
+    /// # Arguments
+    /// * `file_paths` - List of file paths the task wants to work on
+    ///
+    /// # Returns
+    /// List of conflict warnings (empty if no conflicts)
+    pub fn check_conflicts(&self, file_paths: &[String]) -> Vec<ConflictWarning> {
+        let mut conflicts = Vec::new();
+
+        // Check each requested file path against existing reservations
+        for requested_path in file_paths {
+            let mut conflicting_agents = Vec::new();
+
+            // Find all reservations that conflict with this path
+            for reservation in self.reservations.values() {
+                if reservation.conflicts_with(requested_path) {
+                    // Get the task title for better error messages
+                    let task_title = self
+                        .tasks
+                        .get(&reservation.task_id)
+                        .map(|t| t.title.clone())
+                        .unwrap_or_else(|| "Unknown Task".to_string());
+
+                    conflicting_agents.push(ConflictAgent {
+                        loop_id: reservation.loop_id.clone(),
+                        task_id: reservation.task_id.clone(),
+                        task_title,
+                    });
+                }
+            }
+
+            if !conflicting_agents.is_empty() {
+                // Determine severity based on number of conflicting agents
+                let severity = match conflicting_agents.len() {
+                    1 => ConflictSeverity::High,
+                    _ => ConflictSeverity::Critical,
+                };
+
+                conflicts.push(ConflictWarning::new(
+                    requested_path.clone(),
+                    conflicting_agents,
+                    severity,
+                ));
+            }
+        }
+
+        conflicts
     }
 }
 
@@ -1485,14 +1600,6 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn test_file_reservation_match_segments() {
-        // Test segment matching (note: match_segments is a simplified version)
-        assert!(FileReservation::match_segments(&["main.rs"], &["main.rs"]));
-        assert!(FileReservation::match_segments(&["src"], &["src"]));
-        assert!(!FileReservation::match_segments(&["lib.rs"], &["main.rs"]));
-    }
-
     // ========== ConflictWarning Tests ==========
 
     #[test]
@@ -1549,5 +1656,178 @@ mod tests {
         assert_eq!(warning.conflicting_agents.len(), 2);
         assert_eq!(warning.conflicting_agents[0].loop_id, "loop-123");
         assert_eq!(warning.conflicting_agents[1].loop_id, "loop-789");
+    }
+
+    #[test]
+    fn test_reserve_files() {
+        let (mut store, _tmp) = create_test_store();
+
+        let task_id = store.create_team_task(TeamTask::new(
+            "Test Task".to_string(),
+            "team-123".to_string(),
+            1,
+        ));
+
+        let result = store.reserve_files(
+            task_id.clone(),
+            "loop-456".to_string(),
+            vec!["src/main.rs".to_string(), "src/lib.rs".to_string()],
+        );
+
+        assert!(result.is_ok());
+        assert!(store.reservations.contains_key(&task_id));
+
+        let reservation = store.reservations.get(&task_id).unwrap();
+        assert_eq!(reservation.task_id, task_id);
+        assert_eq!(reservation.loop_id, "loop-456");
+        assert_eq!(reservation.file_paths.len(), 2);
+    }
+
+    #[test]
+    fn test_release_files() {
+        let (mut store, _tmp) = create_test_store();
+
+        let task_id = store.create_team_task(TeamTask::new(
+            "Test Task".to_string(),
+            "team-123".to_string(),
+            1,
+        ));
+
+        // Reserve files
+        store
+            .reserve_files(
+                task_id.clone(),
+                "loop-456".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
+            .unwrap();
+
+        assert!(store.reservations.contains_key(&task_id));
+
+        // Release files
+        let result = store.release_files(&task_id);
+        assert!(result.is_ok());
+        assert!(!store.reservations.contains_key(&task_id));
+    }
+
+    #[test]
+    fn test_check_conflicts_no_conflicts() {
+        let (mut store, _tmp) = create_test_store();
+
+        // Check conflicts when no reservations exist
+        let conflicts = store.check_conflicts(&["src/main.rs".to_string()]);
+        assert!(conflicts.is_empty());
+
+        // Add a reservation for a different file
+        let task_id = store.create_team_task(TeamTask::new(
+            "Task 1".to_string(),
+            "team-123".to_string(),
+            1,
+        ));
+        store
+            .reserve_files(
+                task_id,
+                "loop-456".to_string(),
+                vec!["src/lib.rs".to_string()],
+            )
+            .unwrap();
+
+        // Check conflicts for a file that doesn't match
+        let conflicts = store.check_conflicts(&["src/main.rs".to_string()]);
+        assert!(conflicts.is_empty());
+    }
+
+    #[test]
+    fn test_check_conflicts_with_exact_match() {
+        let (mut store, _tmp) = create_test_store();
+
+        // Reserve a file
+        let task_id = store.create_team_task(TeamTask::new(
+            "Task 1".to_string(),
+            "team-123".to_string(),
+            1,
+        ));
+        store
+            .reserve_files(
+                task_id.clone(),
+                "loop-456".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
+            .unwrap();
+
+        // Check for conflicts on the same file
+        let conflicts = store.check_conflicts(&["src/main.rs".to_string()]);
+
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].file_path, "src/main.rs");
+        assert_eq!(conflicts[0].severity, ConflictSeverity::High);
+        assert_eq!(conflicts[0].conflicting_agents.len(), 1);
+        assert_eq!(conflicts[0].conflicting_agents[0].task_id, task_id);
+        assert_eq!(conflicts[0].conflicting_agents[0].loop_id, "loop-456");
+    }
+
+    #[test]
+    fn test_check_conflicts_with_glob_pattern() {
+        let (mut store, _tmp) = create_test_store();
+
+        // Reserve files with glob pattern
+        let task_id = store.create_team_task(TeamTask::new(
+            "Task 1".to_string(),
+            "team-123".to_string(),
+            1,
+        ));
+        store
+            .reserve_files(
+                task_id.clone(),
+                "loop-456".to_string(),
+                vec!["src/**/*.rs".to_string()],
+            )
+            .unwrap();
+
+        // Check for conflicts on a file matching the glob
+        let conflicts = store.check_conflicts(&["src/auth/login.rs".to_string()]);
+
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].file_path, "src/auth/login.rs");
+        assert_eq!(conflicts[0].severity, ConflictSeverity::High);
+    }
+
+    #[test]
+    fn test_check_conflicts_critical_multiple_agents() {
+        let (mut store, _tmp) = create_test_store();
+
+        // Two agents reserve the same file
+        let task_id1 = store.create_team_task(TeamTask::new(
+            "Task 1".to_string(),
+            "team-123".to_string(),
+            1,
+        ));
+        store
+            .reserve_files(
+                task_id1,
+                "loop-456".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
+            .unwrap();
+
+        let task_id2 = store.create_team_task(TeamTask::new(
+            "Task 2".to_string(),
+            "team-123".to_string(),
+            2,
+        ));
+        store
+            .reserve_files(
+                task_id2,
+                "loop-789".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
+            .unwrap();
+
+        // Check for conflicts
+        let conflicts = store.check_conflicts(&["src/main.rs".to_string()]);
+
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].severity, ConflictSeverity::Critical);
+        assert_eq!(conflicts[0].conflicting_agents.len(), 2);
     }
 }

@@ -36,7 +36,7 @@ interface MemberInput {
 }
 
 export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
-  const utils = trpc.useContext();
+  const utils = trpc.useUtils();
 
   // Form state
   const [name, setName] = useState("");
@@ -48,10 +48,22 @@ export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
   const [taskDistribution, setTaskDistribution] = useState<TaskDistributionMode>("pipeline");
 
   // Fetch available hats for selection
-  const { data: hats } = trpc.hat.list.useQuery();
+  const { data: hats } = trpc.presets.list.useQuery();
 
   // Create mutation
   const createTeam = trpc.teams.create.useMutation();
+
+  // Handle close function
+  const handleClose = () => {
+    setName("");
+    setDescription("");
+    setPrompt("");
+    setCoordinatorHatId("planner");
+    setMembers([]);
+    setContextSharing("selective");
+    setTaskDistribution("pipeline");
+    onClose();
+  };
 
   // Handle create team mutation success
   useEffect(() => {
@@ -60,9 +72,13 @@ export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
       utils.teams.stats.invalidate();
       handleClose();
     }
-  }, [createTeam.isSuccess, utils.teams.list, utils.teams.stats, handleClose]);
+  }, [createTeam.isSuccess, utils.teams.list, utils.teams.stats]);
 
   const handleAddMember = () => {
+    if (members.length >= 15) {
+      // Max 15 team members (plus coordinator = 16 total agents)
+      return;
+    }
     setMembers([
       ...members,
       { name: `Agent ${members.length + 1}`, description: "", hatId: "coder" },
@@ -101,17 +117,6 @@ export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
       contextSharing,
       taskDistribution,
     });
-  };
-
-  const handleClose = () => {
-    setName("");
-    setDescription("");
-    setPrompt("");
-    setCoordinatorHatId("planner");
-    setMembers([]);
-    setContextSharing("selective");
-    setTaskDistribution("pipeline");
-    onClose();
   };
 
   if (!open) return null;
@@ -183,7 +188,7 @@ export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
               onChange={(e) => setCoordinatorHatId(e.target.value)}
               className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {hats?.map((hat) => (
+              {hats?.map((hat: any) => (
                 <option key={hat.key} value={hat.key}>
                   {hat.name} - {hat.description}
                 </option>
@@ -197,12 +202,16 @@ export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
               <label className="text-sm font-medium">
                 <Users className="w-4 h-4 inline mr-1" />
                 Team Members
+                <span className="text-xs text-gray-500 ml-2">
+                  ({members.length}/15 max)
+                </span>
               </label>
               <Button
                 type="button"
                 variant="secondary"
                 size="sm"
                 onClick={handleAddMember}
+                disabled={members.length >= 15}
               >
                 <Plus className="w-3 h-3 mr-1" />
                 Add Agent
@@ -234,7 +243,7 @@ export function TeamCreateDialog({ open, onClose }: TeamCreateDialogProps) {
                         }
                         className="px-2 py-1 bg-gray-800 border border-gray-600 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                       >
-                        {hats?.map((hat) => (
+                        {hats?.map((hat: any) => (
                           <option key={hat.key} value={hat.key}>
                             {hat.name}
                           </option>

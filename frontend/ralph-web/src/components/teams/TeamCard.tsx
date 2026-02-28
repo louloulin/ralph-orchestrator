@@ -4,7 +4,7 @@
  * Displays a single agent team with status, progress, and quick actions.
  */
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { trpc } from "../../trpc";
 import {
   type AgentTeam,
@@ -12,6 +12,7 @@ import {
   TEAM_STATUS_COLORS,
 } from "../../types";
 import { Button } from "../ui/button";
+import { ConfirmDialog } from "../ui/confirm-dialog";
 import {
   Play,
   Pause,
@@ -28,7 +29,8 @@ interface TeamCardProps {
 }
 
 export function TeamCard({ team, onClick }: TeamCardProps) {
-  const utils = trpc.useContext();
+  const utils = trpc.useUtils();
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Mutations
   const startTeam = trpc.teams.start.useMutation();
@@ -64,6 +66,7 @@ export function TeamCard({ team, onClick }: TeamCardProps) {
   useEffect(() => {
     if (deleteTeam.isSuccess) {
       utils.teams.list.invalidate();
+      setShowDeleteConfirm(false);
     }
   }, [deleteTeam.isSuccess, utils.teams.list]);
 
@@ -80,9 +83,7 @@ export function TeamCard({ team, onClick }: TeamCardProps) {
   };
 
   const handleDelete = () => {
-    if (confirm(`Are you sure you want to delete team "${team.name}"?`)) {
-      deleteTeam.mutate({ id: team.id });
-    }
+    deleteTeam.mutate({ id: team.id });
   };
 
   const statusColor = TEAM_STATUS_COLORS[team.status];
@@ -227,7 +228,7 @@ export function TeamCard({ team, onClick }: TeamCardProps) {
             className="ml-auto"
             onClick={(e) => {
               e.stopPropagation();
-              handleDelete();
+              setShowDeleteConfirm(true);
             }}
             disabled={deleteTeam.isLoading}
           >
@@ -235,6 +236,18 @@ export function TeamCard({ team, onClick }: TeamCardProps) {
           </Button>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+        title="Delete Team"
+        message={`Are you sure you want to delete team "${team.name}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="danger"
+        loading={deleteTeam.isLoading}
+      />
     </div>
   );
 }

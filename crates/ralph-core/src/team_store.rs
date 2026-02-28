@@ -219,6 +219,12 @@ pub struct TeamStatus {
     pub teammates: Vec<LoopId>,
 }
 
+/// Maximum number of tasks a teammate can work on simultaneously.
+///
+/// This limit prevents agent overload and ensures fair task distribution.
+/// Based on Claude Code best practices for multi-agent collaboration.
+pub const MAX_TASKS_PER_TEAMMATE: usize = 6;
+
 /// A store for managing teams and team tasks with JSONL persistence.
 pub struct TeamStore {
     teams_path: std::path::PathBuf,
@@ -596,6 +602,29 @@ impl TeamStore {
     pub fn all_tasks(&self) -> Vec<&TeamTask> {
         self.tasks.values().collect()
     }
+
+    // ========== Load Balancing Methods ==========
+
+    /// Gets the current workload (number of in-progress tasks) for a teammate.
+    ///
+    /// Returns the count of tasks currently assigned to this teammate with
+    /// status `InProgress`.
+    pub fn get_teammate_load(&self, loop_id: &LoopId) -> usize {
+        self.tasks
+            .values()
+            .filter(|t| {
+                t.assigned_to.as_ref() == Some(loop_id) && t.status == TeamTaskStatus::InProgress
+            })
+            .count()
+    }
+
+    /// Checks if a teammate has capacity for more tasks.
+    ///
+    /// Returns `true` if the teammate's current workload is below the maximum
+    /// limit (`MAX_TASKS_PER_TEAMMATE`).
+    pub fn is_teammate_available(&self, loop_id: &LoopId) -> bool {
+        self.get_teammate_load(loop_id) < MAX_TASKS_PER_TEAMMATE
+    }
 }
 
 #[cfg(test)]
@@ -861,7 +890,7 @@ mod tests {
         store.save().unwrap();
 
         // Reload store
-        let mut reloaded = TeamStore::load(tmp.path()).unwrap();
+        let reloaded = TeamStore::load(tmp.path()).unwrap();
         let team = reloaded.get_team(&team_id).unwrap();
         assert_eq!(team.name, "Test Team");
         assert_eq!(team.teammates.len(), 1);
@@ -902,5 +931,68 @@ mod tests {
         let task2 = store.get_task(&task2_id).unwrap();
         assert_eq!(task2.depends_on.len(), 1);
         assert_eq!(task2.depends_on[0], task1_id);
+    }
+
+    #[test]
+    fn test_get_teammate_load() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create tasks
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1);
+        let task1_id = store.create_team_task(task1);
+
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 1);
+        let task2_id = store.create_team_task(task2);
+
+        let task3 = TeamTask::new("Task 3".to_string(), team_id.clone(), 1);
+        let task3_id = store.create_team_task(task3);
+
+        // Claim tasks for loop-123
+        store.claim_task(&task1_id, "loop-123".to_string()).unwrap();
+        store.claim_task(&task2_id, "loop-123".to_string()).unwrap();
+
+        // Claim task for loop-456
+        store.claim_task(&task3_id, "loop-456".to_string()).unwrap();
+
+        // Check loads
+        assert_eq!(store.get_teammate_load(&"loop-123".to_string()), 2);
+        assert_eq!(store.get_teammate_load(&"loop-456".to_string()), 1);
+        assert_eq!(store.get_teammate_load(&"loop-789".to_string()), 0);
+    }
+
+    #[test]
+    fn test_is_teammate_available_under_limit() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create and claim 5 tasks (under the limit of 6)
+        for i in 0..5 {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store.claim_task(&task_id, "loop-123".to_string()).unwrap();
+        }
+
+        // Teammate should be available (5 < 6)
+        assert!(store.is_teammate_available(&"loop-123".to_string()));
+    }
+
+    #[test]
+    fn test_is_teammate_available_at_limit() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create and claim 6 tasks (at the limit)
+        for i in 0..MAX_TASKS_PER_TEAMMATE {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store.claim_task(&task_id, "loop-123".to_string()).unwrap();
+        }
+
+        // Teammate should NOT be available (6 == 6)
+        assert!(!store.is_teammate_available(&"loop-123".to_string()));
     }
 }

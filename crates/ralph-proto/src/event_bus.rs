@@ -24,8 +24,6 @@ pub struct EventBus {
 
     /// Pending events for cross-loop communication (worktree mailbox).
     /// Indexed by loop ID (String) to store events for specific loops.
-    /// TODO: Add send_to_loop() and take_loop_pending() methods in Phase 1.3.
-    #[allow(dead_code)]
     loop_pending: BTreeMap<String, Vec<Event>>,
 
     /// Observers that receive all published events.
@@ -171,6 +169,37 @@ impl EventBus {
     /// Checks if there are any pending human interaction events.
     pub fn has_human_pending(&self) -> bool {
         !self.human_pending.is_empty()
+    }
+
+    /// Sends an event to a specific loop for cross-loop communication.
+    ///
+    /// The event is stored in the loop_pending queue indexed by the target loop ID.
+    /// This enables agent-to-agent messaging between worktree loops.
+    pub fn send_to_loop(&mut self, loop_id: impl Into<String>, event: Event) {
+        self.loop_pending
+            .entry(loop_id.into())
+            .or_default()
+            .push(event);
+    }
+
+    /// Takes all pending events for a specific loop.
+    ///
+    /// Returns an empty vector if no events are pending for the loop.
+    pub fn take_loop_pending(&mut self, loop_id: &str) -> Vec<Event> {
+        self.loop_pending.remove(loop_id).unwrap_or_default()
+    }
+
+    /// Checks if there are any pending events for any loop.
+    pub fn has_loop_pending(&self) -> bool {
+        self.loop_pending.values().any(|events| !events.is_empty())
+    }
+
+    /// Returns the next loop ID with pending events, if any.
+    pub fn next_loop_with_pending(&self) -> Option<&String> {
+        self.loop_pending
+            .iter()
+            .find(|(_, events)| !events.is_empty())
+            .map(|(id, _)| id)
     }
 
     /// Returns the next hat with pending events.
@@ -403,5 +432,115 @@ mod tests {
         // Peek after take - should be empty
         let peeked_after_take = bus.peek_pending(&hat_id);
         assert!(peeked_after_take.is_none() || peeked_after_take.unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_send_to_loop() {
+        let mut bus = EventBus::new();
+
+        let event1 = Event::new("team.message", "Hello from primary")
+            .with_source_loop("loop-primary")
+            .with_target_loop("loop-worktree-1");
+
+        let event2 = Event::new("team.message", "Another message")
+            .with_source_loop("loop-primary")
+            .with_target_loop("loop-worktree-1");
+
+        bus.send_to_loop("loop-worktree-1", event1);
+        bus.send_to_loop("loop-worktree-1", event2);
+
+        assert!(bus.has_loop_pending());
+        assert_eq!(
+            bus.next_loop_with_pending(),
+            Some(&"loop-worktree-1".to_string())
+        );
+    }
+
+    #[test]
+    fn test_take_loop_pending() {
+        let mut bus = EventBus::new();
+
+        let event1 = Event::new("team.message", "Hello")
+            .with_source_loop("loop-primary")
+            .with_target_loop("loop-worktree-1");
+
+        let event2 = Event::new("team.message", "World")
+            .with_source_loop("loop-primary")
+            .with_target_loop("loop-worktree-1");
+
+        bus.send_to_loop("loop-worktree-1", event1);
+        bus.send_to_loop("loop-worktree-1", event2);
+
+        let events = bus.take_loop_pending("loop-worktree-1");
+        assert_eq!(events.len(), 2);
+        assert!(!bus.has_loop_pending());
+
+        // Taking again should return empty
+        let events_again = bus.take_loop_pending("loop-worktree-1");
+        assert!(events_again.is_empty());
+    }
+
+    #[test]
+    fn test_take_loop_pending_nonexistent() {
+        let mut bus = EventBus::new();
+
+        // Taking from a loop with no events should return empty vector
+        let events = bus.take_loop_pending("nonexistent-loop");
+        assert!(events.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_loops() {
+        let mut bus = EventBus::new();
+
+        let event1 =
+            Event::new("team.message", "To worktree 1").with_target_loop("loop-worktree-1");
+        let event2 =
+            Event::new("team.message", "To worktree 2").with_target_loop("loop-worktree-2");
+
+        bus.send_to_loop("loop-worktree-1", event1);
+        bus.send_to_loop("loop-worktree-2", event2);
+
+        assert!(bus.has_loop_pending());
+
+        // Take from loop 1
+        let events1 = bus.take_loop_pending("loop-worktree-1");
+        assert_eq!(events1.len(), 1);
+        assert!(events1[0].payload.contains("worktree 1"));
+
+        // Loop 2 should still have pending
+        assert!(bus.has_loop_pending());
+
+        // Take from loop 2
+        let events2 = bus.take_loop_pending("loop-worktree-2");
+        assert_eq!(events2.len(), 1);
+        assert!(events2[0].payload.contains("worktree 2"));
+
+        // Now should be empty
+        assert!(!bus.has_loop_pending());
+    }
+
+    #[test]
+    fn test_next_loop_with_pending() {
+        let mut bus = EventBus::new();
+
+        // No loops with pending initially
+        assert!(!bus.has_loop_pending());
+        assert!(bus.next_loop_with_pending().is_none());
+
+        // Add events to multiple loops
+        bus.send_to_loop("loop-a", Event::new("test", "a"));
+        bus.send_to_loop("loop-b", Event::new("test", "b"));
+
+        // Should return first loop (BTreeMap iteration order)
+        let next = bus.next_loop_with_pending();
+        assert!(next.is_some());
+
+        // Take from that loop
+        let loop_id = next.unwrap().clone();
+        bus.take_loop_pending(&loop_id);
+
+        // Should still have another loop pending
+        assert!(bus.has_loop_pending());
     }
 }

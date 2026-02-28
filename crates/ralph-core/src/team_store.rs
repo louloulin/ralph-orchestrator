@@ -225,6 +225,259 @@ pub struct TeamStatus {
 /// Based on Claude Code best practices for multi-agent collaboration.
 pub const MAX_TASKS_PER_TEAMMATE: usize = 6;
 
+/// A file reservation tracking which agent is working on which files.
+///
+/// Used for proactive conflict detection in multi-agent scenarios.
+/// Each task can reserve multiple file paths (exact paths or glob patterns).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileReservation {
+    /// Task ID that owns this reservation
+    pub task_id: String,
+
+    /// Loop ID (agent) that claimed this task
+    pub loop_id: LoopId,
+
+    /// Reserved file paths (can be exact paths or glob patterns)
+    pub file_paths: Vec<String>,
+
+    /// When the reservation was created (ISO 8601)
+    pub reserved_at: String,
+}
+
+impl FileReservation {
+    /// Creates a new file reservation for a task.
+    pub fn new(task_id: String, loop_id: LoopId, file_paths: Vec<String>) -> Self {
+        Self {
+            task_id,
+            loop_id,
+            file_paths,
+            reserved_at: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+
+    /// Checks if a given file path might conflict with this reservation.
+    ///
+    /// Returns true if the path matches any of the reserved patterns.
+    /// Supports both exact path matching and glob patterns.
+    pub fn conflicts_with(&self, path: &str) -> bool {
+        self.file_paths.iter().any(|reserved| {
+            // Exact match
+            if reserved == path {
+                return true;
+            }
+
+            // Glob pattern matching (simple * and ** support)
+            if reserved.contains('*') {
+                return Self::glob_match(reserved, path);
+            }
+
+            false
+        })
+    }
+
+    /// Simple glob pattern matching.
+    ///
+    /// Supports:
+    /// - `*` matches any sequence within a path segment
+    /// - `**` matches any sequence across segments
+    fn glob_match(pattern: &str, path: &str) -> bool {
+        let pattern_parts: Vec<&str> = pattern.split('/').collect();
+        let path_parts: Vec<&str> = path.split('/').collect();
+
+        Self::match_pattern_segments(&pattern_parts, &path_parts)
+    }
+
+    fn match_pattern_segments(pattern: &[&str], path: &[&str]) -> bool {
+        let mut p_idx = 0;
+        let mut path_idx = 0;
+
+        while p_idx < pattern.len() {
+            if path_idx >= path.len() {
+                // If we've exhausted the path but still have pattern segments,
+                // only match if remaining pattern is just **
+                return pattern[p_idx..].iter().all(|&p| p == "**");
+            }
+
+            let p = pattern[p_idx];
+
+            match p {
+                "**" => {
+                    // ** matches zero or more segments
+                    if p_idx == pattern.len() - 1 {
+                        // ** at the end matches everything remaining
+                        return true;
+                    }
+
+                    // Try to match the rest of the pattern starting from each path position
+                    let remaining_pattern = &pattern[p_idx + 1..];
+                    for remaining_idx in path_idx..=path.len() {
+                        if Self::match_pattern_segments(remaining_pattern, &path[remaining_idx..]) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+                _ => {
+                    // Check if this segment matches (with wildcard support)
+                    if !Self::segment_matches(p, path[path_idx]) {
+                        return false;
+                    }
+                    p_idx += 1;
+                    path_idx += 1;
+                }
+            }
+        }
+
+        // If we've consumed the entire pattern, match if we've also consumed the entire path
+        path_idx == path.len()
+    }
+
+    /// Check if a pattern segment matches a path segment.
+    ///
+    /// Supports `*` wildcard within a segment (e.g., `*.rs` matches `main.rs`)
+    fn segment_matches(pattern: &str, segment: &str) -> bool {
+        // Handle ** (shouldn't reach here normally, but just in case)
+        if pattern == "**" {
+            return true;
+        }
+
+        // Handle single * (matches any single segment)
+        if pattern == "*" {
+            return true;
+        }
+
+        // No wildcard - exact match
+        if !pattern.contains('*') {
+            return pattern == segment;
+        }
+
+        // Wildcard matching within segment
+        let parts: Vec<&str> = pattern.split('*').collect();
+
+        // Simple case: single * in middle
+        if parts.len() == 2 {
+            let prefix = parts[0];
+            let suffix = parts[1];
+            return segment.starts_with(prefix) && segment.ends_with(suffix);
+        }
+
+        // For more complex patterns, fall back to simple matching
+        // (Full glob implementation would need more sophisticated logic)
+        if parts.len() > 2 {
+            // Handle patterns like *test*.rs
+            let mut idx = 0;
+            for (i, part) in parts.iter().enumerate() {
+                if part.is_empty() {
+                    continue;
+                }
+                if let Some(pos) = segment[idx..].find(part) {
+                    idx += pos + part.len();
+                } else {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        pattern == segment
+    }
+
+    fn match_segments(pattern: &[&str], path: &[&str]) -> bool {
+        if pattern.len() > path.len() {
+            return false;
+        }
+
+        for (i, p) in pattern.iter().enumerate() {
+            match *p {
+                "**" => return true,
+                "*" => {
+                    if i >= path.len() {
+                        return false;
+                    }
+                }
+                _ if *p != path[i] => return false,
+                _ => {}
+            }
+        }
+
+        true
+    }
+}
+
+/// A warning about potential file conflicts between agents.
+///
+/// Emitted when multiple agents might work on the same files.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConflictWarning {
+    /// The file path that has conflicts
+    pub file_path: String,
+
+    /// List of agents that have reserved this file
+    pub conflicting_agents: Vec<ConflictAgent>,
+
+    /// Severity level
+    pub severity: ConflictSeverity,
+
+    /// Suggested resolution
+    pub suggestion: String,
+}
+
+/// Information about an agent involved in a conflict.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ConflictAgent {
+    /// Loop ID of the conflicting agent
+    pub loop_id: LoopId,
+
+    /// Task ID that reserved the file
+    pub task_id: String,
+
+    /// Title of the task (for display)
+    pub task_title: String,
+}
+
+/// Severity level of a conflict warning.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictSeverity {
+    /// Multiple agents working in same general area
+    Low,
+
+    /// Direct file conflict likely
+    High,
+
+    /// Guaranteed merge conflict
+    Critical,
+}
+
+impl ConflictWarning {
+    /// Creates a new conflict warning.
+    pub fn new(
+        file_path: String,
+        conflicting_agents: Vec<ConflictAgent>,
+        severity: ConflictSeverity,
+    ) -> Self {
+        let suggestion = match severity {
+            ConflictSeverity::Low => {
+                "Agents are working in related files. Consider coordinating edits.".to_string()
+            }
+            ConflictSeverity::High => {
+                "Direct file conflict detected. Agents should sequence their work.".to_string()
+            }
+            ConflictSeverity::Critical => {
+                "Critical conflict: Agents will edit the same file. Immediate action required."
+                    .to_string()
+            }
+        };
+
+        Self {
+            file_path,
+            conflicting_agents,
+            severity,
+            suggestion,
+        }
+    }
+}
+
 /// A store for managing teams and team tasks with JSONL persistence.
 pub struct TeamStore {
     teams_path: std::path::PathBuf,
@@ -1152,5 +1405,149 @@ mod tests {
         // Should return None because teammate is not in any team
         let suggested = store.suggest_task_for_teammate(&"loop-123".to_string());
         assert_eq!(suggested, None);
+    }
+
+    // ========== FileReservation Tests ==========
+
+    #[test]
+    fn test_file_reservation_new() {
+        let reservation = FileReservation::new(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            vec!["src/main.rs".to_string(), "src/lib.rs".to_string()],
+        );
+
+        assert_eq!(reservation.task_id, "task-123");
+        assert_eq!(reservation.loop_id, "loop-456");
+        assert_eq!(reservation.file_paths.len(), 2);
+        assert!(reservation.reserved_at.contains('T')); // ISO 8601 format
+    }
+
+    #[test]
+    fn test_file_reservation_conflicts_with_exact_match() {
+        let reservation = FileReservation::new(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            vec!["src/main.rs".to_string()],
+        );
+
+        assert!(reservation.conflicts_with("src/main.rs"));
+        assert!(!reservation.conflicts_with("src/lib.rs"));
+    }
+
+    #[test]
+    fn test_file_reservation_conflicts_with_glob_star() {
+        let reservation = FileReservation::new(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            vec!["src/*.rs".to_string()],
+        );
+
+        assert!(reservation.conflicts_with("src/main.rs"));
+        assert!(reservation.conflicts_with("src/lib.rs"));
+        assert!(!reservation.conflicts_with("tests/main.rs"));
+    }
+
+    #[test]
+    fn test_file_reservation_conflicts_with_glob_double_star() {
+        let reservation = FileReservation::new(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            vec!["src/**/*.rs".to_string()],
+        );
+
+        assert!(reservation.conflicts_with("src/main.rs"));
+        assert!(reservation.conflicts_with("src/auth/login.rs"));
+        assert!(reservation.conflicts_with("src/models/user.rs"));
+        assert!(!reservation.conflicts_with("tests/main.rs"));
+    }
+
+    #[test]
+    fn test_file_reservation_glob_match_simple() {
+        // Test basic * pattern
+        assert!(FileReservation::glob_match("*.rs", "main.rs"));
+        assert!(FileReservation::glob_match("src/*.rs", "src/main.rs"));
+        assert!(!FileReservation::glob_match("src/*.rs", "tests/main.rs"));
+    }
+
+    #[test]
+    fn test_file_reservation_glob_match_double_star() {
+        // Test ** pattern
+        assert!(FileReservation::glob_match("src/**/*.rs", "src/main.rs"));
+        assert!(FileReservation::glob_match(
+            "src/**/*.rs",
+            "src/auth/login.rs"
+        ));
+        assert!(FileReservation::glob_match("**/*.rs", "src/main.rs"));
+        assert!(FileReservation::glob_match(
+            "**/*.rs",
+            "tests/integration/main.rs"
+        ));
+    }
+
+    #[test]
+    fn test_file_reservation_match_segments() {
+        // Test segment matching (note: match_segments is a simplified version)
+        assert!(FileReservation::match_segments(&["main.rs"], &["main.rs"]));
+        assert!(FileReservation::match_segments(&["src"], &["src"]));
+        assert!(!FileReservation::match_segments(&["lib.rs"], &["main.rs"]));
+    }
+
+    // ========== ConflictWarning Tests ==========
+
+    #[test]
+    fn test_conflict_warning_new_low_severity() {
+        let warning =
+            ConflictWarning::new("src/main.rs".to_string(), vec![], ConflictSeverity::Low);
+
+        assert_eq!(warning.file_path, "src/main.rs");
+        assert_eq!(warning.severity, ConflictSeverity::Low);
+        assert!(warning.suggestion.contains("related files"));
+    }
+
+    #[test]
+    fn test_conflict_warning_new_high_severity() {
+        let warning =
+            ConflictWarning::new("src/main.rs".to_string(), vec![], ConflictSeverity::High);
+
+        assert_eq!(warning.severity, ConflictSeverity::High);
+        assert!(warning.suggestion.contains("Direct file conflict"));
+    }
+
+    #[test]
+    fn test_conflict_warning_new_critical_severity() {
+        let warning = ConflictWarning::new(
+            "src/main.rs".to_string(),
+            vec![],
+            ConflictSeverity::Critical,
+        );
+
+        assert_eq!(warning.severity, ConflictSeverity::Critical);
+        assert!(warning.suggestion.contains("Critical conflict"));
+    }
+
+    #[test]
+    fn test_conflict_warning_with_agents() {
+        let agent1 = ConflictAgent {
+            loop_id: "loop-123".to_string(),
+            task_id: "task-456".to_string(),
+            task_title: "Refactor main".to_string(),
+        };
+
+        let agent2 = ConflictAgent {
+            loop_id: "loop-789".to_string(),
+            task_id: "task-012".to_string(),
+            task_title: "Add logging".to_string(),
+        };
+
+        let warning = ConflictWarning::new(
+            "src/main.rs".to_string(),
+            vec![agent1.clone(), agent2.clone()],
+            ConflictSeverity::High,
+        );
+
+        assert_eq!(warning.conflicting_agents.len(), 2);
+        assert_eq!(warning.conflicting_agents[0].loop_id, "loop-123");
+        assert_eq!(warning.conflicting_agents[1].loop_id, "loop-789");
     }
 }

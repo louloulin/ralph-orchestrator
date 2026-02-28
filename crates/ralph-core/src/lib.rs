@@ -54,6 +54,7 @@ mod summary_writer;
 pub mod task;
 pub mod task_definition;
 pub mod task_store;
+pub mod team_store;
 pub mod testing;
 mod text;
 pub mod utils;
@@ -121,6 +122,8 @@ pub use task_definition::{
     TaskDefinition, TaskDefinitionError, TaskSetup, TaskSuite, Verification,
 };
 pub use task_store::TaskStore;
+// Team store exports
+pub use team_store::{LoopId, Team, TeamStatus, TeamStore, TeamTask, TeamTaskStatus};
 // Checkpoint exports
 pub use checkpoint::{
     CheckpointConfig, CheckpointIndex, CheckpointMeta, CheckpointState, CheckpointType,

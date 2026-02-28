@@ -45,7 +45,6 @@ pub enum CheckpointType {
     PreRestart,
 }
 
-
 /// Configuration for checkpoint behavior.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CheckpointConfig {

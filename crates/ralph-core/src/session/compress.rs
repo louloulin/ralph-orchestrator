@@ -18,8 +18,7 @@ use serde::{Deserialize, Serialize};
 use super::{Session, SessionMessage};
 
 /// Summary produced by compressing a session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CompressedSummary {
     /// Brief summary of the conversation
     pub summary: String,
@@ -32,7 +31,6 @@ pub struct CompressedSummary {
     /// Context for continuation
     pub context: String,
 }
-
 
 /// Configuration for session compression.
 #[derive(Debug, Clone)]
@@ -189,9 +187,10 @@ Focus on information that would help continue this work in a future session."#,
             {
                 // Extract first line as a potential decision
                 if let Some(first_line) = message.content.lines().next()
-                    && first_line.len() < 200 {
-                        decisions.push(first_line.to_string());
-                    }
+                    && first_line.len() < 200
+                {
+                    decisions.push(first_line.to_string());
+                }
             }
         }
 

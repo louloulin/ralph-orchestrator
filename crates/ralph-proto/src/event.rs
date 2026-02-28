@@ -165,3 +165,127 @@ impl Event {
         self
     }
 }
+
+impl From<TeamEvent> for Event {
+    fn from(team_event: TeamEvent) -> Self {
+        let topic = match &team_event {
+            TeamEvent::TaskCreated { .. }
+            | TeamEvent::TaskClaimed { .. }
+            | TeamEvent::TaskReleased { .. }
+            | TeamEvent::TaskStatusUpdate { .. } => Topic::from("team.task"),
+
+            TeamEvent::AgentMessage { .. } => Topic::from("team.message"),
+
+            TeamEvent::TeamProgress { .. } => Topic::from("team.progress"),
+
+            TeamEvent::TeammateJoined { .. }
+            | TeamEvent::TeammateLeft { .. }
+            | TeamEvent::TeammateHeartbeat { .. } => Topic::from("team.teammate"),
+        };
+
+        let payload =
+            serde_json::to_string(&team_event).expect("TeamEvent serialization should never fail");
+
+        Event::new(topic, payload)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_from_team_event_task_created() {
+        let team_event = TeamEvent::TaskCreated {
+            task_id: "task-123".to_string(),
+            team_id: "team-abc".to_string(),
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.task"));
+        assert!(event.payload.contains("task-123"));
+        assert!(event.payload.contains("team-abc"));
+    }
+
+    #[test]
+    fn test_from_team_event_task_claimed() {
+        let team_event = TeamEvent::TaskClaimed {
+            task_id: "task-456".to_string(),
+            loop_id: "loop-xyz".to_string(),
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.task"));
+        assert!(event.payload.contains("task-456"));
+        assert!(event.payload.contains("loop-xyz"));
+    }
+
+    #[test]
+    fn test_from_team_event_agent_message() {
+        let team_event = TeamEvent::AgentMessage {
+            from: "loop-1".to_string(),
+            to: "loop-2".to_string(),
+            message: "Hello!".to_string(),
+            timestamp: Utc::now(),
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.message"));
+        assert!(event.payload.contains("Hello!"));
+    }
+
+    #[test]
+    fn test_from_team_event_team_progress() {
+        let team_event = TeamEvent::TeamProgress {
+            team_id: "team-abc".to_string(),
+            tasks_completed: 5,
+            tasks_total: 10,
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.progress"));
+        assert!(event.payload.contains("team-abc"));
+        assert!(event.payload.contains("5"));
+        assert!(event.payload.contains("10"));
+    }
+
+    #[test]
+    fn test_from_team_event_teammate_joined() {
+        let team_event = TeamEvent::TeammateJoined {
+            team_id: "team-abc".to_string(),
+            loop_id: "loop-new".to_string(),
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.teammate"));
+        assert!(event.payload.contains("team-abc"));
+        assert!(event.payload.contains("loop-new"));
+    }
+
+    #[test]
+    fn test_from_team_event_teammate_heartbeat() {
+        let team_event = TeamEvent::TeammateHeartbeat {
+            loop_id: "loop-active".to_string(),
+            status: AgentStatus::Busy,
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.teammate"));
+        assert!(event.payload.contains("loop-active"));
+        assert!(event.payload.contains("Busy"));
+    }
+
+    #[test]
+    fn test_from_team_event_serialization_roundtrip() {
+        let original = TeamEvent::TaskCreated {
+            task_id: "task-789".to_string(),
+            team_id: "team-xyz".to_string(),
+        };
+
+        let event: Event = original.clone().into();
+        let deserialized: TeamEvent =
+            serde_json::from_str(&event.payload).expect("Should deserialize successfully");
+
+        match deserialized {
+            TeamEvent::TaskCreated { task_id, team_id } => {
+                assert_eq!(task_id, "task-789");
+                assert_eq!(team_id, "team-xyz");
+            }
+            _ => panic!("Wrong event type after roundtrip"),
+        }
+    }
+}

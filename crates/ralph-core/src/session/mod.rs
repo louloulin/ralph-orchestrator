@@ -137,7 +137,6 @@ pub enum ConversationStatus {
     Completed,
 }
 
-
 /// Metadata about a session (lightweight for listing).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMeta {

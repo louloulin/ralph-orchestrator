@@ -1,742 +1,495 @@
-# Ralph Web UI 1.0 - AI 原生界面设计 (修订版)
+# Ralph 7x24 智能体团队平台分析与发展计划
 
-> **状态**: 修订中 | **版本**: 2.2 | **创建日期**: 2026-02-28
-> **设计原则**: 遵循 Ralph 设计理念 - Backpressure Over Prescription
-> **核心目标**: 构建 7x24 小时工作的智能体团队平台
-
-## 执行摘要
-
-本文档概述了 Ralph Web Dashboard 从传统多页仪表板到 AI 原生聊天中心的 UI/UX 转换方案，灵感来源于 Claude Code、Cursor 和现代 AI 产品。
-
-**核心目标对齐 Ralph 原则:**
-- 🎯 **Let Ralph Ralph**: 让智能体自主工作，不过度干预
-- 🛡️ **Backpressure Over Prescription**: 用测试/门控验证质量，而非详细指令
-- 🔄 **Fresh Context**: 每个迭代重新读取上下文
-- 📡 **Signals over Scripts**: 用信号引导，非脚本规定
-
-**核心变化:**
-- **主界面**: 基于聊天的交互（类似 Claude Code）
-- **渐进式展示**: 侧边面板用于任务、规划、监控
-- **多任务可见性**: 始终可见的活动循环坞
-- **简化导航**: 3 层结构（聊天 → 面板 → 设置）
-- **删除**: Skills 页面（底层 Claude Code 已支持 skills）
-
-**注意:** 本文档是指导性而非规定性的。具体的 UI 组件、颜色、布局等细节应通过实际实现和测试来确定，而非在文档中预先规定。
+> **创建日期**: 2026-02-28
+> **版本**: 1.1
+> **目标**: 构建顶级7x24小时工作的智能体团队平台
+> **更新日期**: 2026-02-28
 
 ---
 
-## 目录
+## 一、PROMPT.md 与 Ralph 设计理念对齐分析
 
-1. [设计理念](#设计理念)
-2. [当前状态分析](#当前状态分析)
-3. [目标用户体验: AI Chatbox + 编排](#目标用户体验-ai-chatbox--编排)
-4. [架构图](#架构图)
-5. [UI 组件系统](#ui-组件系统)
-6. [导航结构](#导航结构)
-7. [技术增强](#技术增强)
-8. [实施路线图](#实施路线图)
-9. [设计规范](#设计规范)
-10. [Claude Agent Skills 协议](#claude-agent-skills-协议)
-11. [参考文献](#参考文献)
-12. [7x24 智能体团队平台愿景](#7x24-智能体团队平台愿景)
+### 1.1 Ralph 六大核心原则
 
----
+| 原则 | 描述 | PROMPT.md 对齐情况 |
+|------|------|-------------------|
+| **Fresh Context Is Reliability** | 每次迭代清除上下文，重新读取规格 | ✅ 明确提到"每次迭代重新读取上下文" |
+| **Backpressure Over Prescription** | 用门控验证质量，而非详细指令 | ✅ 强调用测试/构建门控，非预先规定 |
+| **The Plan Is Disposable** | 计划可再生，成本低 | ✅ 明确说明"计划可再生，成本低" |
+| **Disk Is State, Git Is Memory** | 记忆和任务作为交接机制 | ✅ 提到使用记忆和任务系统 |
+| **Steer With Signals, Not Scripts** | 用信号引导，非脚本规定 | ✅ 强调"代码即文档，动态适应" |
+| **Let Ralph Ralph** | 坐在循环上，让智能体自主 | ✅ 核心主题:"让智能体自主工作" |
 
-## 设计理念
+### 1.2 PROMPT.md 优点
 
-### 从传统到 AI 原生
+1. **遵循反模式提醒**: 多次标注"指导性而非规定性"
+2. **门控验证**: 每个阶段有明确的验证门控
+3. **迭代交付**: 强调阶段性可运行，非一次性交付
+4. **反馈驱动**: 用实际运行反馈引导后续改进
+5. **AI 原生设计**: 采用聊天界面作为主界面，灵感来自 Claude Code/Cursor
 
-**传统仪表板模式**（当前）:
-```
-用户 → 导航到页面 → 填写表单 → 提交 → 查看结果
-```
+### 1.3 改进建议
 
-**AI 原生模式**（目标）:
-```
-用户 → 聊天界面 → Agent 规划 → Agent 执行 → 实时反馈
-```
-
-### 核心原则
-
-#### 1. 对话作为主要界面
-- 聊天不是功能，它是主界面
-- 始终可访问的输入（持久底部栏）
-- 消息线程显示 Agent 推理、工具调用、结果
-- 代码变更内联显示在对话中
-
-#### 2. 渐进式展示
-- 从最简开始（仅聊天输入）
-- 按需揭示面板（任务、规划、监控）
-- 折叠以保持专注
-- 上下文感知提示
-
-#### 3. 多任务可见性
-- 始终看到 Agent 正在做什么
-- 实时状态指示器
-- 快速切换活动任务
-- 一目了然的任务生命周期
-
-#### 4. 混合工作流支持
-- **Cursor 风格**: 实时内联编辑
-- **Claude Code 风格**: 自主任务委托
-- **规划模式**: 规格 → 设计 → 实现
-- 无缝模式切换
-
-#### 5. 设计智能
-- 行业标准配色方案
-- 一致的间距（8px 网格）
-- 专业图标
-- 可访问对比度（WCAG 2.1 AA）
-- 用于反馈的微交互
+1. 减少部分过于规定性的内容（如具体组件名称）- ✅ 已改进
+2. 更多强调反馈驱动迭代 - ✅ 已改进
+3. 将"缺乏语义排序"从痛点移除（已实现）- ✅ 已改进
+4. 新增：集成 Claude Code Agent Teams 能力
+5. 新增：多智能体并行协作模式
+6. 新增：TUI 交互式优化
 
 ---
 
-## 当前状态分析
+## 二、当前完成度分析
 
-### 架构概览
+### 2.1 已完成功能模块
 
-**技术栈:**
-- React 19, TypeScript, Vite 7
-- Tailwind CSS v4 (OKLCH 颜色系统)
-- Zustand（状态管理）
-- tRPC（类型安全 API）
-- React Router v7
-- WebSocket（实时日志）
-- Lucide React（图标）
+| 模块 | 状态 | 完成度 |
+|------|------|--------|
+| **P4-1: 进程守护系统** | ✅ 完成 | 100% |
+| **P4-2: 检查点系统** | ✅ 完成 | 100% |
+| **P4-3: 监控告警系统** | ✅ 完成 | 100% |
+| **P4-4: 自愈机制** | ✅ 完成 | 100% |
+| **P4.5-1: Agent Teams 架构** | ✅ 完成 | 100% |
+| **P4.5-2: Skills 技能系统** | ✅ 完成 | 100% |
+| **P5-1: 多项目架构** | ✅ 完成 | 100% |
+| **P5-2: 项目隔离** | ✅ 完成 | 100% |
+| **P5-3: Worktree UI 增强** | ✅ 完成 | 100% |
+| **P5-4: 多Agent协作UI** | ✅ 完成 | 100% |
+| **P5-5: 代码审查/审批流程** | ✅ 完成 | 100% |
+| **P5-6: Plan 模式** | ✅ 完成 | 100% |
+| **UI 1.0: 聊天界面** | 🔄 部分完成 | 70% |
+| **LLM 语义排序** | ✅ 完成 | 100% |
 
-**当前页面（12个）:**
-1. Dashboard（默认）
-2. Tasks
-3. Kanban
-4. Plan
-5. Teams
-6. Monitoring
-7. Checkpoints
-8. Healing
-9. Skills（待删除）
-10. Projects
-11. Builder
-12. Settings
+### 2.2 UI 1.0 当前进度
 
-### 组件结构
-
-```
-frontend/ralph-web/src/
-├── components/
-│   ├── ui/              # 基础组件（Button, Card, Input）
-│   ├── shared/          # 可复用（CommandPalette, ErrorBoundary, ThemeToggle）
-│   ├── dashboard/       # StatCard, ActivityTimeline, QuickActions
-│   ├── tasks/           # TaskInput, ThreadList, TaskThread
-│   ├── kanban/          # KanbanCard, KanbanColumn
-│   ├── builder/         # Flow builder 组件
-│   ├── plan/            # PlanLanding, PlanSession
-│   ├── teams/           # Team 管理
-│   └── monitoring/      # Process 监控
-├── pages/               # 路由级页面组件
-├── stores/              # Zustand stores
-└── store.ts             # 主 UI store
-```
-
-### 状态管理
-
-**Zustand Stores:**
-- store.ts - UI 状态（侧边栏、任务展开）
-- themeStore.ts - 主题偏好
-- i18nStore.ts - 国际化
-- projectStore.ts - 活动项目
-- commandPaletteStore.ts - Cmd+K 调色板
-- diffStore.ts - Diff 查看器
-- thinkingStore.ts - Thinking 面板
-- logStore.ts - 日志流
-- toastStore.ts - 通知
+| 任务 | 状态 | 优先级 |
+|------|------|--------|
+| P0-1: ChatPage 组件 | ✅ 完成 | P0 |
+| P0-2: ChatInput 组件 | ✅ 完成 | P0 |
+| P0-3: 消息类型组件 | ✅ 完成 | P0 |
+| P0-4: 删除 Skills 页面 | ✅ 完成 | P0 |
+| P0-5: 路由配置更新 | ✅ 完成 | P0 |
+| P1-1: SidePanel 系统 | ✅ 完成 | P1 |
+| P1-2: 面板内容适配 | ✅ 完成 | P1 |
+| P1-3: 面板快捷键 | ✅ 完成 | P1 |
+| P2-1: ActiveLoopsDock | ✅ 完成 | P2 |
+| P2-2: Command Palette v2 | ✅ 完成 | P2 |
 
 ---
 
-## 目标用户体验: AI Chatbox + 编排
+## 三、Claude Code Agent Teams 深度分析
 
-### 主视图: 聊天界面
+### 3.1 核心架构（2026年最新）
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│  Ralph  ● 运行中: 3  任务: 12  [⌘K]                    ⚙️ 主题  │
-├───────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │ 👤 用户        今天 2:30 PM                              │  │
-│  │ 重构认证系统以使用 JWT tokens                             │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │ 🤖 Agent [思考中...]  今天 2:30 PM                      │  │
-│  │ ┌─ 思考: 分析当前认证流程                                │  │
-│  │ │  ✓ 在 src/auth/service.ts 找到 AuthService            │  │
-│  │ │  ✓ 当前实现使用 session cookies                       │  │
-│  │ │  → 计划: 迁移到 JWT 并使用 refresh token rotation     │  │
-│  │ └─ [折叠]                                                │  │
-│  │                                                          │  │
-│  │ → 工具: 读取文件 src/auth/service.ts                     │  │
-│  │ ┌────────────────────────────────────────────────────┐   │  │
-│  │ │ export class AuthService {                         │   │  │
-│  │ │   async login(email, password) {                   │   │  │
-│  │ │     // Session-based auth                          │   │  │
-│  │ │     const session = await createSession(...);      │   │  │
-│  │ │   }                                                 │   │  │
-│  │ │ }                                                   │   │  │
-│  │ └────────────────────────────────────────────────────┘   │  │
-│  │                                                          │  │
-│  │ → 工具: 写入文件 src/auth/jwt.service.ts                │  │
-│  │ [✓ 已创建带 token rotation 的 JWT 服务]                │  │
-│  │                                                          │  │
-│  │ → 工具: 运行测试                                        │  │
-│  │ [✓ 测试通过 (15/15)]                                    │  │
-│  │                                                          │  │
-│  │ ✓ 已将认证系统重构为 JWT。摘要:                         │  │
-│  │   - 创建了带 access/refresh tokens 的 JwtAuthService    │  │
-│  │   - 实现了 token rotation（7 天 refresh）              │  │
-│  │   - 添加了 JWT 验证中间件                              │  │
-│  │   - 所有测试通过                                        │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │ 👤 用户        今天 2:35 PM                              │  │
-│  │ 太好了！现在添加速率限制以防止暴力破解                   │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  ┌────────────────────────────────────────────────────────────┐  │
-│  │ 🤖 Agent [运行中...]  今天 2:35 PM                      │  │
-│  │ → 工具: 读取文件 src/auth/middleware.ts                  │  │
-│  │ [加载中...]                                               │  │
-│  └────────────────────────────────────────────────────────────┘  │
-│                                                                   │
-│  [─────────────────────────────────────────────────────────]    │
-│  [📎] 描述你需要什么...                          发送 (⌘↵)  │
-└───────────────────────────────────────────────────────────────────┘
-```
-
-### 侧边面板（从右侧滑出）
-
-**任务面板（Cmd+1）**
-- 搜索和筛选任务
-- 显示运行中、暂停、已完成的任务
-- 任务状态指示器
-
-**规划面板（Cmd+2）**
-- 活动规格列表
-- 草稿规格
-- 规划进度追踪
-
-**监控面板（Cmd+3）**
-- 系统健康状态
-- 活动循环列表
-- 实时指标
-- 最近事件
-
-### 持久坞（底部）
+Claude Code Agent Teams 是多智能体协作的新范式，核心组件：
 
 ```
-┌───────────────────────────────────────────────────────────────┐
-│ [🔄 JWT 重构] [⏸️ 速率限制] [✓ 修复 Bug]   [+] [⏸️ 全部]        │
-└───────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     Claude Code Agent Teams                      │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐│
+│  │  Team Lead  │  │  Teammates  │  │   Shared Task List      ││
+│  │   (Opus)    │  │  (Sonnet)   │  │   (Kanban Style)       ││
+│  │ - 协调工作   │  │ - 独立上下文 │  │   - 自助任务分配       ││
+│  │ - 分配任务   │  │ - 200K上下文│  │   - 依赖管理           ││
+│  │ - 综合结果   │  │ - 并行执行   │  │   - 状态跟踪           ││
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │              Mailbox System (Agent-to-Agent)               ││
+│  │  - 直接通信（非父子报告）                                   ││
+│  │  - 对抗性辩论                                             ││
+│  │  - 竞争性假设验证                                         ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
 ```
 
----
+### 3.2 关键能力
 
-## 架构图
-
-### 组件层次结构
-
-```
-App
-├── AppShell
-│   ├── Sidebar（可折叠，移动端可折叠）
-│   │   ├── Logo + ProjectSelector
-│   │   ├── NavSections（主页、任务、Agents、运行时、设置）
-│   │   └── ThemeToggle + LocaleSwitcher
-│   │
-│   └── MainContent
-│       ├── TopBar（面包屑、系统状态）
-│       │
-│       ├── ChatPage（默认 - 新建）
-│       │   ├── MessageThread（虚拟滚动）
-│       │   │   ├── UserMessage
-│       │   │   ├── AgentMessage
-│       │   │   ├── ThinkingBlock（可折叠）
-│       │   │   ├── ToolCallCard
-│       │   │   └── DiffInline
-│       │   │
-│       │   └── ChatInput（持久底部）
-│       │       ├── Textarea（自动展开）
-│       │       ├── FileAttachButton
-│       │       ├── ContextMenu（附加规格、预设）
-│       │       └── SendButton
-│       │
-│       ├── SidePanels（从右侧滑出）
-│       │   ├── TasksPanel（TasksPage 改编）
-│       │   ├── PlanPanel（PlanPage 改编）
-│       │   ├── MonitorPanel（Monitoring + Checkpoints + Healing）
-│       │   ├── TeamsPanel
-│       │   └── ProjectsPanel
-│       │
-│       ├── ActiveLoopsDock（底部、持久）
-│       │   ├── LoopCard（迷你状态）
-│       │   ├── QuickActions
-│       │   └── BulkControls
-│       │
-│       └── Other Pages（独立）
-│           ├── BuilderPage（flow builder）
-│           └── SettingsPage
-│
-└── GlobalComponents
-    ├── CommandPalette（Cmd+K）
-    ├── ToastContainer
-    └── ErrorBoundary
-```
-
-### 数据流
-
-```
-用户输入（ChatInput）
-    ↓
-tRPC Mutation（task.create）
-    ↓
-Backend（TaskQueueService）
-    ↓
-Agent Loop（Ralph 编排）
-    ↓
-WebSocket 事件（Agent 输出、工具调用）
-    ↓
-MessageThread（实时更新）
-    ↓
-SidePanels（反映状态）
-    ↓
-ActiveLoopsDock（显示状态）
-```
-
----
-
-## UI 组件系统
-
-> ⚠️ **注意**: 以下组件列表是指导性的，具体实现细节（命名、样式、属性）应在实现阶段由智能体根据实际需求决定，而非预先规定。
-
-### 新组件（指导性）
-
-#### MessageThread
-- 虚拟滚动支持
-- 多种消息类型（user, agent, thinking, tool, diff, status, error）
-- 流式消息支持
-
-#### ChatInput
-- 自动展开输入框
-- 文件拖放附件
-- 上下文菜单
-- 键盘快捷键
-
-#### SidePanel
-- 滑入动画
-- 点击外部关闭
-- Esc 关闭
-- 可调整宽度
-
-#### LoopCard
-- 状态指示器（运行、暂停、完成、失败）
-- 迷你状态
-- 进度条
-- 控制按钮
-
-#### ThinkingBlock
-- 可折叠推理显示
-- 结构使用等宽字体
-- 复制按钮
-
-#### DiffInline
-- 消息内联 diff
-- 语法高亮
-- 展开/折叠
-
-### 增强的现有组件
-
-- TaskInput → ChatInput 迁移
-- ThreadList → TasksPanel
-- MonitoringPage → MonitorPanel
-
-*具体迁移策略在实现阶段确定*
-
----
-
-## 导航结构
-
-### 之前（当前）
-```
-/dashboard（默认）
-/tasks
-/kanban
-/plan
-/teams
-/monitoring
-/checkpoints
-/healing
-/skills（待删除）
-/projects
-/builder
-/settings
-```
-
-### 之后（提议）
-```
-/chat（新默认）
-  - 主聊天界面
-  - 始终可访问的输入
-
-面板（滑出，可通过 Cmd+1-5 访问）:
-  /tasks-panel
-  /plan-panel
-  /monitor-panel
-  /teams-panel
-  /projects-panel
-
-独立页面:
-  /builder
-  /settings
-
-已删除:
-  /skills（底层 Claude Code 支持 skills）
-  /dashboard（合并到 /chat）
-  /kanban（移动到 TasksPanel）
-```
-
----
-
-## 技术增强
-
-### 新依赖
-- @tanstack/react-virtual（虚拟滚动）
-- framer-motion（动画）
-- react-markdown + remark-gfm + rehype-highlight（Markdown 支持）
-- mermaid（图表支持）
-
-### WebSocket 增强
-- 扩展 /ws/logs 用于聊天流
-- 支持消息、思考、工具、diff、状态类型
-
-### 性能优化
-1. 虚拟滚动（长消息线程）
-2. 消息分页
-3. 代码拆分和延迟加载
-
----
-
-## 实施路线图
-
-> ⚠️ **Ralph 反模式提醒**: 本路线图是指导性而非规定性的。遵循 "Backpressure Over Prescription" 原则，用测试和门控验证质量，而非详细指令。计划可再生，成本低。
-
-### 实施原则
-
-1. **反馈驱动迭代**: 用实际运行反馈引导后续改进，而非预先规定设计决策
-2. **门控验证**: 每个阶段完成后必须通过测试/构建验证
-3. **迭代交付**: 每个阶段独立可运行，非一次性完整交付
-4. **渐进增强**: 从最小可行产品开始，按需扩展
-5. **让 Ralph 自主**: 具体实现细节由智能体根据测试反馈决定，而非预先规定
-
-### 阶段 1: 基础（第 1-2 周）
-
-**目标**: 最小可行聊天界面
-
-**验证门控**: 前端构建成功，基础页面可访问
-
-*具体实现细节（组件名、布局、颜色）由智能体根据验证结果决定*
-
-### 阶段 2: 侧边面板（第 2-3 周）
-
-**目标**: 渐进式信息揭示
-
-**验证门控**: 面板可正常滑出/关闭，状态正确保存
-
-*面板具体实现通过用户反馈迭代确定*
-
-### 阶段 3: 多任务 UI（第 3-4 周）
-
-**目标**: 多循环并行可见性
-
-**验证门控**: 多循环状态实时更新，WebSocket 连接稳定
-
-*多任务 UI 细节基于实际使用场景确定*
-
-### 阶段 4: 完善（第 4-5 周）
-
-**目标**: 体验优化
-
-**验证门控**: 性能指标达标，WCAG 2.1 AA 合规
-
-*优化方向基于用户反馈和测试结果确定*
-
----
-
-## 设计规范
-
-> ⚠️ **Ralph 反模式提醒**: 以下规范是指导性的，不是规定性的。具体实现应基于测试结果和用户反馈确定。
-
-### 字体排版
-- 字体族: Inter（sans）、JetBrains Mono（mono）
-- 8px 网格系统
-
-### 颜色（OKLCH 系统）
-- 状态颜色: success、warning、error、info
-- Agent 状态: thinking（紫）、running（蓝）、completed（绿）、failed（红）
-
-### 组件规范
-- MessageBubble、ChatInput、SidePanel、LoopCard 样式规范
-- 动画规范（面板滑入、消息淡入）
-
-*具体的颜色值、字体大小等在实现阶段确定*
-
----
-
-## Claude Agent Skills 协议
-
-### 概述
-
-Claude Agent Skills 协议是一种基于 Markdown 的技能定义格式，用于扩展 Claude Code 的能力。Ralph 支持通过此协议定义和管理 AI Agent 的技能集合。
-
-### 技能格式
-
-每个技能是一个独立的 Markdown 文件，使用 YAML frontmatter 定义元数据，后跟详细说明。
-
-#### 基本结构
-
-```markdown
----
-name: skill-name
-description: 技能的简短描述
----
-
-# 技能名称
-
-## 使用场景
-描述何时使用此技能...
-
-## 实现细节
-详细说明技能如何工作...
-
-## 示例
-展示技能使用的示例...
-```
-
-#### 元数据字段
-
-| 字段 | 类型 | 必需 | 描述 |
-|------|------|------|------|
-| name | string | 是 | 技能唯一标识符 |
-| description | string | 是 | 技能功能的简短描述 |
-
-### Ralph 中的 Skills 实现
-
-#### 技能存储位置
-
-```
-.claude/skills/
-├── SKILL.md              # Ralph Tools 技能（主技能）
-├── commit/SKILL.md       # Git commit 技能
-├── code-assist/SKILL.md  # 代码辅助技能
-└── ...
-```
-
-#### 当前实现的 Skills
-
-1. **ralph-tools** - 在 Ralph 编排运行期间管理运行时任务和记忆
-2. **commit** - 创建格式良好的提交和约定式提交消息
-3. **code-assist** - 使用测试驱动开发实现代码任务
-
-### 技能加载机制
-
-#### 技能发现
-
-Ralph 在 .claude/skills/ 目录中自动发现技能
-
-#### 技能触发
-
-技能通过关键词或命令触发
-
-### 为什么不需要 Skills 页面
-
-1. **底层已支持**: Claude Code 本身就支持技能系统
-2. **Markdown 格式**: 技能定义是简单的 Markdown 文件，易于编辑
-3. **命令行接口**: 使用 ralph tools skill list/load 管理技能
-4. **上下文感知**: 技能在运行时按需加载，无需 UI 管理
-
-### 技能最佳实践
-
-#### 命名规范
-- 使用 kebab-case
-- 名称应该简短且描述性强
-- 避免使用通用术语
-
-#### 文档结构
-1. 清晰的用途说明
-2. 真实的使用示例
-3. 命令参考
-4. 工作流示例
-
-### 未来扩展
-
-#### 技能类型（建议）
-1. 域特定技能（frontend、backend、devops）
-2. 工具集成技能（docker、k8s、terraform）
-3. 语言特定技能（rust、python、typescript）
-
----
-
-## 参考文献
-
-### 研究来源
-
-1. **2026 年 AI 编程工具横评** - Copilot、Cursor、Claude Code、Windsurf、Trae 的比较
-2. **Claude Code vs Cursor体验** - 开发者体验比较
-3. **AI编程助手设计增强插件** - UI UX Pro Max
-4. **GitHub 霸榜：UI UX Pro Max** - 专业设计能力
-
-### 设计灵感
-
-- Claude Code - 终端原生 Agent 优先界面
-- Cursor - IDE 集成 Copilot 及实时反馈
-- Linear - 速度、键盘快捷键、极简 UI
-- Vercel - 干净、暗主题、OKLCH 颜色
-- GitHub Copilot - 内联建议、聊天界面
-
-### 可访问性标准
-
-- WCAG 2.1 AA
-- ARIA Authoring Practices
-- WebAIM Contrast Checker
-
----
-
-## 附录
-
-### 键盘快捷键
-
-| 快捷键 | 操作 |
-|--------|------|
-| ⌘K / Ctrl+K | 打开命令面板 |
-| ⌘1 / Ctrl+1 | 打开任务面板 |
-| ⌘2 / Ctrl+2 | 打开规划面板 |
-| ⌘3 / Ctrl+3 | 打开监控面板 |
-| ⌘4 / Ctrl+4 | 打开团队面板 |
-| ⌘5 / Ctrl+5 | 打开项目面板 |
-| Esc | 关闭活动面板 |
-| ⌘↵ / Ctrl+Enter | 发送消息 |
-| ⌘I / Ctrl+I | 附加文件 |
-| ⌘/ | 聚焦搜索 |
-
-### 文件结构（之后）
-
-```
-frontend/ralph-web/src/
-├── components/
-│   ├── chat/                # 新建
-│   ├── panels/              # 新建
-│   ├── dock/                # 新建
-│   └── ...（现有）
-├── pages/
-│   ├── ChatPage.tsx         # 新建（默认）
-│   ├── ...（改编/保持）
-├── stores/
-│   ├── chatStore.ts         # 新建
-│   ├── panelStore.ts        # 新建
-│   ├── loopStore.ts         # 新建
-│   └── ...（现有）
-├── hooks/
-│   ├── useChat.ts           # 新建
-│   ├── usePanels.ts         # 新建
-│   ├── useLoops.ts          # 新建
-│   └── ...（现有）
-├── App.tsx                  # 更新路由
-└── main.tsx
-```
-
----
-
-## 7x24 智能体团队平台愿景
-
-> ⚠️ **本节为新增内容**: 分析当前痛点及与 Ralph 设计理念的对齐
-
-### 愿景概述
-
-Ralph 的核心目标是构建一个 **7x24 小时工作的智能体团队平台**，让多个 AI 智能体能够协同工作，类似于人类团队的工作方式。
-
-### Ralph 核心理念 (The Ralph Tenets)
-
-| 原则 | 描述 | 在平台中的体现 |
+| 能力 | 描述 | Ralph 集成方案 |
 |------|------|---------------|
-| Fresh Context | 每次迭代清除上下文 | 循环终止后重新开始，保持清晰状态 |
-| Backpressure | 用门控而非详细指令 | 测试/类型检查/构建作为质量门控 |
-| The Plan Is Disposable | 计划可再生 | 每次迭代重新规划，成本低 |
-| Disk Is State | 记忆和任务作为交接 | 持久化状态，跨会话恢复 |
-| Signals over Scripts | 用信号而非脚本引导 | 代码即文档，动态适应 |
-| Let Ralph Ralph | 坐在循环上，让智能体自主 | 不过度干预，让智能体发挥 |
+| **并行智能体** | 最多 16 个并行 agent | 利用现有 Worktree 扩展 |
+| **独立上下文** | 每个 agent 200K token | Ralph Memory 系统复用 |
+| **任务看板** | Kanban 风格，自助分配 | 集成现有 Task 系统 |
+| **邮箱通信** | Agent 间直接通信 | 消息队列 + Event Bus |
+| **对抗辩论** | 多假设竞争验证 | 评审模式 + 投票机制 |
 
-### 核心痛点分析（需通过实现验证）
+### 3.3 性能数据
 
-#### 1. 编排层面（✅ LLM语义排序已实现）
+- **16 个并行智能体**: 2 周构建 100K 行 Rust C 编译器
+- **GCC 测试通过率**: 99%
+- **Token 消耗**: 3-agent 团队 ≈ 3-4x 单实例
+- **最佳实践**: Opus 担任 Team Lead，Sonnet 担任 Teammates
+- **团队规模**: 2-5 名成员，每名成员 5-6 个任务
+- **协调开销**: 明确的"接口契约"定义是关键
 
-- ✅ **语义排序**: 基于 LLM 语义相似度排序任务和记忆
-  - *实现方式*: Claude CLI + 结构化提示词 + JSON 响应解析
-  - *模式*: Llm/Heuristic/Hybrid 三种模式，默认 Hybrid
-- **上下文管理**: 记忆注入缺乏智能选择机制
-  - *验证方式*: 实现智能记忆检索，评估召回率
-- **多循环协作**: 并行工作树之间的协调机制不完善
-  - *验证方式*: 实际运行多循环场景，评估协调效率
+### 3.4 Ralph 集成策略
 
-#### 2. UI/UX 层面（待验证）
+Ralph 可以复用 Claude Code Agent Teams 的核心概念：
 
-- **信息过载**: 传统仪表板模式不符合 AI 原生交互
-  - *验证方式*: 用户测试，收集反馈
-- **实时性**: 需要更低的延迟反馈
-  - *验证方式*: 性能测试
-- **多任务可见性**: 难以同时追踪多个智能体的工作
-  - *验证方式*: 用户场景测试
+1. **Team Lead 角色** → Ralph Orchestrator (主循环)
+2. **Teammates 角色** → Worktree Loops (工作树循环)
+3. **Shared Task List** → Ralph Task Store (任务存储)
+4. **Mailbox System** → Ralph Event Bus (事件总线)
 
-#### 3. 运维层面（待验证）
+### 3.5 协作工具 (2026 新增)
 
-- **自愈机制**: 需要更智能的故障检测和恢复
-  - *验证方式*: 故障注入测试
-- **资源管理**: 多循环并行时的资源分配
-  - *验证方式*: 压力测试
-- **监控告警**: 需要更细粒度的指标和告警
-  - *验证方式*: 监控覆盖度测试
+| 工具 | 描述 | Ralph 实现 |
+|------|------|-----------|
+| `TeamCreate` | 初始化团队，共享磁盘文件 | Worktree Manager |
+| `TaskCreate/List/Update` | 管理共享任务看板 | Task Store 已有 |
+| `SendMessage` | Agent 间邮箱通信 | Event Bus 已有 |
+| 任务自助分配 | 从共享任务列表认领任务 | Task Queue 已有 |
 
-### Ralph 原则对齐检查
+### 3.6 显示模式 (2026 新增)
 
-本 UI 1.0 改造应始终遵循以下 Ralph 原则:
-
-1. **Backpressure Over Prescription**:
-   - ✅ 用测试验证 (Jest/Vitest)
-   - ✅ 用类型检查 (TypeScript)
-   - ✅ 用构建门控 (Vite)
-   - ❌ 不规定详细实现步骤
-   - ❌ 不预先指定 UI 组件名称、颜色、布局
-
-2. **Fresh Context**:
-   - ✅ 每次迭代重新读取规格
-   - ✅ 清晰的状态分离
-   - ✅ 最小化副作用
-
-3. **Signals over Scripts**:
-   - ✅ 代码即文档
-   - ✅ 动态适应变化
-   - ❌ 避免过度工程化设计
-
-### 后续扩展方向（按优先级排序）
-
-| 方向 | 描述 | 验证方式 |
-|------|------|----------|
-| ✅ LLM 语义排序 | 基于语义相似度排序任务和记忆 | 已实现: Claude CLI + JSON 解析 |
-| 上下文压缩 | 智能压缩长上下文 | 压缩率 + 准确率测试 |
-| 多智能体协作 | 支持并行工作树之间的任务分发 | 多循环压力测试 |
-| 增强自愈 | 三层容错 + 机器学习预测 | 故障注入测试 |
+| 模式 | 描述 | Ralph 实现 |
+|------|------|-----------|
+| In-Process Mode | 所有成员在同一终端运行 | 已有 |
+| Split-Pane Mode | 每个成员独立面板 | TUI 增强 |
+| Auto Mode | 自动检测 tmux 环境 | TUI 增强 |
 
 ---
 
-**文档版本:** 2.2
-**最后更新:** 2026-02-28
-**作者:** Ralph (AI Agent)
-**状态:** 修订中 - 待验证
+## 四、痛点分析与解决方向
+
+### 4.1 编排层面
+
+| 痛点 | 状态 | 解决方向 |
+|------|------|----------|
+| **LLM语义排序** | ✅ 已实现 | Claude CLI + 结构化提示词 + JSON 响应 |
+| **上下文管理** | 🔄 待优化 | 智能记忆检索，根据任务上下文动态选择 |
+| **多循环协作** | 🔄 待完善 | 工作树间任务分发、状态同步、冲突解决 |
+| **Agent Teams 集成** | 🔄 待实现 | 复用 Claude Code Agent Teams 架构 |
+
+### 4.2 UI/UX 层面
+
+| 痛点 | 状态 | 解决方向 |
+|------|------|----------|
+| **信息过载** | 🔄 改造中 | PROMPT.md 提出的 AI 原生聊天界面 |
+| **实时性** | 🔄 待优化 | WebSocket 增强、消息流式更新 |
+| **多任务可见性** | 🔄 改造中 | ActiveLoopsDock、面板系统 |
+
+### 4.3 运维层面
+
+| 痛点 | 状态 | 解决方向 |
+|------|------|----------|
+| **自愈机制** | ✅ 已实现 | 三层容错 (Agent → Platform → Circuit Breaker) |
+| **资源管理** | 🔄 待完善 | 多循环并行时的资源分配策略 |
+| **监控告警** | ✅ 已实现 | 指标采集、告警规则引擎、Telegram 通知 |
+
+### 4.4 TUI 交互层面
+
+| 痛点 | 状态 | 解决方向 |
+|------|------|----------|
+| **交互体验** | 🔄 待优化 | 增强 ralph-tui 的交互反馈 |
+| **多任务展示** | 🔄 待增强 | 并行循环状态实时展示 |
+| **进度可视化** | 🔄 待增强 | 任务进度、Token 消耗可视化 |
+
+### 4.5 多智能体并行协作 (2026 新增)
+
+| 模式 | 描述 | 适用场景 | Ralph 实现 |
+|------|------|----------|-----------|
+| **Supervisor Pattern** | 监督 Agent 提供用户反馈，多个 Agent 并行工作 | 复杂任务分解 | Worktree + Event Bus |
+| **Mixture Architecture** | 多个 LLM 提供不同解决方案，Manager 综合最佳答案 | 代码审查、设计方案选择 | Review System + Voting |
+| **Pipeline Pattern** | Agent 按阶段顺序处理 | 设计→实现→审查流程 | Hat System + Task Queue |
+
+### 4.6 并行效率优化 (2026 新增)
+
+| 指标 | 最佳实践 | Ralph 当前状态 |
+|------|---------|---------------|
+| 团队规模 | 2-5 名成员 | ✅ 已有 Worktree 支持 |
+| 任务分配 | 每成员 5-6 个任务 | 🔄 待优化 |
+| 上下文管理 | 每个 Agent 独立 200K token | ✅ Memory 系统复用 |
+| 协调开销 | 明确的接口契约定义 | 🔄 待完善 |
+| 通信模式 | 直接 Agent 间通信，非父子报告 | 🔄 Event Bus 需增强 |
+
+---
+
+## 五、智能体并行协作模式
+
+### 5.1 协作模式对比
+
+| 模式 | 描述 | 适用场景 | Ralph 实现 |
+|------|------|----------|-----------|
+| **并行模式** | 多个智能体同时处理独立子任务 | 大规模代码重构、批量测试 | Worktree + Event Bus |
+| **流水线模式** | 智能体按阶段顺序处理 | 设计→实现→审查流程 | Hat System + Task Queue |
+| **专家模式** | 不同智能体专注不同领域 | 前端/后端/运维分工 | Hats + Skills |
+| **投票模式** | 多个智能体独立决策，最终投票 | 代码审查、安全审计 | Review System |
+| **团队模式** | Team Lead + Teammates 协作 | 复杂项目、多模块开发 | Claude Code Agent Teams 集成 |
+
+### 5.2 Cursor Multi-Agent (对比参考)
+
+- **最大并行数**: 8 个 agent
+- **隔离机制**: Git worktree
+- **适用场景**: 前端/后端/测试并行开发
+- **Yolo Mode**: 智能命令执行 + 并行任务处理
+
+---
+
+## 六、7x24 智能体团队平台架构
+
+### 6.1 核心组件
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Ralph Orchestrator                          │
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐│
+│  │   Hats     │  │  Memories   │  │      Tasks             ││
+│  │  System    │  │   Store     │  │      Queue             ││
+│  │ - Planner  │  │ - Semantic  │  │ - Priority Queue      ││
+│  │ - Builder  │  │ - LLM Sort  │  │ - Dependency Graph    ││
+│  │ - Reviewer │  │ - Context   │  │ - Work Distribution    ││
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘│
+├─────────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐│
+│  │   Event     │  │   Merge     │  │      Worktree          ││
+│  │   Loop      │  │   Queue     │  │      Manager           ││
+│  │ - Parallel  │  │ - Conflict  │  │ - Agent Isolation      ││
+│  │ - Hats      │  │ - Resolve   │  │ - Context Share        ││
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘│
+├─────────────────────────────────────────────────────────────────┤
+│                    7x24 Platform Layer                         │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐│
+│  │   Process   │  │  Checkpoint │  │      Self-Healing      ││
+│  │   Daemon    │  │   System    │  │      Mechanism         ││
+│  │ - Spawn     │  │ - State     │  │ - Agent Layer          ││
+│  │ - Monitor   │  │ - Restore   │  │ - Platform Layer       ││
+│  │ - Restart   │  │ - Resume    │  │ - Circuit Breaker      ││
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘│
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐│
+│  │  Monitoring │  │  Alerting   │  │      Skills            ││
+│  │   System    │  │   Engine    │  │      System            ││
+│  │ - Metrics   │  │ - Rules     │  │ - Built-in            ││
+│  │ - Prometheu │  │ - Telegram  │  │ - User-defined        ││
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘│
+├─────────────────────────────────────────────────────────────────┤
+│              Claude Code Agent Teams Integration                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐│
+│  │  Team Lead  │  │  Teammates  │  │   Shared Task List     ││
+│  │  (Ralph)    │  │  (Worktrees)│  │   (Task Store)         ││
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │              Mailbox System (Event Bus)                     ││
+│  └─────────────────────────────────────────────────────────────┘│
+├─────────────────────────────────────────────────────────────────┤
+│                       UI Layer (AI Native)                      │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐│
+│  │  ChatPage   │  │  SidePanel  │  │    ActiveLoopsDock     ││
+│  │   (Default) │  │   System    │  │                        ││
+│  └─────────────┘  └─────────────┘  └─────────────────────────┘│
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │              ralph-tui (Terminal UI)                       ││
+│  │  - Interactive prompts                                     ││
+│  │  - Real-time status                                       ││
+│  │  - Multi-loop visualization                               ││
+│  └─────────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 6.2 数据流
+
+```
+用户输入 (Web UI / TUI / CLI)
+    ↓
+Ralph Orchestrator (Team Lead)
+    ↓
+任务分发 (Worktree Manager)
+    ↓
+┌─────────────────────────────────────────────────────┐
+│           并行 Worktree Loops (Teammates)          │
+│  ┌─────────┐  ┌─────────┐  ┌─────────┐          │
+│  │ Worktree│  │ Worktree│  │ Worktree│  ...      │
+│  │   A     │  │   B     │  │   C     │          │
+│  └─────────┘  └─────────┘  └─────────┘          │
+└─────────────────────────────────────────────────────┘
+    ↓
+Event Bus (Mailbox System)
+    ↓
+结果聚合 + 冲突解决 (Merge Queue)
+    ↓
+状态持久化 (Checkpoint System)
+    ↓
+UI 更新 (WebSocket / TUI)
+```
+
+---
+
+## 七、后续开发计划
+
+### 7.1 短期计划 (1-2周)
+
+| 任务 | 优先级 | 描述 | 状态 |
+|------|--------|------|------|
+| 完成 UI 1.0 聊天界面 | P0 | ChatPage、MessageThread、ChatInput | 🔄 70% |
+| 完善 SidePanel 系统 | P1 | 动画、快捷键、状态保存 | 🔄 70% |
+| 实现 ActiveLoopsDock | P1 | 多循环并行状态展示 | 🔄 70% |
+
+### 7.2 中期计划 (1-2月)
+
+| 任务 | 优先级 | 描述 |
+|------|--------|------|
+| Claude Code Agent Teams 集成 | P1 | Team Lead + Teammates 架构 |
+| 智能上下文管理 | P2 | 动态记忆检索、上下文压缩 |
+| 多循环协作增强 | P2 | 任务分发、状态同步、冲突解决 |
+| 资源管理优化 | P2 | 并行循环资源分配、优先级调度 |
+
+### 7.3 TUI 优化计划 (2026 新增)
+
+基于 Ratatui 的 TUI 优化：
+
+| 优化项 | 描述 | 技术方案 |
+|--------|------|---------|
+| **双缓冲渲染** | 防止屏幕闪烁 | Background buffer → flush to terminal |
+| **模块化 Widget** | 解耦组件，便于维护 | Ratatui Widget Traits 系统 |
+| **状态管理** | 复杂应用状态架构 | 状态与渲染分离 |
+| **响应式布局** | 适应不同终端尺寸 | 终端尺寸监听 + 动态布局 |
+| **Split-Pane 多任务** | 并行显示多个 Agent 输出 | tmux 集成 + 多面板 |
+
+### 7.4 长期计划 (3-6月)
+
+| 任务 | 优先级 | 描述 |
+|------|--------|------|
+| TUI 交互增强 | P2 | ralph-tui 实时状态、多任务可视化 |
+| 机器学习预测 | P3 | 基于历史数据的故障预测 |
+| 智能任务调度 | P3 | AI 驱动的任务分配优化 |
+| 生态系统扩展 | P3 | MCP 集成、更多后端支持 |
+
+---
+
+## 八、计划合理性分析
+
+### 8.1 优势
+
+1. **✅ 遵循 Ralph 原则**: PROMPT.md 和本计划都遵循 Backpressure、Fresh Context 等核心原则
+2. **✅ 基于已有基础设施**: 利用现有 Worktree、Memory、Task 系统
+3. **✅ 对标行业最佳实践**: 集成 Claude Code Agent Teams 架构
+4. **✅ 渐进式交付**: 每个阶段独立可运行
+
+### 8.2 风险与缓解
+
+| 风险 | 可能性 | 影响 | 缓解措施 |
+|------|--------|------|----------|
+| Agent Teams 集成复杂度 | 中 | 高 | 分阶段实现，先并行后通信 |
+| 多循环资源竞争 | 中 | 中 | 实现资源配额 + 优先级调度 |
+| 状态同步延迟 | 低 | 中 | Event Bus 优化 + 缓存 |
+
+### 8.3 验证方式
+
+每个阶段完成后必须通过:
+- 前端构建成功
+- 后端测试通过 (cargo test)
+- E2E 测试通过 (ralph-e2e)
+- 性能基准达标
+
+---
+
+## 九、参考资料
+
+### Claude Code Agent Teams
+
+- [Claude Code Agent Teams：3个AI同时写代码，底层原理和主流框架对比](https://juejin.cn/post/7604678037807988772)
+- [多智能体并行协作！weelinking带你体验Claude Code Agent Teams黑科技](https://m.blog.csdn.net/hongyan0012/article/details/158421522)
+- [巅峰对决：Codex Multi-Agent vs Claude Agent Teams，谁才是最强 AI 编程团队？](https://m.blog.csdn.net/roamingcode/article/details/158389411)
+- [Claude 多 Agent 系统的技术实现原理](https://www.langchain.cn/t/topic/842)
+- [使用 Claude Code Agent Team 协作开发项目：完整实战指南](https://m.blog.csdn.net/u010028049/article/details/158126612)
+- [Anthropic《2026年智能体编码趋势报告》核心结论与趋势解析](https://k.sina.cn/article_7857201856_1d45362c001902mvvm.html?from=tech)
+
+### 多智能体并行协作
+
+- [并行AI 智能体：改变研发方式的技术革新](https://www.51cto.com/aigc/8610.html)
+- [吴恩达最新来信：是时候关注并行智能体了](https://www.hzboyan.com/?content/20250930-9568.shtml)
+- [What is Multi-Agent Collaboration](https://www.ibm.com/think/topics/multi-agent-collaboration)
+- [AutoGen v0.4: Reimagining the foundation of agentic AI](https://www.microsoft.com/en-us/research/articles/autogen-v0-4-reimagining-the-foundation-of-agentic-ai-for-scale-extensibility-and-robustness/?locale=zh-cn)
+
+### Cursor & Windsurf
+
+- [2026 年最新7 款热门AI 编程工具评测](https://juejin.cn/post/7610050364968140841)
+- [Cursor仍是2026最强AI编程工具的原因解析](https://post.m.smzdm.com/p/a0vlp50r/)
+- [AI编程工具2026推荐指南：从编码助手到项目合伙人的六款利器](https://m.toutiao.com/article/7587425484787745306/)
+
+### TUI 开发
+
+- [Rust 命令行工具（CLI）实战：使用 clap、anyhow 和 ratatui 构建 TUI](https://m.blog.csdn.net/m0_46721576/article/details/154141983)
+- [Claude Code终端界面个性化终极指南](https://m.blog.csdn.net/gitblog_01044/article/details/156038733)
+- [深入Ratatui架构：模块化设计与核心组件](https://m.blog.csdn.net/gitblog_01052/article/details/150711612)
+- [Ratatui核心概念解析：深度理解布局、缓冲区和Widget系统](https://m.blog.csdn.net/gitblog_00269/article/details/154929055)
+- [Ratatui状态管理：构建复杂终端应用的架构模式](https://m.blog.csdn.net/gitblog_01048/article/details/154929235)
+- [终极Ratatui响应式设计指南：构建自适应不同终端尺寸的界面](https://m.blog.csdn.net/gitblog_00657/article/details/154929208)
+
+---
+
+## 十、结论
+
+### 10.1 PROMPT.md 评估
+
+PROMPT.md 整体上**很好地遵循了 Ralph 设计理念**:
+- ✅ Backpressure Over Prescription
+- ✅ Fresh Context
+- ✅ Signals over Scripts
+- ✅ Let Ralph Ralph
+- ✅ 强调"指导性而非规定性"
+- ✅ 明确的验证门控
+
+### 10.2 多智能体并行协作分析 (2026 新增)
+
+**关键发现**:
+
+1. **团队规模**: 2-5 名成员，每名成员 5-6 个任务为最佳
+2. **协调开销**: 明确的"接口契约"定义是关键
+3. **通信模式**: 直接 Agent 间通信，非父子报告关系
+4. **Ralph 现状**:
+   - ✅ Worktree 支持多 Agent 隔离
+   - ✅ Event Bus 支持事件通信
+   - ✅ Task Store 支持任务管理
+   - 🔄 需增强: 任务自助分配、冲突解决
+
+### 10.3 TUI 优化分析 (2026 新增)
+
+**Ratatui 最佳实践**:
+1. 双缓冲渲染 - 防止闪烁
+2. 模块化 Widget 设计 - 解耦维护
+3. 状态与渲染分离 - 性能优化
+4. 响应式布局 - 适应多终端
+5. Split-Pane 支持 - 多任务可视化
+
+**Ralph TUI 现状**:
+- ✅ 已有 ralph-tui 基础
+- 🔄 需增强: 多循环状态展示、进度可视化
+
+### 10.4 计划合理性评估
+
+本计划**合理且可执行**:
+- ✅ 基于现有基础设施渐进扩展
+- ✅ 集成 Claude Code Agent Teams 最佳实践
+- ✅ 明确的分阶段交付目标
+- ✅ 门控验证确保质量
+- ✅ 考虑多智能体并行效率优化
+- ✅ 包含 TUI 交互优化
+
+**风险评估**:
+| 风险 | 可能性 | 影响 | 缓解措施 |
+|------|--------|------|----------|
+| Agent Teams 集成复杂度 | 中 | 高 | 分阶段实现，先并行后通信 |
+| 多循环资源竞争 | 中 | 中 | 实现资源配额 + 优先级调度 |
+| 状态同步延迟 | 低 | 中 | Event Bus 优化 + 缓存 |
+| TUI 性能 | 低 | 中 | 双缓冲 + 虚拟渲染 |
+
+### 10.5 下一步行动
+
+1. **继续完成 UI 1.0 改造** - 剩余 30% 的聊天界面开发
+2. **实现 Claude Code Agent Teams 集成** - 复用 Worktree + Event Bus
+3. **优化智能上下文管理** - 实现动态记忆检索
+4. **增强 TUI 交互** - ralph-tui 多任务可视化
+5. **实现多智能体并行优化** - 任务自助分配、冲突解决
+
+---
+
+**文档状态**: 活跃
+**版本**: 1.2
+**更新日期**: 2026-02-28
+**新增内容**:
+- Claude Code Agent Teams 2026 最新功能
+- 多智能体并行协作最佳实践
+- TUI 优化方案 (Ratatui)
+- 并行效率优化指标

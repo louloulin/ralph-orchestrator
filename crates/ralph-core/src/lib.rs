@@ -35,6 +35,7 @@ pub mod loop_history;
 pub mod loop_lock;
 mod loop_name;
 pub mod loop_registry;
+pub mod mailbox_store;
 pub mod memory;
 pub mod memory_index;
 pub mod memory_parser;
@@ -100,6 +101,7 @@ pub use loop_history::{HistoryError, HistoryEvent, HistoryEventType, HistorySumm
 pub use loop_lock::{LockError, LockGuard, LockMetadata, LoopLock};
 pub use loop_name::{LoopNameGenerator, LoopNamingConfig};
 pub use loop_registry::{LoopEntry, LoopRegistry, RegistryError};
+pub use mailbox_store::{MailboxEntry, MailboxError, MailboxStore};
 pub use memory::semantic::{RankError, RankOptions, RankedMemory, RelevanceScore, SemanticRanker};
 pub use memory::{Memory, MemoryType};
 pub use memory_index::{InvertedIndex, MemoryId, SearchOptions, TfidfScore};

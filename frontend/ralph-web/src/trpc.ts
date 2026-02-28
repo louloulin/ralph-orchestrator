@@ -211,6 +211,17 @@ function useRpcUtils() {
         invalidate: () => invalidatePrefix("skills", "skills.getCategories"),
       },
     },
+    checkpoint: {
+      list: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("checkpoint", "checkpoint.list")
+            : invalidateExact("checkpoint", "checkpoint.list", input),
+      },
+      stats: {
+        invalidate: () => invalidatePrefix("checkpoint", "checkpoint.stats"),
+      },
+    },
     session: {
       list: {
         invalidate: () => invalidatePrefix("session", "session.list"),
@@ -817,6 +828,30 @@ export const trpc = {
       method: "skills.getCategories",
       mapInput: () => ({}),
       mapResult: (result) => result?.categories ?? [],
+    }),
+  },
+
+  // Checkpoint procedures (stub - not fully implemented)
+  checkpoint: {
+    list: createQueryProcedure<{ loopId?: string }, { checkpoints: any[] }, any[]>({
+      scope: "checkpoint",
+      method: "checkpoint.list",
+      mapInput: (input) => input ?? {},
+      mapResult: (result) => result?.checkpoints ?? [],
+    }),
+
+    stats: createQueryProcedure<{ cwd?: string }, any, any>({
+      scope: "checkpoint",
+      method: "checkpoint.stats",
+      mapInput: (input) => input ?? {},
+    }),
+
+    restore: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "checkpoint.restore",
+    }),
+
+    delete: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "checkpoint.delete",
     }),
   },
 };

@@ -48,13 +48,16 @@ export function DashboardPage() {
   const taskStats = useMemo(() => {
     if (!tasksData) return { total: 0, open: 0, inProgress: 0, completed: 0, failed: 0 };
 
-    const tasks = tasksData;
+    const tasks = tasksData as unknown[] | undefined;
     return {
-      total: tasks.length,
-      open: tasks.filter((t) => t.status === "open").length,
-      inProgress: tasks.filter((t) => t.status === "in_progress" || t.status === "pending").length,
-      completed: tasks.filter((t) => t.status === "closed").length,
-      failed: tasks.filter((t) => t.status === "failed").length,
+      total: tasks?.length ?? 0,
+      open: tasks?.filter((t: unknown) => (t as { status: string }).status === "open").length ?? 0,
+      inProgress: tasks?.filter((t: unknown) => {
+        const status = (t as { status: string }).status;
+        return status === "in_progress" || status === "pending";
+      }).length ?? 0,
+      completed: tasks?.filter((t: unknown) => (t as { status: string }).status === "closed").length ?? 0,
+      failed: tasks?.filter((t: unknown) => (t as { status: string }).status === "failed").length ?? 0,
     };
   }, [tasksData]);
 
@@ -62,11 +65,12 @@ export function DashboardPage() {
   const loopStats = useMemo(() => {
     if (!loopsData) return { total: 0, running: 0, pending: 0, completed: 0 };
 
+    const loops = loopsData as unknown[] | undefined;
     return {
-      total: loopsData.length,
-      running: loopsData.filter((l) => l.status === "running").length,
-      pending: loopsData.filter((l) => l.status === "queued").length,
-      completed: loopsData.filter((l) => l.status === "completed").length,
+      total: loops?.length ?? 0,
+      running: loops?.filter((l: unknown) => (l as { status: string }).status === "running").length ?? 0,
+      pending: loops?.filter((l: unknown) => (l as { status: string }).status === "queued").length ?? 0,
+      completed: loops?.filter((l: unknown) => (l as { status: string }).status === "completed").length ?? 0,
     };
   }, [loopsData]);
 
@@ -85,7 +89,8 @@ export function DashboardPage() {
 
     // Add recent tasks
     if (tasksData) {
-      tasksData.slice(0, 5).forEach((task) => {
+      (tasksData as unknown[]).slice(0, 5).forEach((taskItem: unknown) => {
+        const task = taskItem as { id: string; title: string; status: string; updatedAt?: string; createdAt: string };
         items.push({
           id: `task-${task.id}`,
           title: task.title,
@@ -101,16 +106,17 @@ export function DashboardPage() {
 
     // Add recent loops
     if (loopsData) {
-      loopsData.slice(0, 3).forEach((loop) => {
+      (loopsData as unknown[]).slice(0, 3).forEach((loop: unknown) => {
+        const l = loop as { id: string; prompt?: string; status: string };
         items.push({
-          id: `loop-${loop.id}`,
-          title: loop.prompt?.slice(0, 50) || `Loop ${loop.id}`,
+          id: `loop-${l.id}`,
+          title: l.prompt?.slice(0, 50) || `Loop ${l.id}`,
           timestamp: new Date(),
           status:
-            loop.status === "completed" ? "success" :
-            loop.status === "failed" ? "error" :
-            loop.status === "running" ? "info" : "neutral",
-          description: `Loop: ${loop.status}`,
+            l.status === "completed" ? "success" :
+            l.status === "failed" ? "error" :
+            l.status === "running" ? "info" : "neutral",
+          description: `Loop: ${l.status}`,
         });
       });
     }

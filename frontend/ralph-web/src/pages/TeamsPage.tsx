@@ -5,7 +5,7 @@
  * Part of P4.5-1: Agent Teams Architecture
  */
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { TeamsList } from "../components/teams";
 import { TeamDetail } from "../components/teams/TeamDetail";
 import { type AgentTeam } from "../types";

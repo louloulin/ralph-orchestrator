@@ -5,7 +5,7 @@
  */
 
 import * as React from "react";
-import { Activity, Layers, Settings, Wrench, Power } from "lucide-react";
+import { Activity } from "lucide-react";
 import { trpc } from "@/trpc";
 import {
   HealingTimeline,
@@ -14,8 +14,6 @@ import {
   CircuitBreakerStatus,
 } from "@/components/healing";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { useTranslation } from "@/hooks";
 import { cn } from "@/lib/utils";
 
 /**
@@ -44,7 +42,7 @@ function LoopSelector({
         onChange={(e) => onSelect(e.target.value)}
       >
         <option value="">Select a loop...</option>
-        {loops?.map((loop) => (
+        {loops?.map((loop: { id: string }) => (
           <option key={loop.id} value={loop.id}>
             {loop.id}
           </option>
@@ -97,7 +95,6 @@ function LayerVisualization() {
  * HealingPage main component
  */
 export function HealingPage({}: HealingPageProps) {
-  const { t } = useTranslation();
   const [selectedLoop, setSelectedLoop] = React.useState<string>("");
 
   return (

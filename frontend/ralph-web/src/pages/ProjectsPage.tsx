@@ -28,7 +28,7 @@ export function ProjectsPage() {
   });
   const [formError, setFormError] = useState<string | null>(null);
 
-  const { activeProject, setActiveProject } = useProjectStore();
+  const { setActiveProject } = useProjectStore();
 
   // Fetch all projects
   const { data: projects, isLoading, refetch } = trpc.project.list.useQuery();
@@ -279,7 +279,7 @@ export function ProjectsPage() {
         <div className="text-center py-8 text-slate-400">Loading projects...</div>
       ) : projects && projects.length > 0 ? (
         <div className="space-y-3">
-          {projects.map((project) => (
+          {projects.map((project: { id: string; name: string; path: string; type: string; description: string | null; isActive: boolean; createdAt?: Date; updatedAt?: Date }) => (
             <div
               key={project.id}
               className={`p-4 bg-slate-800 rounded-lg border transition-colors ${
@@ -371,7 +371,7 @@ export function ProjectsPage() {
                       Cancel
                     </button>
                     <button
-                      onClick={() => handleUpdate(project)}
+                      onClick={() => handleUpdate(project as unknown as { id: string; name: string; path: string; type: "local" | "worktree"; description: string | null; isActive: boolean; createdAt: Date; updatedAt: Date })}
                       disabled={updateMutation.isPending}
                       className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors disabled:opacity-50"
                     >
@@ -420,7 +420,7 @@ export function ProjectsPage() {
                       </button>
                     )}
                     <button
-                      onClick={() => startEditing(project)}
+                      onClick={() => startEditing(project as unknown as { id: string; name: string; path: string; type: "local" | "worktree"; description: string | null; isActive: boolean; createdAt: Date; updatedAt: Date })}
                       className="p-2 text-slate-400 hover:text-blue-400 transition-colors"
                       title="Edit"
                     >

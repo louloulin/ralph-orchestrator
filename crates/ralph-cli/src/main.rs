@@ -28,6 +28,7 @@ mod rpc_stdin;
 mod skill_cli;
 mod sop_runner;
 mod task_cli;
+mod team_cli;
 #[cfg(test)]
 mod test_support;
 mod test_tools;
@@ -511,6 +512,9 @@ enum Commands {
 
     /// Manage parallel loops
     Loops(loops::LoopsArgs),
+
+    /// Manage teams for multi-agent collaboration
+    Team(team_cli::TeamArgs),
 
     /// Manage configured hats
     Hats(hats::HatsArgs),
@@ -1047,6 +1051,7 @@ async fn main() -> Result<()> {
         }
         Some(Commands::Tools(args)) => tools::execute(args, cli.color.should_use_colors()).await,
         Some(Commands::Loops(args)) => loops::execute(args, cli.color.should_use_colors()),
+        Some(Commands::Team(args)) => team_cli::execute(args, cli.color.should_use_colors()),
         Some(Commands::Hats(args)) => {
             hats::execute(
                 &config_sources,

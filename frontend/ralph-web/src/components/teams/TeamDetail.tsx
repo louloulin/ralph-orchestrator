@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { clsx } from "clsx";
 import { TeamKanbanBoard } from "./TeamKanbanBoard";
+import { MessageLog } from "./MessageLog";
 
 interface TeamDetailProps {
   team: AgentTeam;
@@ -345,6 +346,9 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
         onTaskStatusChange={handleTaskStatusChange}
         onCreateTask={handleCreateTask}
       />
+
+      {/* Message Log */}
+      <MessageLog teamId={team.id} />
 
       {/* Activity Logs */}
       <div className="bg-gray-800/50 rounded-lg border border-gray-700">

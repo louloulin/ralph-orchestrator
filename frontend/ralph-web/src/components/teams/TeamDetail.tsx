@@ -27,10 +27,13 @@ import {
   Activity,
   Network,
   RefreshCw,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { clsx } from "clsx";
 import { TeamKanbanBoard } from "./TeamKanbanBoard";
 import { MessageLog } from "./MessageLog";
+import { useTeamWebSocket, type TeamEvent } from "../../hooks/useTeamWebSocket";
 
 interface TeamDetailProps {
   team: AgentTeam;
@@ -45,6 +48,40 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
     { id: initialTeam.id },
     { initialData: initialTeam }
   );
+
+  // WebSocket connection for real-time updates
+  const {
+    connectionState,
+    error: wsError,
+    subscribeToTeam,
+    unsubscribeFromTeam,
+    latestEvent,
+  } = useTeamWebSocket({
+    autoConnect: true,
+    onTeamEvent: (event: TeamEvent) => {
+      // Invalidate team data on status changes
+      if (event.type === "team_status_changed" || event.type === "agent_status_changed") {
+        utils.teams.get.invalidate({ id: team.id });
+        utils.teams.list.invalidate();
+      }
+    },
+  });
+
+  // Subscribe to team updates on mount
+  useEffect(() => {
+    subscribeToTeam(team.id);
+    return () => {
+      unsubscribeFromTeam(team.id);
+    };
+  }, [team.id, subscribeToTeam, unsubscribeFromTeam]);
+
+  // Handle real-time events
+  useEffect(() => {
+    if (latestEvent && latestEvent.teamId === team.id) {
+      // Process real-time updates
+      console.log("Team event received:", latestEvent);
+    }
+  }, [latestEvent, team.id]);
 
   // Fetch activity logs (using get query with logs data)
   const { data: logs } = trpc.teams.get.useQuery(
@@ -222,6 +259,21 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* WebSocket Connection Status */}
+          <div
+            className={clsx(
+              "flex items-center gap-1 px-2 py-1 rounded text-xs",
+              connectionState === "connected" && "text-green-400",
+              connectionState === "connecting" && "text-yellow-400",
+              connectionState === "disconnected" && "text-gray-400",
+              connectionState === "error" && "text-red-400"
+            )}
+          >
+            {connectionState === "connected" && <Wifi className="w-3 h-3" />}
+            {connectionState === "disconnected" && <WifiOff className="w-3 h-3" />}
+            <span className="capitalize">{connectionState}</span>
+          </div>
+
           <div
             className={clsx(
               "px-3 py-1 rounded-full text-sm font-medium capitalize",

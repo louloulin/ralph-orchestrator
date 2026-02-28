@@ -203,7 +203,7 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
     setTasks((prev) => [...prev, newTask]);
   };
 
-  const statusColor = TEAM_STATUS_COLORS[team.status];
+  const statusColor = TEAM_STATUS_COLORS[team.status as keyof typeof TEAM_STATUS_COLORS];
 
   return (
     <div className="space-y-6">
@@ -291,7 +291,7 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
         <StatCard
           icon={<RefreshCw className="w-5 h-5" />}
           label="Distribution"
-          value={TASK_DISTRIBUTION_MODES[team.taskDistribution].label}
+          value={TASK_DISTRIBUTION_MODES[team.taskDistribution as keyof typeof TASK_DISTRIBUTION_MODES].label}
         />
       </div>
 
@@ -312,15 +312,29 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
       {/* Agents Section */}
       <div className="bg-gray-800/50 rounded-lg border border-gray-700">
         <div className="p-4 border-b border-gray-700">
-          <h2 className="font-semibold">Team Agents</h2>
+          <h2 className="font-semibold flex items-center gap-2">
+            <Users className="w-5 h-5" />
+            Team Agents
+            <span className="text-xs text-gray-500 font-normal ml-auto">
+              Real-time status
+            </span>
+          </h2>
         </div>
-        <div className="p-4 space-y-4">
+        <div className="p-4 space-y-3">
           {/* Coordinator */}
-          <AgentRow agent={team.coordinator} isCoordinator />
+          <AgentRow
+            agent={team.coordinator}
+            isCoordinator
+            currentTask={team.coordinator.status === "running" ? tasks.find(t => t.status === "in_progress" && t.assignedTo === team.coordinator.name)?.title : null}
+          />
 
           {/* Members */}
-          {team.members.map((member) => (
-            <AgentRow key={member.id} agent={member} />
+          {team.members.map((member: { id: string; name: string; description: string; status: string; iterationsCompleted: number; lastActivityAt: string | null }) => (
+            <AgentRow
+              key={member.id}
+              agent={member}
+              currentTask={member.status === "running" ? tasks.find(t => t.status === "in_progress" && t.assignedTo === member.name)?.title : null}
+            />
           ))}
         </div>
       </div>
@@ -340,7 +354,7 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
         <div className="max-h-64 overflow-y-auto">
           {logs && logs.length > 0 ? (
             <div className="divide-y divide-gray-700">
-              {logs.map((log) => (
+              {logs.map((log: { id: string; activityType: string; message: string; timestamp: string }) => (
                 <div key={log.id} className="p-3 flex items-start gap-3">
                   <div
                     className={clsx(
@@ -400,45 +414,115 @@ function StatCard({
 }
 
 /**
- * Agent Row Component
+ * Agent Row Component - Enhanced with real-time status display
  */
 function AgentRow({
   agent,
   isCoordinator = false,
+  currentTask,
 }: {
   agent: { id: string; name: string; description: string; status: string; iterationsCompleted: number; lastActivityAt: string | null };
   isCoordinator?: boolean;
+  currentTask?: string | null;
 }) {
   const statusColor = AGENT_STATUS_COLORS[agent.status as keyof typeof AGENT_STATUS_COLORS];
 
-  return (
-    <div className="flex items-center gap-4 p-3 bg-gray-800/30 rounded-lg">
-      <div className={clsx("w-3 h-3 rounded-full", statusColor)} />
+  // Calculate time since last heartbeat
+  const getTimeSinceHeartbeat = () => {
+    if (!agent.lastActivityAt) return "No heartbeat";
 
-      <div className="flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{agent.name}</span>
+    const now = new Date();
+    const lastActivity = new Date(agent.lastActivityAt);
+    const diffMs = now.getTime() - lastActivity.getTime();
+    const diffSecs = Math.floor(diffMs / 1000);
+    const diffMins = Math.floor(diffSecs / 60);
+    const diffHours = Math.floor(diffMins / 60);
+
+    if (diffSecs < 60) return `${diffSecs}s ago`;
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    return `${Math.floor(diffHours / 24)}d ago`;
+  };
+
+  // Get status icon based on agent status
+  const getStatusIcon = () => {
+    switch (agent.status) {
+      case "running":
+        return <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />;
+      case "waiting":
+        return <Clock className="w-4 h-4 text-yellow-400" />;
+      case "completed":
+        return <div className="w-2 h-2 bg-green-400 rounded-full" />;
+      case "failed":
+        return <div className="w-2 h-2 bg-red-400 rounded-full" />;
+      default:
+        return <div className="w-2 h-2 bg-gray-400 rounded-full" />;
+    }
+  };
+
+  return (
+    <div className="flex items-start gap-4 p-4 bg-gray-800/30 rounded-lg border border-gray-700/50">
+      {/* Status Indicator */}
+      <div className="flex flex-col items-center gap-2 pt-1">
+        <div className={clsx("w-3 h-3 rounded-full", statusColor)} />
+        {getStatusIcon()}
+      </div>
+
+      {/* Agent Info */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="font-medium text-white">{agent.name}</span>
           {isCoordinator && (
-            <span className="text-xs px-2 py-0.5 bg-blue-900/50 text-blue-400 rounded">
+            <span className="text-xs px-2 py-0.5 bg-blue-900/50 text-blue-400 rounded border border-blue-800">
               Coordinator
             </span>
           )}
+          <span className={clsx(
+            "text-xs px-2 py-0.5 rounded capitalize",
+            agent.status === "running" && "bg-blue-900/30 text-blue-400 border border-blue-800",
+            agent.status === "waiting" && "bg-yellow-900/30 text-yellow-400 border border-yellow-800",
+            agent.status === "completed" && "bg-green-900/30 text-green-400 border border-green-800",
+            agent.status === "failed" && "bg-red-900/30 text-red-400 border border-red-800",
+            agent.status === "idle" && "bg-gray-700/30 text-gray-400 border border-gray-600"
+          )}>
+            {agent.status}
+          </span>
         </div>
-        <p className="text-sm text-gray-400">{agent.description}</p>
+        <p className="text-sm text-gray-400 mb-2">{agent.description}</p>
+
+        {/* Current Task Assignment */}
+        {currentTask && (
+          <div className="flex items-center gap-2 text-sm mb-2">
+            <Activity className="w-4 h-4 text-blue-400" />
+            <span className="text-gray-300">Working on:</span>
+            <span className="text-blue-400 font-medium truncate">{currentTask}</span>
+          </div>
+        )}
+
+        {/* Stats Row */}
+        <div className="flex items-center gap-4 text-xs text-gray-500">
+          <div className="flex items-center gap-1">
+            <RefreshCw className="w-3 h-3" />
+            <span>{agent.iterationsCompleted} iterations</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="w-3 h-3" />
+            <span>Last heartbeat: {getTimeSinceHeartbeat()}</span>
+          </div>
+        </div>
       </div>
 
-      <div className="text-right text-sm">
-        <p className="text-gray-300 capitalize">{agent.status}</p>
-        <p className="text-gray-500">
-          {agent.iterationsCompleted} iterations
-        </p>
-      </div>
-
-      {agent.lastActivityAt && (
+      {/* Right Side - Status Details */}
+      <div className="text-right space-y-1">
         <div className="text-xs text-gray-500">
-          {new Date(agent.lastActivityAt).toLocaleTimeString()}
+          {agent.lastActivityAt && (
+            <div className="flex items-center justify-end gap-1">
+              <Network className="w-3 h-3" />
+              <span>{new Date(agent.lastActivityAt).toLocaleTimeString()}</span>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

@@ -4,10 +4,12 @@
  * Displays detailed view of a single agent team with activity logs.
  */
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { trpc } from "../../trpc";
 import {
   type AgentTeam,
+  type TeamTask,
+  type TeamTaskStatus,
   AGENT_STATUS_COLORS,
   TEAM_STATUS_COLORS,
   CONTEXT_SHARING_MODES,
@@ -27,6 +29,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { clsx } from "clsx";
+import { TeamKanbanBoard } from "./TeamKanbanBoard";
 
 interface TeamDetailProps {
   team: AgentTeam;
@@ -34,7 +37,7 @@ interface TeamDetailProps {
 }
 
 export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
-  const utils = trpc.useContext();
+  const utils = trpc.useUtils();
 
   // Fetch latest team data
   const { data: team } = trpc.teams.get.useQuery(
@@ -42,11 +45,75 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
     { initialData: initialTeam }
   );
 
-  // Fetch activity logs
-  const { data: logs } = trpc.teams.getActivityLogs.useQuery(
-    { teamId: team.id, limit: 50 },
+  // Fetch activity logs (using get query with logs data)
+  const { data: logs } = trpc.teams.get.useQuery(
+    { id: team.id },
     { refetchInterval: 5000 }
   );
+
+  // Mock tasks for now - backend endpoints come in subtask 2.4.6
+  const [tasks, setTasks] = useState<TeamTask[]>([
+    {
+      id: "task-1",
+      teamId: team.id,
+      title: "Setup project structure",
+      description: "Initialize project with dependencies and folder structure",
+      status: "done",
+      assignedTo: team.coordinator.name,
+      dependencies: [],
+      createdAt: new Date().toISOString(),
+      claimedAt: new Date().toISOString(),
+      completedAt: new Date().toISOString(),
+    },
+    {
+      id: "task-2",
+      teamId: team.id,
+      title: "Implement authentication",
+      description: "Add user authentication with JWT tokens",
+      status: "in_progress",
+      assignedTo: team.members[0]?.name || null,
+      dependencies: ["task-1"],
+      createdAt: new Date().toISOString(),
+      claimedAt: new Date().toISOString(),
+      completedAt: null,
+    },
+    {
+      id: "task-3",
+      teamId: team.id,
+      title: "Design database schema",
+      description: "Create database models and migrations",
+      status: "review",
+      assignedTo: team.members[1]?.name || null,
+      dependencies: ["task-1"],
+      createdAt: new Date().toISOString(),
+      claimedAt: new Date().toISOString(),
+      completedAt: null,
+    },
+    {
+      id: "task-4",
+      teamId: team.id,
+      title: "Write API documentation",
+      description: "Document all REST API endpoints",
+      status: "todo",
+      assignedTo: null,
+      dependencies: ["task-2", "task-3"],
+      createdAt: new Date().toISOString(),
+      claimedAt: null,
+      completedAt: null,
+    },
+    {
+      id: "task-5",
+      teamId: team.id,
+      title: "Add unit tests",
+      description: "Write comprehensive unit tests for core modules",
+      status: "todo",
+      assignedTo: null,
+      dependencies: ["task-2"],
+      createdAt: new Date().toISOString(),
+      claimedAt: null,
+      completedAt: null,
+    },
+  ]);
 
   // Mutations
   const startTeam = trpc.teams.start.useMutation();
@@ -102,6 +169,38 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
     if (confirm(`Are you sure you want to delete team "${team.name}"?`)) {
       deleteTeam.mutate({ id: team.id });
     }
+  };
+
+  const handleTaskStatusChange = (taskId: string, newStatus: TeamTaskStatus) => {
+    // Mock implementation - backend endpoints come in subtask 2.4.6
+    setTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              status: newStatus,
+              completedAt: newStatus === "done" ? new Date().toISOString() : null,
+            }
+          : task
+      )
+    );
+  };
+
+  const handleCreateTask = () => {
+    // Mock implementation - backend endpoints come in subtask 2.4.6
+    const newTask: TeamTask = {
+      id: `task-${Date.now()}`,
+      teamId: team.id,
+      title: "New Task",
+      description: "Task description",
+      status: "todo",
+      assignedTo: null,
+      dependencies: [],
+      createdAt: new Date().toISOString(),
+      claimedAt: null,
+      completedAt: null,
+    };
+    setTasks((prev) => [...prev, newTask]);
   };
 
   const statusColor = TEAM_STATUS_COLORS[team.status];
@@ -225,6 +324,13 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
           ))}
         </div>
       </div>
+
+      {/* Kanban Board */}
+      <TeamKanbanBoard
+        tasks={tasks}
+        onTaskStatusChange={handleTaskStatusChange}
+        onCreateTask={handleCreateTask}
+      />
 
       {/* Activity Logs */}
       <div className="bg-gray-800/50 rounded-lg border border-gray-700">

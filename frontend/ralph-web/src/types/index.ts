@@ -80,6 +80,8 @@ export type {
   ContextSharingMode,
   TaskDistributionMode,
   TeamStatus,
+  TeamTaskStatus,
+  TeamTask,
   AgentTeam,
   CreateTeamInput,
   UpdateTeamInput,
@@ -92,6 +94,7 @@ export {
   TASK_DISTRIBUTION_MODES,
   AGENT_STATUS_COLORS,
   TEAM_STATUS_COLORS,
+  TASK_STATUS_COLORS,
 } from "./teams";
 
 // Task types for code review (P5-5)

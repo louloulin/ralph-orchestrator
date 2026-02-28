@@ -31,12 +31,14 @@ import {
 } from "@/components/tasks";
 import { ThinkingPanel } from "@/components/shared";
 import { DiffViewer } from "@/components/diff/DiffViewer";
+import { FileChangesList } from "@/components/diff/FileChangesList";
 import {
   AlertTriangle,
   Loader2,
   GitMerge,
   AlertCircle,
   FileQuestion,
+  FileCode,
 } from "lucide-react";
 import type { TaskAction } from "@/components/tasks/TaskDetailHeader";
 
@@ -355,6 +357,7 @@ export function TaskDetailPage() {
             </div>
           ) : fileChangesQuery.data && fileChangesQuery.data.length > 0 ? (
             <>
+              {/* File changes with approval controls (P5-5: Code Review) */}
               <div className="border rounded-lg overflow-hidden">
                 <DiffViewer
                   taskId={id || task.id}
@@ -362,26 +365,23 @@ export function TaskDetailPage() {
                 />
               </div>
 
-              {/* Approval controls (P5-5: Code Review) */}
-              {fileChangesStatsQuery.data &&
-                fileChangesStatsQuery.data.pendingApproval > 0 && (
-                  <div className="flex items-center gap-2 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
-                    <AlertCircle className="h-4 w-4 text-blue-600" />
-                    <span className="text-sm text-blue-600">
-                      {fileChangesStatsQuery.data.pendingApproval} files pending approval
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="ml-auto"
-                      onClick={() =>
-                        console.log("Bulk approve - not yet implemented")
-                      }
-                    >
-                      Approve All
-                    </Button>
-                  </div>
-                )}
+              {/* File changes list with approval controls */}
+              <div className="border rounded-lg p-4">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <FileCode className="h-4 w-4" />
+                  File Changes ({fileChangesQuery.data.length})
+                  {fileChangesStatsQuery.data &&
+                    fileChangesStatsQuery.data.pendingApproval > 0 && (
+                      <span className="text-xs font-normal text-blue-600">
+                        ({fileChangesStatsQuery.data.pendingApproval} pending approval)
+                      </span>
+                    )}
+                </h3>
+                <FileChangesList
+                  taskId={id || task.id}
+                  showApprovals={true}
+                />
+              </div>
             </>
           ) : (
             <div className="flex flex-col items-center justify-center py-8 text-center">

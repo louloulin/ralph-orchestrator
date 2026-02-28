@@ -22,6 +22,12 @@ pub struct EventBus {
     /// Pending human interaction events (human.*).
     human_pending: Vec<Event>,
 
+    /// Pending events for cross-loop communication (worktree mailbox).
+    /// Indexed by loop ID (String) to store events for specific loops.
+    /// TODO: Add send_to_loop() and take_loop_pending() methods in Phase 1.3.
+    #[allow(dead_code)]
+    loop_pending: BTreeMap<String, Vec<Event>>,
+
     /// Observers that receive all published events.
     /// Multiple observers can be registered (e.g., session recorder + TUI).
     observers: Vec<Observer>,

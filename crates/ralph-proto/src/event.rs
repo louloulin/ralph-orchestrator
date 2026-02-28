@@ -3,6 +3,19 @@
 use crate::{HatId, Topic};
 use serde::{Deserialize, Serialize};
 
+/// The operational state of a teammate agent in the team system.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum AgentStatus {
+    /// Agent is idle and available for work
+    Idle,
+    /// Agent is actively processing a task
+    Busy,
+    /// Agent encountered an error and may need intervention
+    Error,
+    /// Agent is offline or not responding
+    Offline,
+}
+
 /// An event in the pub/sub system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {

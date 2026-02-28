@@ -9,7 +9,8 @@
 use crate::display::colors;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
-use ralph_core::{TeamStore, TeamTask, TeamTaskStatus};
+use ralph_core::{MailboxStore, TeamStore, TeamTask, TeamTaskStatus};
+use ralph_proto::Event;
 use std::path::{Path, PathBuf};
 
 /// Output format for team commands.
@@ -60,6 +61,15 @@ pub enum TeamCommands {
 
     /// List available tasks for a team
     ListTasks(ListTasksArgs),
+
+    /// Send a message to another loop
+    Send(SendArgs),
+
+    /// List messages in a mailbox
+    Messages(MessagesArgs),
+
+    /// Suggest a task for a teammate based on load balancing
+    Suggest(SuggestArgs),
 }
 
 /// Arguments for the `team create` command.
@@ -174,6 +184,49 @@ pub struct ListTasksArgs {
     pub format: OutputFormat,
 }
 
+/// Arguments for the `team send` command.
+#[derive(Parser, Debug)]
+pub struct SendArgs {
+    /// Target loop ID to send message to
+    #[arg(long)]
+    pub to: String,
+
+    /// Message content
+    pub message: String,
+
+    /// Loop ID sending the message (default: read from current-loop-id)
+    #[arg(long)]
+    pub from: Option<String>,
+}
+
+/// Arguments for the `team messages` command.
+#[derive(Parser, Debug)]
+pub struct MessagesArgs {
+    /// Loop ID to check messages for (default: read from current-loop-id)
+    #[arg(long)]
+    pub loop_id: Option<String>,
+
+    /// Filter by sender loop ID
+    #[arg(long)]
+    pub from: Option<String>,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub format: OutputFormat,
+}
+
+/// Arguments for the `team suggest` command.
+#[derive(Parser, Debug)]
+pub struct SuggestArgs {
+    /// Loop ID of the teammate to suggest a task for
+    #[arg(long)]
+    pub teammate: String,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub format: OutputFormat,
+}
+
 /// Gets the team store base path.
 fn get_team_store_path(root: Option<&PathBuf>) -> PathBuf {
     let base = root.map(|p| p.as_path()).unwrap_or(Path::new("."));
@@ -227,6 +280,13 @@ pub fn execute(args: TeamArgs, use_colors: bool) -> Result<()> {
         TeamCommands::Update(update_args) => execute_update(update_args, root.as_ref(), use_colors),
         TeamCommands::ListTasks(list_tasks_args) => {
             execute_list_tasks(list_tasks_args, root.as_ref(), use_colors)
+        }
+        TeamCommands::Send(send_args) => execute_send(send_args, root.as_ref(), use_colors),
+        TeamCommands::Messages(messages_args) => {
+            execute_messages(messages_args, root.as_ref(), use_colors)
+        }
+        TeamCommands::Suggest(suggest_args) => {
+            execute_suggest(suggest_args, root.as_ref(), use_colors)
         }
     }
 }
@@ -631,6 +691,214 @@ fn execute_list_tasks(args: ListTasksArgs, root: Option<&PathBuf>, use_colors: b
             for task in tasks {
                 println!("{}", task.id);
             }
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_send(args: SendArgs, root: Option<&PathBuf>, use_colors: bool) -> Result<()> {
+    let base_path = get_team_store_path(root);
+    let mailbox = MailboxStore::new(base_path);
+
+    let from_loop_id = args.from.or_else(|| get_current_loop_id(root)).context(
+        "Loop ID not specified. Use --from or ensure current-loop-id marker file exists",
+    )?;
+
+    // Create event with source loop information
+    let event = Event::new("mailbox.message", &args.message).with_source_loop(from_loop_id.clone());
+
+    let msg_id = mailbox
+        .send(&args.to, &event)
+        .context("Failed to send message")?;
+
+    if use_colors {
+        println!("{}Message sent {}{}", colors::GREEN, msg_id, colors::RESET);
+    } else {
+        println!("Message sent {}", msg_id);
+    }
+    println!("  From: {}", from_loop_id);
+    println!("  To:   {}", args.to);
+
+    Ok(())
+}
+
+fn execute_messages(args: MessagesArgs, root: Option<&PathBuf>, use_colors: bool) -> Result<()> {
+    let base_path = get_team_store_path(root);
+    let mailbox = MailboxStore::new(base_path);
+
+    let loop_id = args.loop_id.or_else(|| get_current_loop_id(root)).context(
+        "Loop ID not specified. Use --loop-id or ensure current-loop-id marker file exists",
+    )?;
+
+    let messages = mailbox
+        .receive(&loop_id)
+        .context("Failed to read messages")?;
+
+    // Filter by sender if specified
+    let filtered_messages: Vec<_> = if let Some(from_filter) = &args.from {
+        messages
+            .into_iter()
+            .filter(|m| {
+                m.event
+                    .source_loop
+                    .as_ref()
+                    .map(|s| s == from_filter)
+                    .unwrap_or(false)
+            })
+            .collect()
+    } else {
+        messages
+    };
+
+    match args.format {
+        OutputFormat::Table => {
+            if filtered_messages.is_empty() {
+                if args.from.is_some() {
+                    println!("No messages from {}", args.from.unwrap());
+                } else {
+                    println!("No messages for loop {}", loop_id);
+                }
+            } else {
+                if use_colors {
+                    println!(
+                        "{}{:<25} {:<25} {:<20} {:<60}{}",
+                        colors::DIM,
+                        "Message ID",
+                        "From",
+                        "Timestamp",
+                        "Content",
+                        colors::RESET
+                    );
+                    println!("{}{}{}", colors::DIM, "-".repeat(130), colors::RESET);
+                } else {
+                    println!(
+                        "{:<25} {:<25} {:<20} {:<60}",
+                        "Message ID", "From", "Timestamp", "Content"
+                    );
+                    println!("{}", "-".repeat(130));
+                }
+
+                for msg in filtered_messages {
+                    let from = msg
+                        .event
+                        .source_loop
+                        .as_ref()
+                        .map(|s| s.split('-').last().unwrap_or(s).to_string())
+                        .unwrap_or_else(|| "(unknown)".to_string());
+
+                    let timestamp = msg.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+                    let content_truncated = if msg.event.payload.len() > 60 {
+                        crate::display::truncate(&msg.event.payload, 60)
+                    } else {
+                        msg.event.payload.clone()
+                    };
+
+                    let msg_id_short = msg.id.split('-').last().unwrap_or(&msg.id);
+
+                    if use_colors {
+                        println!(
+                            "{}{:<25}{} {:<25} {:<20} {:<60}",
+                            colors::DIM,
+                            msg_id_short,
+                            colors::RESET,
+                            from,
+                            timestamp,
+                            content_truncated
+                        );
+                    } else {
+                        println!(
+                            "{:<25} {:<25} {:<20} {:<60}",
+                            msg_id_short, from, timestamp, content_truncated
+                        );
+                    }
+                }
+            }
+        }
+        OutputFormat::Json => {
+            println!("{}", serde_json::to_string_pretty(&filtered_messages)?);
+        }
+        OutputFormat::Quiet => {
+            for msg in filtered_messages {
+                println!("{}", msg.id);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_suggest(args: SuggestArgs, root: Option<&PathBuf>, use_colors: bool) -> Result<()> {
+    let base_path = get_team_store_path(root);
+    let store = TeamStore::load(&base_path).context("Failed to load team store")?;
+
+    let suggested_task = store.suggest_task_for_teammate(&args.teammate);
+
+    match args.format {
+        OutputFormat::Table => {
+            if let Some(task_id) = suggested_task {
+                let task = store.get_task(&task_id);
+                if let Some(task) = task {
+                    if use_colors {
+                        println!(
+                            "{}Suggested task for teammate {}:{}",
+                            colors::GREEN,
+                            args.teammate,
+                            colors::RESET
+                        );
+                    } else {
+                        println!("Suggested task for teammate {}:", args.teammate);
+                    }
+                    println!("  Task ID:  {}", task_id);
+                    println!("  Title:    {}", task.title);
+                    println!("  Priority: {}", task.priority);
+                    println!("  Status:   {:?}", task.status);
+                } else {
+                    if use_colors {
+                        println!(
+                            "{}Suggested task: {}{}",
+                            colors::GREEN,
+                            task_id,
+                            colors::RESET
+                        );
+                    } else {
+                        println!("Suggested task: {}", task_id);
+                    }
+                }
+            } else {
+                if use_colors {
+                    println!(
+                        "{}No tasks available for teammate {}{}",
+                        colors::YELLOW,
+                        args.teammate,
+                        colors::RESET
+                    );
+                } else {
+                    println!("No tasks available for teammate {}", args.teammate);
+                }
+            }
+        }
+        OutputFormat::Json => {
+            let response = if let Some(task_id) = suggested_task {
+                let task = store.get_task(&task_id);
+                serde_json::json!({
+                    "taskId": task_id,
+                    "task": task,
+                })
+            } else {
+                serde_json::json!({
+                    "taskId": null,
+                    "reason": "No tasks available"
+                })
+            };
+            println!("{}", serde_json::to_string_pretty(&response)?);
+        }
+        OutputFormat::Quiet => {
+            if let Some(task_id) = suggested_task {
+                println!("{}", task_id);
+            }
+            // No output if no task available (for scripting)
         }
     }
 

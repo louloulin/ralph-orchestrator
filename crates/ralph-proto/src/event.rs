@@ -138,6 +138,12 @@ pub struct Event {
 
     /// Optional target hat for direct handoff.
     pub target: Option<HatId>,
+
+    /// The loop that published this event (for cross-loop communication).
+    pub source_loop: Option<String>,
+
+    /// Optional target loop for cross-loop routing.
+    pub target_loop: Option<String>,
 }
 
 impl Event {
@@ -148,6 +154,8 @@ impl Event {
             payload: payload.into(),
             source: None,
             target: None,
+            source_loop: None,
+            target_loop: None,
         }
     }
 
@@ -162,6 +170,20 @@ impl Event {
     #[must_use]
     pub fn with_target(mut self, target: impl Into<HatId>) -> Self {
         self.target = Some(target.into());
+        self
+    }
+
+    /// Sets the source loop for cross-loop communication.
+    #[must_use]
+    pub fn with_source_loop(mut self, source_loop: impl Into<String>) -> Self {
+        self.source_loop = Some(source_loop.into());
+        self
+    }
+
+    /// Sets the target loop for cross-loop routing.
+    #[must_use]
+    pub fn with_target_loop(mut self, target_loop: impl Into<String>) -> Self {
+        self.target_loop = Some(target_loop.into());
         self
     }
 }
@@ -287,5 +309,39 @@ mod tests {
             }
             _ => panic!("Wrong event type after roundtrip"),
         }
+    }
+
+    #[test]
+    fn test_event_with_source_loop() {
+        let event = Event::new("test.topic", "payload").with_source_loop("loop-primary");
+
+        assert_eq!(event.source_loop, Some("loop-primary".to_string()));
+        assert_eq!(event.target_loop, None);
+    }
+
+    #[test]
+    fn test_event_with_target_loop() {
+        let event = Event::new("test.topic", "payload").with_target_loop("loop-worktree-1");
+
+        assert_eq!(event.source_loop, None);
+        assert_eq!(event.target_loop, Some("loop-worktree-1".to_string()));
+    }
+
+    #[test]
+    fn test_event_with_both_loops() {
+        let event = Event::new("team.message", "hello")
+            .with_source_loop("loop-primary")
+            .with_target_loop("loop-worktree-1");
+
+        assert_eq!(event.source_loop, Some("loop-primary".to_string()));
+        assert_eq!(event.target_loop, Some("loop-worktree-1".to_string()));
+    }
+
+    #[test]
+    fn test_event_loop_fields_default_none() {
+        let event = Event::new("test.topic", "payload");
+
+        assert_eq!(event.source_loop, None);
+        assert_eq!(event.target_loop, None);
     }
 }

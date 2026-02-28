@@ -96,6 +96,12 @@ clap_complete = "4"
 # Regex for text processing
 regex = "1"
 
+# Compression
+flate2 = "1"
+
+# Cryptographic hashing
+sha2 = "0.10"
+
 # HTTP client for remote presets
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 tokio-tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }

@@ -211,6 +211,23 @@ function useRpcUtils() {
         invalidate: () => invalidatePrefix("skills", "skills.getCategories"),
       },
     },
+    session: {
+      list: {
+        invalidate: () => invalidatePrefix("session", "session.list"),
+      },
+      getMeta: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("session", "session.getMeta")
+            : invalidateExact("session", "session.getMeta", input),
+      },
+      get: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("session", "session.get")
+            : invalidateExact("session", "session.get", input),
+      },
+    },
   };
 }
 
@@ -470,6 +487,46 @@ export const trpc = {
     }>({
       scope: "planning",
       method: "planning.get_artifact",
+    }),
+  },
+
+  // Conversation sessions (P1-1, P1-2)
+  session: {
+    list: createQueryProcedure<{ status?: "active" | "archived" | "completed" }, { sessions: any[] }, any[]>({
+      scope: "session",
+      method: "session.list",
+      mapResult: (result) => result.sessions ?? [],
+    }),
+
+    getMeta: createQueryProcedure<{ id: string }, { session: any }, any>({
+      scope: "session",
+      method: "session.getMeta",
+      mapResult: (result) => result,
+    }),
+
+    get: createQueryProcedure<{ id: string }, { session: any }, any>({
+      scope: "session",
+      method: "session.get",
+      mapResult: (result) => result,
+    }),
+
+    create: createMutationProcedure<{ name: string }, { session: any }, any>({
+      method: "session.create",
+      mapResult: (result) => result,
+    }),
+
+    update: createMutationProcedure<{ id: string; name?: string; status?: "active" | "archived" | "completed" }, { session: any }, any>({
+      method: "session.update",
+      mapResult: (result) => result,
+    }),
+
+    delete: createMutationProcedure<{ id: string }, { success: boolean }, { success: boolean }>({
+      method: "session.delete",
+    }),
+
+    appendMessage: createMutationProcedure<{ sessionId: string; role: "user" | "assistant" | "system"; content: string }, { message: any }, any>({
+      method: "session.appendMessage",
+      mapResult: (result) => result,
     }),
   },
 

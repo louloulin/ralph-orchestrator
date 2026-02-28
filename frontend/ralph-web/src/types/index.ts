@@ -103,3 +103,12 @@ export type {
   FileChangeApprovalProps,
   FileChangesListProps,
 } from "./task";
+
+// Session types for multi-turn conversations (P1-1, P1-2)
+export type {
+  MessageRole,
+  ConversationStatus,
+  SessionMessage,
+  SessionMeta,
+  Session,
+} from "./session";

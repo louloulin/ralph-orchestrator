@@ -80,7 +80,7 @@ pub struct AnalyzerConfig {
 impl Default for AnalyzerConfig {
     fn default() -> Self {
         Self {
-            timeout: Duration::from_secs(120),
+            timeout: Duration::from_mins(2),
             max_iterations: 1,
             backend: "claude".to_string(),
         }

@@ -30,6 +30,7 @@ mod sop_runner;
 mod task_cli;
 #[cfg(test)]
 mod test_support;
+mod test_tools;
 mod tools;
 mod web;
 

@@ -41,11 +41,12 @@ mod tests {
 
     #[test]
     fn format_elapsed_one_minute() {
-        assert_eq!(format_elapsed(Duration::from_secs(60)), "01:00");
+        assert_eq!(format_elapsed(Duration::from_mins(1)), "01:00");
     }
 
     #[test]
     fn format_elapsed_mixed() {
+        // 4 minutes and 32 seconds
         assert_eq!(format_elapsed(Duration::from_secs(272)), "04:32");
     }
 
@@ -59,7 +60,14 @@ mod tests {
     fn format_elapsed_pads_single_digits() {
         // Ensure single-digit values are zero-padded
         assert_eq!(format_elapsed(Duration::from_secs(5)), "00:05");
-        assert_eq!(format_elapsed(Duration::from_secs(65)), "01:05");
+        assert_eq!(
+            format_elapsed(
+                Duration::from_mins(1)
+                    .checked_add(Duration::from_secs(5))
+                    .unwrap()
+            ),
+            "01:05"
+        );
     }
 
     #[test]

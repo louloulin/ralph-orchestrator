@@ -2,6 +2,44 @@
 
 All notable changes to ralph-orchestrator are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **LLM Semantic Ranking**: Memory retrieval now supports true LLM-based semantic ranking
+  - `SemanticRanker` with Claude CLI integration for relevance scoring (0.0-1.0)
+  - Three ranking modes: `Llm` (LLM only), `Heuristic` (keyword matching), `Hybrid` (default)
+  - Falls back to heuristic ranking when LLM unavailable
+  - New `search_semantic` method in `MarkdownMemoryStore`
+  - Comprehensive test coverage (27 semantic tests)
+
+### Changed
+
+- **PROMPT.md v2.1**: Complete UI 1.0 redesign specification aligned with Ralph philosophy
+  - Shifted from traditional multi-page dashboard to AI-native chat-centric interface
+  - Core principles: Backpressure Over Prescription, Fresh Context, Signals over Scripts
+  - Added: ChatPage as default (/chat), SidePanel system, ActiveLoopsDock for multi-task visibility
+  - Removed: Skills page (underlying Claude Code already supports)
+  - Implementation: 12 tasks created (P0:5, P1:3, P2:2)
+
+## Suggested AGENTS.md Updates
+
+### New Patterns to Document
+
+1. **LLM CLI Integration Pattern** (memory/semantic.rs)
+   - Use Claude CLI with `-p` flag for prompt-based interactions
+   - Use `--dangerously-skip-permissions` and restrict tools for safety
+   - Parse JSON responses for structured data extraction
+   - Example: SemanticRanker uses CLI for relevance scoring
+
+2. **Hybrid Fallback Pattern** (memory/semantic.rs)
+   - Try LLM first, fall back to heuristic on any failure
+   - Default to Hybrid mode for reliability
+   - Trace warnings on fallback for debugging
+
+3. **Memory System Location Update** (AGENTS.md:62)
+   - Add: `crates/ralph-core/src/memory/semantic.rs` for semantic ranking
+
 ## [2.6.0] - 2026-02-25
 
 ### Added

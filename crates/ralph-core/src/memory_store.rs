@@ -269,6 +269,38 @@ impl MarkdownMemoryStore {
     fn template(&self) -> String {
         "# Memories\n\n## Patterns\n\n## Decisions\n\n## Fixes\n\n## Context\n".to_string()
     }
+
+    /// Semantic search using LLM-based ranking.
+    ///
+    /// Searches memories by semantic relevance to the query using LLM understanding.
+    ///
+    /// # Arguments
+    /// * `query` - Search query
+    /// * `options` - Ranking options (method, limit, min_score)
+    ///
+    /// # Returns
+    /// Memories sorted by semantic relevance to the query
+    ///
+    /// # Errors
+    /// Returns error if LLM ranking fails or loading memories fails
+    pub async fn search_semantic(
+        &self,
+        query: &str,
+        options: &crate::memory::semantic::RankOptions,
+    ) -> Result<Vec<Memory>, crate::memory::semantic::RankError> {
+        use crate::memory::semantic::SemanticRanker;
+
+        let memories = self.load().map_err(|e| {
+            crate::memory::semantic::RankError::BackendError(format!(
+                "Failed to load memories: {}",
+                e
+            ))
+        })?;
+        let ranker = SemanticRanker::new();
+        let ranked = ranker.rank(query, &memories, options).await?;
+
+        Ok(ranked.into_iter().map(|r| r.memory).collect())
+    }
 }
 
 /// Formats memories as markdown for context injection.
@@ -752,5 +784,51 @@ mod tests {
 
         assert!(result.len() < content.len());
         assert!(result.contains("<!-- truncated:"));
+    }
+
+    #[tokio::test]
+    async fn test_search_semantic_with_heuristic() {
+        let (_temp_dir, store) = create_temp_store();
+
+        // Add test memories with clear keyword overlap
+        let memory1 = Memory::new(
+            MemoryType::Pattern,
+            "rust async patterns".to_string(),
+            vec![],
+        );
+        let memory2 = Memory::new(MemoryType::Pattern, "python decorators".to_string(), vec![]);
+        let memory3 = Memory::new(MemoryType::Fix, "UTF-8 panic in rust".to_string(), vec![]);
+
+        store.append(&memory1).unwrap();
+        store.append(&memory2).unwrap();
+        store.append(&memory3).unwrap();
+
+        // Search with heuristic and low min_score
+        let options = crate::memory::semantic::RankOptions::with_min_score(0.0).use_heuristic();
+        let result = store.search_semantic("rust async", &options).await.unwrap();
+
+        // Should return relevant memories
+        assert!(!result.is_empty());
+        // First result should be about rust/async (exact phrase match should rank highest)
+        assert!(result[0].content.contains("rust"));
+    }
+
+    #[tokio::test]
+    async fn test_search_semantic_with_limit() {
+        let (_temp_dir, store) = create_temp_store();
+
+        for i in 0..5 {
+            let memory = Memory::new(
+                MemoryType::Pattern,
+                format!("Pattern number {}: content", i),
+                vec![format!("tag{}", i)],
+            );
+            store.append(&memory).unwrap();
+        }
+
+        let options = crate::memory::semantic::RankOptions::with_limit(3).use_heuristic();
+        let result = store.search_semantic("pattern", &options).await.unwrap();
+
+        assert!(result.len() <= 3);
     }
 }

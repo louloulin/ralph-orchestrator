@@ -21,7 +21,7 @@ mod ux_event;
 
 pub use daemon::{DaemonAdapter, StartLoopFn};
 pub use error::{Error, Result};
-pub use event::Event;
+pub use event::{AgentStatus, Event};
 pub use event_bus::EventBus;
 pub use hat::{Hat, HatId};
 pub use json_rpc::{

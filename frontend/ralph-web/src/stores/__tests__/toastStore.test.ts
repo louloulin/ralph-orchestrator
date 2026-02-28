@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { useToastStore, toast, type Toast } from "../toastStore";
+import { useToastStore, toast } from "../toastStore";
 
 // Mock timers for testing auto-dismiss
 vi.useFakeTimers();

@@ -129,7 +129,7 @@ export function SessionsPage() {
   };
 
   // Filter sessions by search query
-  const filteredSessions = sessions?.filter((session) =>
+  const filteredSessions = sessions?.filter((session: { name: string }) =>
     session.name.toLowerCase().includes(searchQuery.toLowerCase())
   ) ?? [];
 
@@ -255,8 +255,8 @@ export function SessionsPage() {
       {/* Sessions List */}
       {!isLoading && filteredSessions.length > 0 && (
         <div className="grid gap-3">
-          {filteredSessions.map((session) => {
-            const StatusIcon = STATUS_ICONS[session.status];
+          {filteredSessions.map((session: { id: string; status: string; name: string; message_count: number; created_at: string; updated_at: string }) => {
+            const StatusIcon = STATUS_ICONS[session.status as keyof typeof STATUS_ICONS] || MessageSquare;
             const isActive = activeSession?.id === session.id;
 
             return (
@@ -275,7 +275,7 @@ export function SessionsPage() {
                       <span
                         className={cn(
                           "inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border",
-                          STATUS_COLORS[session.status]
+                          STATUS_COLORS[session.status as ConversationStatus] || STATUS_COLORS.active
                         )}
                       >
                         <StatusIcon className="h-3 w-3" />
@@ -284,8 +284,8 @@ export function SessionsPage() {
                     </div>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span>{session.message_count} messages</span>
-                      <span>Created {new Date(session.created_at).toLocaleDateString()}</span>
-                      <span>Updated {new Date(session.updated_at).toLocaleDateString()}</span>
+                      <span>Created {session.created_at ? new Date(session.created_at).toLocaleDateString() : 'N/A'}</span>
+                      <span>Updated {session.updated_at ? new Date(session.updated_at).toLocaleDateString() : 'N/A'}</span>
                     </div>
                   </div>
                   <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -349,7 +349,7 @@ export function SessionsPage() {
                 <span
                   className={cn(
                     "inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border",
-                    STATUS_COLORS[selectedSession.status]
+                    STATUS_COLORS[selectedSession.status as ConversationStatus] || STATUS_COLORS.active
                   )}
                 >
                   {selectedSession.status}
@@ -359,8 +359,8 @@ export function SessionsPage() {
                 </span>
               </div>
               <div className="text-sm text-muted-foreground">
-                <p>Created: {new Date(selectedSession.created_at).toLocaleString()}</p>
-                <p>Updated: {new Date(selectedSession.updated_at).toLocaleString()}</p>
+                <p>Created: {selectedSession.created_at ? new Date(selectedSession.created_at).toLocaleString() : 'N/A'}</p>
+                <p>Updated: {selectedSession.updated_at ? new Date(selectedSession.updated_at).toLocaleString() : 'N/A'}</p>
               </div>
             </div>
 
@@ -374,7 +374,7 @@ export function SessionsPage() {
             <div>
               <h4 className="text-sm font-semibold mb-2">Messages</h4>
               <div className="space-y-3">
-                {selectedSession.messages.map((message) => (
+                {selectedSession.messages.map((message: { id: string; role: string; content?: string; created_at?: string }) => (
                   <div
                     key={message.id}
                     className={cn(
@@ -389,7 +389,7 @@ export function SessionsPage() {
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-xs font-semibold uppercase">{message.role}</span>
                       <span className="text-xs text-muted-foreground">
-                        {new Date(message.created_at).toLocaleString()}
+                        {message.created_at ? new Date(message.created_at).toLocaleString() : 'N/A'}
                       </span>
                     </div>
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>

@@ -64,13 +64,13 @@ export function useLoopsQuery() {
     { includeTerminal: false },
     {
       refetchInterval: 5000, // Poll every 5 seconds for real-time updates
-      onSuccess: (data) => {
+      onSuccess: (data: unknown) => {
         setLoops(data as Loop[]);
         setLoading(false);
         setError(null);
       },
-      onError: (err) => {
-        setError(err.message);
+      onError: (err: unknown) => {
+        setError(err instanceof Error ? err.message : String(err));
         setLoading(false);
       },
     }

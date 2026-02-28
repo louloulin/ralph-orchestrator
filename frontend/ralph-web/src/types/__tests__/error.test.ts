@@ -7,8 +7,6 @@ import {
   AppError,
   ErrorClassifier,
   ErrorCodes,
-  type ErrorCategory,
-  type ErrorSeverity,
 } from "../error";
 
 describe("AppError", () => {

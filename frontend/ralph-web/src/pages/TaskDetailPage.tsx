@@ -39,7 +39,6 @@ import {
   FileQuestion,
 } from "lucide-react";
 import type { TaskAction } from "@/components/tasks/TaskDetailHeader";
-import type { FileChange } from "@/types/task";
 
 export function TaskDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -358,23 +357,8 @@ export function TaskDetailPage() {
             <>
               <div className="border rounded-lg overflow-hidden">
                 <DiffViewer
-                  files={fileChangesQuery.data.map((fc) => ({
-                    path: fc.path,
-                    oldPath: fc.oldPath,
-                    type: fc.status,
-                    additions: fc.additions,
-                    deletions: fc.deletions,
-                    content: fc.diff,
-                  }))}
-                  totalStats={
-                    fileChangesStatsQuery.data ?? {
-                      filesChanged: 0,
-                      additions: 0,
-                      deletions: 0,
-                    }
-                  }
+                  taskId={id || task.id}
                   viewMode="unified"
-                  onViewModeChange={() => {}}
                 />
               </div>
 

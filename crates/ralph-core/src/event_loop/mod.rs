@@ -385,6 +385,14 @@ impl EventLoop {
         self.loop_context.as_ref()
     }
 
+    /// Returns the loop ID for cross-loop communication.
+    ///
+    /// Returns None for primary loops, Some(id) for worktree loops.
+    /// This is used when tagging events with source_loop for routing.
+    pub fn get_loop_id(&self) -> Option<&str> {
+        self.loop_context.as_ref().and_then(|ctx| ctx.loop_id())
+    }
+
     /// Returns the tasks path based on loop context or default.
     fn tasks_path(&self) -> PathBuf {
         self.loop_context

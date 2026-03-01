@@ -3496,6 +3496,46 @@ fn test_paths_fallback_to_config_when_no_context() {
 }
 
 #[test]
+fn test_get_loop_id_returns_none_for_primary_loop() {
+    use crate::loop_context::LoopContext;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let loop_context = LoopContext::primary(temp_dir.path().to_path_buf());
+    let event_loop = EventLoop::with_context(RalphConfig::default(), loop_context);
+
+    // Primary loops return None for loop_id
+    assert_eq!(event_loop.get_loop_id(), None);
+}
+
+#[test]
+fn test_get_loop_id_returns_id_for_worktree_loop() {
+    use crate::loop_context::LoopContext;
+
+    let temp_dir = tempfile::tempdir().unwrap();
+    let repo_root = temp_dir.path().to_path_buf();
+    let worktree_path = repo_root.join(".worktrees/loop-20250124-143052-a3f2");
+    std::fs::create_dir_all(&worktree_path).unwrap();
+
+    let loop_context = LoopContext::worktree(
+        "loop-20250124-143052-a3f2".to_string(),
+        worktree_path,
+        repo_root,
+    );
+    let event_loop = EventLoop::with_context(RalphConfig::default(), loop_context);
+
+    // Worktree loops return their loop ID
+    assert_eq!(event_loop.get_loop_id(), Some("loop-20250124-143052-a3f2"));
+}
+
+#[test]
+fn test_get_loop_id_returns_none_when_no_context() {
+    let event_loop = EventLoop::new(RalphConfig::default());
+
+    // EventLoop without context returns None
+    assert_eq!(event_loop.get_loop_id(), None);
+}
+
+#[test]
 fn test_record_hat_activations_increments_counts() {
     let mut event_loop = EventLoop::new(RalphConfig::default());
     let planner = HatId::new("planner");

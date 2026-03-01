@@ -91,7 +91,7 @@ pub fn execute(args: MailboxArgs, use_colors: bool) -> Result<()> {
             topic,
         } => execute_send(&store, &loop_id, &message, &topic, use_colors),
         MailboxCommands::List { loop_id, format } => {
-            execute_list(&store, &loop_id, &format, use_colors)
+            execute_list(&store, loop_id.as_ref(), &format, use_colors)
         }
         MailboxCommands::Read {
             loop_id,
@@ -134,7 +134,7 @@ fn execute_send(
 /// Execute the list command.
 fn execute_list(
     store: &MailboxStore,
-    loop_id: &Option<String>,
+    loop_id: Option<&String>,
     format: &str,
     use_colors: bool,
 ) -> Result<()> {

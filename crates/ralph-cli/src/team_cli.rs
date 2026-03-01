@@ -145,6 +145,7 @@ pub struct AddTaskArgs {
 
 /// Arguments for the `team claim` command.
 #[derive(Parser, Debug)]
+#[allow(clippy::struct_field_names)]
 pub struct ClaimArgs {
     /// Team ID
     pub team_id: String,
@@ -159,6 +160,7 @@ pub struct ClaimArgs {
 
 /// Arguments for the `team release` command.
 #[derive(Parser, Debug)]
+#[allow(clippy::struct_field_names)]
 pub struct ReleaseArgs {
     /// Team ID
     pub team_id: String,
@@ -713,7 +715,7 @@ fn execute_list_tasks(args: ListTasksArgs, root: Option<&PathBuf>, use_colors: b
                 }
 
                 // Sort by status then priority
-                let mut sorted_tasks: Vec<_> = tasks.to_vec();
+                let mut sorted_tasks: Vec<_> = tasks.clone();
                 sorted_tasks.sort_by(|a, b| {
                     let status_rank = |s: &TeamTaskStatus| match s {
                         TeamTaskStatus::Todo => 0,
@@ -852,8 +854,8 @@ fn execute_messages(args: MessagesArgs, root: Option<&PathBuf>, use_colors: bool
     match args.format {
         OutputFormat::Table => {
             if filtered_messages.is_empty() {
-                if args.from.is_some() {
-                    println!("No messages from {}", args.from.unwrap());
+                if let Some(from) = &args.from {
+                    println!("No messages from {}", from);
                 } else {
                     println!("No messages for loop {}", loop_id);
                 }
@@ -952,29 +954,25 @@ fn execute_suggest(args: SuggestArgs, root: Option<&PathBuf>, use_colors: bool) 
                     println!("  Title:    {}", task.title);
                     println!("  Priority: {}", task.priority);
                     println!("  Status:   {:?}", task.status);
-                } else {
-                    if use_colors {
-                        println!(
-                            "{}Suggested task: {}{}",
-                            colors::GREEN,
-                            task_id,
-                            colors::RESET
-                        );
-                    } else {
-                        println!("Suggested task: {}", task_id);
-                    }
-                }
-            } else {
-                if use_colors {
+                } else if use_colors {
                     println!(
-                        "{}No tasks available for teammate {}{}",
-                        colors::YELLOW,
-                        args.teammate,
+                        "{}Suggested task: {}{}",
+                        colors::GREEN,
+                        task_id,
                         colors::RESET
                     );
                 } else {
-                    println!("No tasks available for teammate {}", args.teammate);
+                    println!("Suggested task: {}", task_id);
                 }
+            } else if use_colors {
+                println!(
+                    "{}No tasks available for teammate {}{}",
+                    colors::YELLOW,
+                    args.teammate,
+                    colors::RESET
+                );
+            } else {
+                println!("No tasks available for teammate {}", args.teammate);
             }
         }
         OutputFormat::Json => {

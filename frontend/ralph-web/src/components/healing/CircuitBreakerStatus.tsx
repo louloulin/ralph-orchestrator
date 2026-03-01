@@ -88,7 +88,7 @@ export function CircuitBreakerStatus({ loopId, className }: CircuitBreakerStatus
     );
   }
 
-  const state = status?.state || "closed";
+  const state = (status?.state || "closed") as keyof typeof CIRCUIT_BREAKER_STATE_COLORS;
   const isOpen = state === "open";
   const isHalfOpen = state === "half_open";
 

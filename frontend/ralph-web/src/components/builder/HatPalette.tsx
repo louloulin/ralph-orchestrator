@@ -18,7 +18,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { Search, ChevronLeft, ChevronRight, GripVertical, Circle, Loader2 } from "lucide-react";
-import { trpc } from "@/trpc";
 import type { HatNodeData } from "./HatNode";
 
 /**
@@ -156,28 +155,13 @@ export function HatPalette({ className }: HatPaletteProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Fetch hats from backend API
-  const hatsQuery = trpc.hat.list.useQuery();
-
-  // Transform backend hats to HatNodeData format, merge with defaults
+  // Use default templates (hat.list not implemented in backend yet)
   const templates = useMemo(() => {
-    if (hatsQuery.data && hatsQuery.data.length > 0) {
-      // Use hats from backend (these are the user-defined workflow models)
-      return hatsQuery.data.map((hat) => ({
-        key: hat.key,
-        name: hat.name,
-        description: hat.description ?? "",
-        triggersOn: hat.triggersOn ?? [],
-        publishes: hat.publishes ?? [],
-        instructions: hat.instructions,
-      }));
-    }
-    // Fallback to default templates if no hats from backend
     return DEFAULT_HAT_TEMPLATES;
-  }, [hatsQuery.data]);
+  }, []);
 
   const filteredTemplates = templates.filter(
-    (template) =>
+    (template: HatNodeData) =>
       template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       template.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -227,34 +211,25 @@ export function HatPalette({ className }: HatPaletteProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-1 overflow-y-auto max-h-[calc(100vh-200px)]">
-        {hatsQuery.isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-sm text-muted-foreground">Loading hats...</span>
-          </div>
-        ) : (
-          <>
-            <p className="text-xs text-muted-foreground mb-2">
-              {hatsQuery.data && hatsQuery.data.length > 0
-                ? "Drag a hat from your workflow configuration"
-                : "Drag a hat template onto the canvas to add it"}
+        <>
+          <p className="text-xs text-muted-foreground mb-2">
+            Drag a hat template onto the canvas to add it
+          </p>
+          {filteredTemplates.map((template) => (
+            <PaletteItem key={template.key} template={template} />
+          ))}
+          {filteredTemplates.length === 0 && (
+            <p className="text-xs text-muted-foreground text-center py-4">
+              No matching templates
             </p>
-            {filteredTemplates.map((template) => (
-              <PaletteItem key={template.key} template={template} />
-            ))}
-            {filteredTemplates.length === 0 && (
-              <p className="text-xs text-muted-foreground text-center py-4">
-                No matching templates
-              </p>
-            )}
+          )}
 
-            {/* Utilities */}
-            <div className="border-t pt-2 mt-2">
-              <p className="text-xs text-muted-foreground mb-1.5">Utilities</p>
-              <RerouteItem />
-            </div>
-          </>
-        )}
+          {/* Utilities */}
+          <div className="border-t pt-2 mt-2">
+            <p className="text-xs text-muted-foreground mb-1.5">Utilities</p>
+            <RerouteItem />
+          </div>
+        </>
       </CardContent>
     </Card>
   );

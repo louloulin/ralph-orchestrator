@@ -110,4 +110,15 @@ export const toast = {
 
   info: (title: string, message?: string, duration?: number) =>
     useToastStore.getState().addToast({ type: "info", title, message, duration }),
+
+  // Generic add method for custom toasts
+  add: (toast: Omit<Toast, "id" | "createdAt">) =>
+    useToastStore.getState().addToast(toast),
 };
+
+/**
+ * useToast hook for component usage
+ */
+export function useToast() {
+  return toast;
+}

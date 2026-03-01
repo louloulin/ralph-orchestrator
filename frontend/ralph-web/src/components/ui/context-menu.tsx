@@ -20,8 +20,9 @@ const ContextMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.SubTrigger>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubTrigger> & {
     inset?: boolean;
+    shortcut?: string;
   }
->(({ className, inset, children, ...props }, ref) => (
+>(({ className, inset, children, shortcut, ...props }, ref) => (
   <ContextMenuPrimitive.SubTrigger
     ref={ref}
     className={cn(
@@ -32,9 +33,11 @@ const ContextMenuSubTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    <kbd className="ml-auto text-xs tracking-widest opacity-60">
-      {props.shortcut}
-    </kbd>
+    {shortcut && (
+      <kbd className="ml-auto text-xs tracking-widest opacity-60">
+        {shortcut}
+      </kbd>
+    )}
   </ContextMenuPrimitive.SubTrigger>
 ));
 ContextMenuSubTrigger.displayName = ContextMenuPrimitive.SubTrigger.displayName;

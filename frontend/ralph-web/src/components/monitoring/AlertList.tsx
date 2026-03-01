@@ -109,7 +109,7 @@ export function AlertList({ className, limit = 10 }: AlertListProps) {
           </div>
         ) : (
           <div className="space-y-2">
-            {displayAlerts.map((alert) => (
+            {displayAlerts.map((alert: ActiveAlert) => (
               <AlertItem key={alert.id} alert={alert} />
             ))}
           </div>

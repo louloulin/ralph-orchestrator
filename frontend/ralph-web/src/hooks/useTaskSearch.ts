@@ -113,7 +113,10 @@ export function useTaskSearch(
       projectId: activeProject?.id,
       includeArchived: filters.includeArchived,
       includeClosed: filters.includeClosed,
-      dateRange: filters.dateRange,
+      dateRange: filters.dateRange ? {
+        start: filters.dateRange.start?.toISOString(),
+        end: filters.dateRange.end?.toISOString(),
+      } : undefined,
     },
     {
       enabled: shouldSearch,
@@ -145,19 +148,19 @@ export function useTaskSearch(
     if (!shouldSearch) {
       // Filter by status (if specified)
       if (filters.status.length > 0) {
-        filtered = filtered.filter((task) =>
+        filtered = filtered.filter((task: Task) =>
           filters.status.includes(task.status as never)
         );
       }
 
       // Filter out closed tasks unless explicitly included
       if (!filters.includeClosed) {
-        filtered = filtered.filter((task) => task.status !== "closed");
+        filtered = filtered.filter((task: Task) => task.status !== "closed");
       }
     }
 
     // Generate highlights for search results
-    const searchResults: TaskSearchResult[] = filtered.map((task) => ({
+    const searchResults: TaskSearchResult[] = filtered.map((task: Task) => ({
       task,
       highlights: generateHighlights(task, debouncedQuery),
     }));

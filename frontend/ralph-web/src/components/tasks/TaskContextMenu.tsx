@@ -57,18 +57,11 @@ export function TaskContextMenu({ task, children, onTaskUpdated }: TaskContextMe
   const handleCopyId = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(task.id);
-      toast({
-        title: "Copied to clipboard",
-        description: `Task ID: ${task.id.slice(0, 12)}...`,
-      });
+      toast.success("Copied to clipboard", `Task ID: ${task.id.slice(0, 12)}...`);
     } catch (error) {
-      toast({
-        title: "Failed to copy",
-        description: "Could not copy task ID to clipboard",
-        variant: "destructive",
-      });
+      toast.error("Failed to copy", "Could not copy task ID to clipboard");
     }
-  }, [task.id, toast]);
+  }, [task.id]);
 
   // Navigate to task detail
   const handleViewDetails = useCallback(() => {
@@ -87,18 +80,11 @@ export function TaskContextMenu({ task, children, onTaskUpdated }: TaskContextMe
       await archiveMutation.mutateAsync({ id: task.id });
       utils.task.list.invalidate();
       onTaskUpdated?.();
-      toast({
-        title: "Task archived",
-        description: `"${task.title.slice(0, 30)}${task.title.length > 30 ? "..." : ""}" has been archived.`,
-      });
+      toast.success("Task archived", `"${task.title.slice(0, 30)}${task.title.length > 30 ? "..." : ""}" has been archived.`);
     } catch (error) {
-      toast({
-        title: "Failed to archive",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
+      toast.error("Failed to archive", error instanceof Error ? error.message : "Unknown error");
     }
-  }, [task.id, task.title, archiveMutation, utils, onTaskUpdated, toast]);
+  }, [task.id, task.title, archiveMutation, utils, onTaskUpdated]);
 
   // Delete task permanently
   const handleDelete = useCallback(async () => {
@@ -109,18 +95,11 @@ export function TaskContextMenu({ task, children, onTaskUpdated }: TaskContextMe
       await deleteMutation.mutateAsync({ id: task.id });
       utils.task.list.invalidate();
       onTaskUpdated?.();
-      toast({
-        title: "Task deleted",
-        description: `"${task.title.slice(0, 30)}${task.title.length > 30 ? "..." : ""}" has been deleted.`,
-      });
+      toast.success("Task deleted", `"${task.title.slice(0, 30)}${task.title.length > 30 ? "..." : ""}" has been deleted.`);
     } catch (error) {
-      toast({
-        title: "Failed to delete",
-        description: error instanceof Error ? error.message : "Unknown error",
-        variant: "destructive",
-      });
+      toast.error("Failed to delete", error instanceof Error ? error.message : "Unknown error");
     }
-  }, [task.id, task.title, deleteMutation, utils, onTaskUpdated, toast]);
+  }, [task.id, task.title, deleteMutation, utils, onTaskUpdated]);
 
   // Check if task can be paused/resumed (running tasks)
   const canControlExecution = task.status === "running";
@@ -131,7 +110,7 @@ export function TaskContextMenu({ task, children, onTaskUpdated }: TaskContextMe
       <ContextMenuTrigger asChild>
         {children}
       </ContextMenuTrigger>
-      <ContextMenuContent className="w-48" align="end">
+      <ContextMenuContent className="w-48">
         {/* View actions */}
         <ContextMenuItem onClick={handleViewDetails}>
           <Eye className="h-4 w-4 mr-2" />

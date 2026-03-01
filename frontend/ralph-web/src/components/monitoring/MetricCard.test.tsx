@@ -4,7 +4,7 @@
  * Tests for the MetricCard component which displays individual metrics.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { MetricCard } from "./MetricCard";
 import type { CounterMetric, GaugeMetric, HistogramMetric } from "@/types/metrics";

@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { toast } from "@/stores/toastStore";
+import { toast, useToast } from "@/stores/toastStore";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,10 +50,9 @@ function LayerSection({
  * HealingPolicyEditor main component
  */
 export function HealingPolicyEditor({ className }: HealingPolicyEditorProps) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
 
-  const { data: policy, isLoading } = trpc.healing.getPolicy.useQuery({});
+  const { data: policy, isLoading } = trpc.healing.getPolicy.useQuery();
 
   const [formData, setFormData] = React.useState<HealingPolicy>(DEFAULT_HEALING_POLICY);
   const [hasChanges, setHasChanges] = React.useState(false);

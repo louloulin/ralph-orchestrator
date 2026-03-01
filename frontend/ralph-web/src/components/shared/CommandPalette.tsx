@@ -45,10 +45,7 @@ export function CommandPalette() {
   // Handle create task mutation success
   useEffect(() => {
     if (createTaskMutation.isSuccess && createTaskMutation.data) {
-      toast({
-        title: "Task created",
-        description: `Created task: ${createTaskMutation.data.title}`,
-      });
+      toast.success("Task created", `Created task: ${createTaskMutation.data.title}`);
       // Automatically run the task
       trpc.task.run.useMutation().mutate({ id: createTaskMutation.data.id });
       navigate("/tasks");
@@ -58,11 +55,7 @@ export function CommandPalette() {
   // Handle create task mutation error
   useEffect(() => {
     if (createTaskMutation.isError && createTaskMutation.error) {
-      toast({
-        title: "Failed to create task",
-        description: createTaskMutation.error.message,
-        variant: "destructive",
-      });
+      toast.error("Failed to create task", createTaskMutation.error.message);
     }
   }, [createTaskMutation.isError, createTaskMutation.error]);
 
@@ -82,20 +75,14 @@ export function CommandPalette() {
   );
 
   const handleStartLoop = useCallback(() => {
-    toast({
-      title: "Starting loop",
-      description: "Use the Tasks page to create and run tasks",
-    });
+    toast.info("Starting loop", "Use the Tasks page to create and run tasks");
     navigate("/tasks");
-  }, [navigate, toast]);
+  }, [navigate]);
 
   const handleCancelLoop = useCallback(() => {
-    toast({
-      title: "Cancel loop",
-      description: "Select a running task to cancel",
-    });
+    toast.info("Cancel loop", "Select a running task to cancel");
     navigate("/tasks");
-  }, [navigate, toast]);
+  }, [navigate]);
 
   // Create command groups with navigation functions
   const commandGroups = useMemo(
@@ -189,7 +176,7 @@ export function CommandPalette() {
           "fixed top-[20%] left-1/2 -translate-x-1/2",
           "w-full max-w-xl rounded-lg border border-border bg-popover shadow-2xl"
         )}
-        onClick={(e) => e.stopPropagation()}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
         role="dialog"
         aria-label="Command palette"
         aria-modal="true"

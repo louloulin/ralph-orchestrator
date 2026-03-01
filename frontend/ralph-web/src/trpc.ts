@@ -133,6 +133,18 @@ function useRpcUtils() {
             ? invalidatePrefix("task", "task.get")
             : invalidateExact("task", "task.get", input),
       },
+      getFileChanges: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("task", "task.get_file_changes")
+            : invalidateExact("task", "task.get_file_changes", input),
+      },
+      getFileChangesStats: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("task", "task.get_file_changes_stats")
+            : invalidateExact("task", "task.get_file_changes_stats", input),
+      },
     },
     loops: {
       list: {
@@ -437,6 +449,14 @@ export const trpc = {
       method: "task.get_file_changes_stats",
       mapInput: (input) => input ?? {},
       mapResult: (result) => (result as any)?.stats ?? null,
+    }),
+
+    updateFileChangeApproval: createMutationProcedure<
+      { taskId: string; filePath: string; approvalStatus: string },
+      { success: boolean },
+      { success: boolean }
+    >({
+      method: "task.update_file_change_approval",
     }),
   },
 

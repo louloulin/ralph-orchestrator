@@ -13,7 +13,7 @@ import {
   FileChangeApprovalStatus,
   type FileChangeApprovalProps,
 } from "@/types/task";
-import { trpc } from "@/lib/trpc";
+import { trpc } from "@/trpc";
 
 /**
  * FileChangeApproval - Approve/reject controls for file changes.
@@ -36,7 +36,7 @@ export function FileChangeApproval({
       utils.task.getFileChanges.invalidate({ id: taskId });
       utils.task.getFileChangesStats.invalidate({ id: taskId });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       console.error("Failed to update approval status:", error);
       // Revert optimistic update on error
       onStatusChange?.(currentStatus);

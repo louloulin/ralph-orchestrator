@@ -287,3 +287,293 @@ fn test_team_check_files_mixed_conflicts() {
     assert!(stdout.contains("Safe files"));
     assert!(stdout.contains("src/main.rs"));
 }
+
+// ============================================================================
+// Conflict Prevention During Task Claim Tests
+// ============================================================================
+
+#[test]
+fn test_claim_task_no_conflicts() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let temp_path = temp_dir.path();
+
+    let (team_id, loop1_id, _loop2_id) = create_team_with_tasks(temp_path);
+
+    // Get task ID from the store
+    let ralph_dir = temp_path.join(".ralph");
+    let store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    let tasks = store.get_team_tasks(&team_id);
+    let task_id = tasks
+        .iter()
+        .find(|t| t.title.contains("auth"))
+        .expect("find auth task")
+        .id
+        .clone();
+
+    // Claim task - should succeed with no conflicts
+    let _stdout = ralph_team_ok(
+        temp_path,
+        &["claim", &team_id, &task_id, "--loop-id", &loop1_id],
+    );
+
+    // Verify task is now claimed
+    let store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    let task = store.get_task(&task_id).expect("task exists");
+    assert_eq!(task.assigned_to, Some(loop1_id));
+}
+
+#[test]
+fn test_claim_task_with_conflict_warning() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let temp_path = temp_dir.path();
+
+    let (team_id, loop1_id, loop2_id) = create_team_with_tasks(temp_path);
+    let ralph_dir = temp_path.join(".ralph");
+
+    // First, reserve src/auth.rs with loop1
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+
+    // Create a task with the same file and reserve it
+    let mut task1 = TeamTask::new("Reserved auth task".to_string(), team_id.clone(), 1);
+    task1.extracted_files = Some(vec!["src/auth.rs".to_string()]);
+    let task1_id = task1.id.clone();
+    store.create_team_task(task1);
+    store
+        .reserve_files(
+            task1_id.clone(),
+            loop1_id.clone(),
+            vec!["src/auth.rs".to_string()],
+        )
+        .expect("reserve files");
+    store.save().expect("save store");
+
+    // Now try to claim another task that also edits src/auth.rs with loop2
+    let tasks = store.get_team_tasks(&team_id);
+    let auth_task = tasks
+        .iter()
+        .find(|t| t.title.contains("auth") && t.id != task1_id)
+        .expect("find auth task");
+    let auth_task_id = auth_task.id.clone();
+
+    // Claim should still succeed (conflicts are warnings, not blockers)
+    // but the conflict should be logged
+    let _stdout = ralph_team_ok(
+        temp_path,
+        &["claim", &team_id, &auth_task_id, "--loop-id", &loop2_id],
+    );
+
+    // Verify task is claimed despite conflict
+    let store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    let task = store.get_task(&auth_task_id).expect("task exists");
+    assert_eq!(task.assigned_to, Some(loop2_id));
+}
+
+#[test]
+fn test_claim_task_glob_pattern_conflict() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let temp_path = temp_dir.path();
+
+    let (team_id, loop1_id, loop2_id) = create_team_with_tasks(temp_path);
+    let ralph_dir = temp_path.join(".ralph");
+
+    // Reserve a glob pattern with loop1
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+
+    let mut task1 = TeamTask::new("Glob task".to_string(), team_id.clone(), 1);
+    task1.extracted_files = Some(vec!["src/**/*.rs".to_string()]);
+    let task1_id = task1.id.clone();
+    store.create_team_task(task1);
+    store
+        .reserve_files(
+            task1_id.clone(),
+            loop1_id.clone(),
+            vec!["src/**/*.rs".to_string()],
+        )
+        .expect("reserve files");
+    store.save().expect("save store");
+
+    // Create a new task that matches the glob pattern
+    let mut task2 = TeamTask::new("Specific file task".to_string(), team_id.clone(), 2);
+    task2.extracted_files = Some(vec!["src/auth.rs".to_string()]);
+    let task2_id = task2.id.clone();
+    store.create_team_task(task2);
+    store.save().expect("save store");
+
+    // Claim the specific file task - should detect glob conflict
+    let _stdout = ralph_team_ok(
+        temp_path,
+        &["claim", &team_id, &task2_id, "--loop-id", &loop2_id],
+    );
+
+    // Task should still be claimed (conflict is a warning)
+    let store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    let task = store.get_task(&task2_id).expect("task exists");
+    assert_eq!(task.assigned_to, Some(loop2_id));
+}
+
+// ============================================================================
+// Conflict Resolution Flow Tests
+// ============================================================================
+
+#[test]
+fn test_release_reservation_clears_conflict() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let temp_path = temp_dir.path();
+
+    let (team_id, loop1_id, _loop2_id) = create_team_with_tasks(temp_path);
+    let ralph_dir = temp_path.join(".ralph");
+
+    // Reserve a file
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+
+    let mut task = TeamTask::new("Reserved task".to_string(), team_id.clone(), 1);
+    task.extracted_files = Some(vec!["src/auth.rs".to_string()]);
+    let task_id = task.id.clone();
+    store.create_team_task(task);
+    store
+        .reserve_files(
+            task_id.clone(),
+            loop1_id.clone(),
+            vec!["src/auth.rs".to_string()],
+        )
+        .expect("reserve files");
+    store.save().expect("save store");
+
+    // Verify conflict exists
+    let stdout = ralph_team_ok(
+        temp_path,
+        &["check-files", "--files", "src/auth.rs", "--format", "json"],
+    );
+    let response: serde_json::Value = serde_json::from_str(&stdout).expect("parse JSON");
+    assert!(response["conflictCount"].as_u64().unwrap() >= 1);
+
+    // Release the reservation
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    store.release_files(&task_id).expect("release files");
+    store.save().expect("save store");
+
+    // Verify conflict is cleared
+    let stdout = ralph_team_ok(
+        temp_path,
+        &["check-files", "--files", "src/auth.rs", "--format", "json"],
+    );
+    let response: serde_json::Value = serde_json::from_str(&stdout).expect("parse JSON");
+    assert_eq!(response["conflictCount"].as_u64().unwrap(), 0);
+}
+
+#[test]
+fn test_complete_task_releases_reservations() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let temp_path = temp_dir.path();
+
+    let (team_id, loop1_id, _loop2_id) = create_team_with_tasks(temp_path);
+    let ralph_dir = temp_path.join(".ralph");
+
+    // Create and claim a task with file reservation
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+
+    let mut task = TeamTask::new("Task to complete".to_string(), team_id.clone(), 1);
+    task.extracted_files = Some(vec!["src/auth.rs".to_string()]);
+    let task_id = task.id.clone();
+    store.create_team_task(task);
+    store
+        .claim_task(&task_id, loop1_id.clone())
+        .expect("claim task");
+    store.save().expect("save store");
+
+    // Reserve the files
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    store
+        .reserve_files(
+            task_id.clone(),
+            loop1_id.clone(),
+            vec!["src/auth.rs".to_string()],
+        )
+        .expect("reserve files");
+    store.save().expect("save store");
+
+    // Verify conflict exists
+    let stdout = ralph_team_ok(
+        temp_path,
+        &["check-files", "--files", "src/auth.rs", "--format", "json"],
+    );
+    let response: serde_json::Value = serde_json::from_str(&stdout).expect("parse JSON");
+    assert!(response["conflictCount"].as_u64().unwrap() >= 1);
+
+    // Release the task (simulating task completion)
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    store
+        .release_task(&task_id, &loop1_id)
+        .expect("release task");
+    store.save().expect("save store");
+
+    // Verify conflict is cleared
+    let stdout = ralph_team_ok(
+        temp_path,
+        &["check-files", "--files", "src/auth.rs", "--format", "json"],
+    );
+    let response: serde_json::Value = serde_json::from_str(&stdout).expect("parse JSON");
+    assert_eq!(response["conflictCount"].as_u64().unwrap(), 0);
+}
+
+#[test]
+fn test_sequential_task_completion() {
+    let temp_dir = TempDir::new().expect("temp dir");
+    let temp_path = temp_dir.path();
+
+    let (team_id, loop1_id, loop2_id) = create_team_with_tasks(temp_path);
+    let ralph_dir = temp_path.join(".ralph");
+
+    // Agent 1 creates and reserves a task
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+
+    let mut task1 = TeamTask::new("Agent 1 task".to_string(), team_id.clone(), 1);
+    task1.extracted_files = Some(vec!["src/auth.rs".to_string()]);
+    let task1_id = task1.id.clone();
+    store.create_team_task(task1);
+    store
+        .claim_task(&task1_id, loop1_id.clone())
+        .expect("claim task1");
+    store
+        .reserve_files(
+            task1_id.clone(),
+            loop1_id.clone(),
+            vec!["src/auth.rs".to_string()],
+        )
+        .expect("reserve files");
+    store.save().expect("save store");
+
+    // Agent 2 tries to claim a conflicting task - should succeed with warning
+    let mut task2 = TeamTask::new("Agent 2 task".to_string(), team_id.clone(), 2);
+    task2.extracted_files = Some(vec!["src/auth.rs".to_string()]);
+    let task2_id = task2.id.clone();
+    store.create_team_task(task2);
+    store
+        .claim_task(&task2_id, loop2_id.clone())
+        .expect("claim task2");
+    store.save().expect("save store");
+
+    // Agent 1 completes their task and releases
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    store
+        .release_task(&task1_id, &loop1_id)
+        .expect("release task1");
+    store.save().expect("save store");
+
+    // Now Agent 2 can reserve the file
+    let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
+    store
+        .reserve_files(
+            task2_id.clone(),
+            loop2_id.clone(),
+            vec!["src/auth.rs".to_string()],
+        )
+        .expect("reserve files for task2");
+    store.save().expect("save store");
+
+    // Verify only Agent 2's reservation exists
+    let conflicts = store.check_conflicts(&["src/auth.rs".to_string()]);
+    assert_eq!(conflicts.len(), 1);
+    assert_eq!(conflicts[0].conflicting_agents.len(), 1);
+    assert_eq!(conflicts[0].conflicting_agents[0].loop_id, loop2_id);
+}

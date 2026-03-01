@@ -76,6 +76,15 @@ pub enum TeamCommands {
 
     /// Check specific files for conflicts
     CheckFiles(CheckFilesArgs),
+
+    /// Show velocity metrics for a team
+    Velocity(VelocityArgs),
+
+    /// Show completion predictions for a team
+    Predict(PredictArgs),
+
+    /// Show velocity history over time
+    History(HistoryArgs),
 }
 
 /// Arguments for the `team create` command.
@@ -256,6 +265,51 @@ pub struct CheckFilesArgs {
     pub format: OutputFormat,
 }
 
+/// Arguments for the `team velocity` command.
+#[derive(Parser, Debug)]
+pub struct VelocityArgs {
+    /// Team ID
+    pub team_id: String,
+
+    /// Loop ID to filter velocity for specific teammate (optional)
+    #[arg(long)]
+    pub teammate: Option<String>,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub format: OutputFormat,
+}
+
+/// Arguments for the `team predict` command.
+#[derive(Parser, Debug)]
+pub struct PredictArgs {
+    /// Team ID
+    pub team_id: String,
+
+    /// Specific task ID to predict completion date (optional)
+    #[arg(long)]
+    pub task_id: Option<String>,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub format: OutputFormat,
+}
+
+/// Arguments for the `team history` command.
+#[derive(Parser, Debug)]
+pub struct HistoryArgs {
+    /// Team ID
+    pub team_id: String,
+
+    /// Duration in hours to show history for (default: 24)
+    #[arg(long, short = 'd', default_value = "24")]
+    pub duration: u64,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub format: OutputFormat,
+}
+
 /// Gets the team store base path.
 fn get_team_store_path(root: Option<&PathBuf>) -> PathBuf {
     let base = root.map(|p| p.as_path()).unwrap_or(Path::new("."));
@@ -322,6 +376,15 @@ pub fn execute(args: TeamArgs, use_colors: bool) -> Result<()> {
         }
         TeamCommands::CheckFiles(check_files_args) => {
             execute_check_files(check_files_args, root.as_ref(), use_colors)
+        }
+        TeamCommands::Velocity(velocity_args) => {
+            execute_velocity(velocity_args, root.as_ref(), use_colors)
+        }
+        TeamCommands::Predict(predict_args) => {
+            execute_predict(predict_args, root.as_ref(), use_colors)
+        }
+        TeamCommands::History(history_args) => {
+            execute_history(history_args, root.as_ref(), use_colors)
         }
     }
 }
@@ -1188,6 +1251,312 @@ fn execute_check_files(
             // Output only conflicted file paths
             for conflict in &conflicts {
                 println!("{}", conflict.file_path);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_velocity(args: VelocityArgs, root: Option<&PathBuf>, use_colors: bool) -> Result<()> {
+    let base_path = get_team_store_path(root);
+    let store = TeamStore::load(&base_path).context("Failed to load team store")?;
+
+    // Verify team exists
+    let _team = store
+        .get_team(&args.team_id)
+        .context(format!("Team {} not found", args.team_id))?;
+
+    let stats = store
+        .calculate_velocity_metrics(&args.team_id)
+        .context("Failed to calculate velocity metrics")?;
+
+    match args.format {
+        OutputFormat::Table => {
+            // If a specific teammate is requested, show their metrics
+            if let Some(teammate_id) = &args.teammate {
+                let teammate_metrics = store
+                    .calculate_teammate_velocity(&args.team_id, teammate_id)
+                    .context("Failed to calculate teammate velocity")?;
+
+                if use_colors {
+                    println!(
+                        "{}Velocity metrics for teammate:{} {}",
+                        colors::CYAN,
+                        colors::RESET,
+                        teammate_id
+                    );
+                } else {
+                    println!("Velocity metrics for teammate: {}", teammate_id);
+                }
+                println!();
+                println!("  Time Range:     {}", stats.time_range);
+                println!("  Tasks (1h):     {}", teammate_metrics.tasks_last_hour);
+                println!("  Tasks (24h):    {}", teammate_metrics.tasks_last_24h);
+                println!("  Tasks (7d):     {}", teammate_metrics.tasks_last_7d);
+                println!("  Total:          {}", teammate_metrics.total_completed);
+                println!(
+                    "  Avg Time:       {:.1}s",
+                    teammate_metrics.avg_completion_time_secs
+                );
+                println!(
+                    "  Velocity:       {:.2} tasks/hr",
+                    teammate_metrics.velocity
+                );
+            } else {
+                // Show team-wide metrics
+                if use_colors {
+                    println!(
+                        "{}Team velocity metrics for:{} {}",
+                        colors::CYAN,
+                        colors::RESET,
+                        args.team_id
+                    );
+                } else {
+                    println!("Team velocity metrics for: {}", args.team_id);
+                }
+                println!();
+                println!("  Time Range:     {}", stats.time_range);
+                println!(
+                    "  Team Velocity:  {:.2} tasks/hr",
+                    stats.team_metrics.velocity
+                );
+                println!("  Tasks (1h):     {}", stats.team_metrics.tasks_last_hour);
+                println!("  Tasks (24h):    {}", stats.team_metrics.tasks_last_24h);
+                println!("  Tasks (7d):     {}", stats.team_metrics.tasks_last_7d);
+                println!("  Total:          {}", stats.team_metrics.total_completed);
+                println!(
+                    "  Avg Time:       {:.1}s",
+                    stats.team_metrics.avg_completion_time_secs
+                );
+                println!();
+                println!("Teammates: {}", stats.teammate_metrics.len());
+                for tm in &stats.teammate_metrics {
+                    let id_short = tm.id.split('-').last().unwrap_or(&tm.id);
+                    println!(
+                        "  - {}: {:.2} tasks/hr ({} tasks)",
+                        id_short, tm.velocity, tm.total_completed
+                    );
+                }
+            }
+        }
+        OutputFormat::Json => {
+            if let Some(teammate_id) = &args.teammate {
+                let teammate_metrics =
+                    store.calculate_teammate_velocity(&args.team_id, teammate_id)?;
+                println!("{}", serde_json::to_string_pretty(&teammate_metrics)?);
+            } else {
+                println!("{}", serde_json::to_string_pretty(&stats)?);
+            }
+        }
+        OutputFormat::Quiet => {
+            if let Some(teammate_id) = &args.teammate {
+                let teammate_metrics =
+                    store.calculate_teammate_velocity(&args.team_id, teammate_id)?;
+                println!("{:.2}", teammate_metrics.velocity);
+            } else {
+                println!("{:.2}", stats.team_metrics.velocity);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_predict(args: PredictArgs, root: Option<&PathBuf>, use_colors: bool) -> Result<()> {
+    let base_path = get_team_store_path(root);
+    let store = TeamStore::load(&base_path).context("Failed to load team store")?;
+
+    // Verify team exists
+    let _team = store
+        .get_team(&args.team_id)
+        .context(format!("Team {} not found", args.team_id))?;
+
+    match args.format {
+        OutputFormat::Table => {
+            // If a specific task is requested, predict that task's completion
+            if let Some(task_id) = &args.task_id {
+                let predicted_date = store
+                    .predict_completion_date(task_id)
+                    .context("Failed to predict completion date")?;
+
+                if use_colors {
+                    println!(
+                        "{}Prediction for task:{} {}",
+                        colors::CYAN,
+                        colors::RESET,
+                        task_id
+                    );
+                } else {
+                    println!("Prediction for task: {}", task_id);
+                }
+                println!();
+                println!("  Predicted Completion: {}", predicted_date);
+            } else {
+                // Show team-wide prediction
+                let hours_remaining = store
+                    .predict_remaining_work(&args.team_id)
+                    .context("Failed to predict remaining work")?;
+
+                let trend = store
+                    .extrapolate_velocity_trend(&args.team_id)
+                    .context("Failed to calculate velocity trend")?;
+
+                let trend_description = if trend > 0.1 {
+                    "accelerating"
+                } else if trend < -0.1 {
+                    "decelerating"
+                } else {
+                    "stable"
+                };
+
+                if use_colors {
+                    println!(
+                        "{}Team completion prediction:{} {}",
+                        colors::CYAN,
+                        colors::RESET,
+                        args.team_id
+                    );
+                } else {
+                    println!("Team completion prediction: {}", args.team_id);
+                }
+                println!();
+                println!("  Hours Remaining:  {:.1}", hours_remaining);
+                if hours_remaining < 1.0 {
+                    println!("  Est. Completion:  < 1 hour");
+                } else if hours_remaining < 24.0 {
+                    println!("  Est. Completion:  {:.1} hours", hours_remaining);
+                } else {
+                    println!("  Est. Completion:  {:.1} days", hours_remaining / 24.0);
+                }
+                println!();
+                println!("  Velocity Trend:   {} ({:.2})", trend_description, trend);
+            }
+        }
+        OutputFormat::Json => {
+            if let Some(task_id) = &args.task_id {
+                let predicted_date = store.predict_completion_date(task_id)?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "taskId": task_id,
+                        "predictedCompletion": predicted_date
+                    }))?
+                );
+            } else {
+                let hours_remaining = store.predict_remaining_work(&args.team_id)?;
+                let trend = store.extrapolate_velocity_trend(&args.team_id)?;
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({
+                        "teamId": args.team_id,
+                        "hoursRemaining": hours_remaining,
+                        "velocityTrend": trend
+                    }))?
+                );
+            }
+        }
+        OutputFormat::Quiet => {
+            if let Some(task_id) = &args.task_id {
+                let predicted_date = store.predict_completion_date(task_id)?;
+                println!("{}", predicted_date);
+            } else {
+                let hours_remaining = store.predict_remaining_work(&args.team_id)?;
+                println!("{:.1}", hours_remaining);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_history(args: HistoryArgs, root: Option<&PathBuf>, use_colors: bool) -> Result<()> {
+    let base_path = get_team_store_path(root);
+    let store = TeamStore::load(&base_path).context("Failed to load team store")?;
+
+    // Verify team exists
+    let team = store
+        .get_team(&args.team_id)
+        .context(format!("Team {} not found", args.team_id))?;
+
+    let history = store
+        .get_velocity_history(&args.team_id, args.duration)
+        .context("Failed to get velocity history")?;
+
+    match args.format {
+        OutputFormat::Table => {
+            if history.is_empty() {
+                println!("No velocity history available for team '{}'", team.name);
+            } else {
+                if use_colors {
+                    println!(
+                        "{}Velocity history for team '{}' (last {} hours):{}",
+                        colors::CYAN,
+                        team.name,
+                        args.duration,
+                        colors::RESET
+                    );
+                    println!("{}{}{}", colors::DIM, "-".repeat(60), colors::RESET);
+                } else {
+                    println!(
+                        "Velocity history for team '{}' (last {} hours):",
+                        team.name, args.duration
+                    );
+                    println!("{}", "-".repeat(60));
+                }
+
+                // Print header
+                if use_colors {
+                    println!(
+                        "{}{:<25} {:<15}{}",
+                        colors::DIM,
+                        "Timestamp",
+                        "Velocity",
+                        colors::RESET
+                    );
+                } else {
+                    println!("{:<25} {:<15}", "Timestamp", "Velocity");
+                }
+
+                for (timestamp, velocity) in &history {
+                    if use_colors {
+                        println!("{:<25} {:.2}", timestamp, velocity);
+                    } else {
+                        println!("{:<25} {:.2}", timestamp, velocity);
+                    }
+                }
+
+                // Calculate and print average
+                if !history.is_empty() {
+                    let sum: f64 = history.iter().map(|(_, v)| v).sum();
+                    let avg = sum / history.len() as f64;
+                    println!();
+                    println!("Average velocity: {:.2} tasks/hr", avg);
+                }
+            }
+        }
+        OutputFormat::Json => {
+            let history_json: Vec<serde_json::Value> = history
+                .iter()
+                .map(|(ts, v)| {
+                    serde_json::json!({
+                        "timestamp": ts,
+                        "velocity": v
+                    })
+                })
+                .collect();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "teamId": args.team_id,
+                    "durationHours": args.duration,
+                    "history": history_json
+                }))?
+            );
+        }
+        OutputFormat::Quiet => {
+            for (_, velocity) in &history {
+                println!("{:.2}", velocity);
             }
         }
     }

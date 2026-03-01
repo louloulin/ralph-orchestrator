@@ -292,6 +292,78 @@ mod tests {
     }
 
     #[test]
+    fn test_from_team_event_task_released() {
+        let team_event = TeamEvent::TaskReleased {
+            task_id: "task-789".to_string(),
+            loop_id: "loop-worker-1".to_string(),
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.task"));
+        assert!(event.payload.contains("task-789"));
+        assert!(event.payload.contains("loop-worker-1"));
+    }
+
+    #[test]
+    fn test_from_team_event_task_status_update() {
+        let team_event = TeamEvent::TaskStatusUpdate {
+            task_id: "task-status-123".to_string(),
+            status: TeamTaskStatus::Review,
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.task"));
+        assert!(event.payload.contains("task-status-123"));
+        assert!(event.payload.contains("review"));
+    }
+
+    #[test]
+    fn test_from_team_event_teammate_left() {
+        let team_event = TeamEvent::TeammateLeft {
+            team_id: "team-depart".to_string(),
+            loop_id: "loop-leaving".to_string(),
+        };
+        let event: Event = team_event.into();
+        assert_eq!(event.topic, Topic::from("team.teammate"));
+        assert!(event.payload.contains("team-depart"));
+        assert!(event.payload.contains("loop-leaving"));
+    }
+
+    #[test]
+    fn test_team_event_all_status_variants() {
+        // Test all TeamTaskStatus variants
+        for status in [
+            TeamTaskStatus::Todo,
+            TeamTaskStatus::InProgress,
+            TeamTaskStatus::Review,
+            TeamTaskStatus::Done,
+        ] {
+            let team_event = TeamEvent::TaskStatusUpdate {
+                task_id: "task-1".to_string(),
+                status,
+            };
+            let event: Event = team_event.into();
+            assert_eq!(event.topic, Topic::from("team.task"));
+        }
+    }
+
+    #[test]
+    fn test_team_event_all_agent_status_variants() {
+        // Test all AgentStatus variants
+        for status in [
+            AgentStatus::Idle,
+            AgentStatus::Busy,
+            AgentStatus::Error,
+            AgentStatus::Offline,
+        ] {
+            let team_event = TeamEvent::TeammateHeartbeat {
+                loop_id: "loop-1".to_string(),
+                status,
+            };
+            let event: Event = team_event.into();
+            assert_eq!(event.topic, Topic::from("team.teammate"));
+        }
+    }
+
+    #[test]
     fn test_from_team_event_serialization_roundtrip() {
         let original = TeamEvent::TaskCreated {
             task_id: "task-789".to_string(),

@@ -28,7 +28,7 @@ use crate::task::TaskStatus;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tracing::warn;
 
 /// Unique identifier for a Ralph loop (primary or worktree).
@@ -1131,6 +1131,75 @@ pub fn extract_file_paths(text: &str) -> Vec<String> {
     paths
 }
 
+/// Extracts modified file paths from git diff for a specific loop.
+///
+/// This function runs `git diff --name-only` in the worktree directory
+/// to get a list of files that have been modified by the agent.
+///
+/// # Arguments
+/// * `loop_id` - The loop identifier to look up the worktree path
+/// * `repo_root` - The repository root path
+///
+/// # Returns
+/// Vector of modified file paths (relative to repo root), or empty vector on error
+///
+/// # Errors
+/// Returns an empty vector if:
+/// - Loop entry not found in registry
+/// - Git command fails
+/// - Worktree path is invalid
+pub fn extract_files_from_git_diff(loop_id: &LoopId, repo_root: &Path) -> Vec<String> {
+    use crate::loop_registry::LoopRegistry;
+
+    // Load loop registry to find worktree path
+    let registry = match LoopRegistry::new(repo_root).get(loop_id) {
+        Ok(Some(entry)) => entry,
+        Ok(None) => {
+            warn!("Loop {} not found in registry", loop_id);
+            return Vec::new();
+        }
+        Err(e) => {
+            warn!("Failed to read loop registry: {}", e);
+            return Vec::new();
+        }
+    };
+
+    // Determine working directory (worktree or main repo)
+    let work_dir = match registry.worktree_path {
+        Some(ref wt_path) => PathBuf::from(wt_path),
+        None => repo_root.to_path_buf(),
+    };
+
+    // Run git diff --name-only
+    let output = match std::process::Command::new("git")
+        .args(["diff", "--name-only"])
+        .current_dir(&work_dir)
+        .output()
+    {
+        Ok(output) => output,
+        Err(e) => {
+            warn!("Failed to run git diff: {}", e);
+            return Vec::new();
+        }
+    };
+
+    // Parse output
+    if !output.status.success() {
+        warn!(
+            "git diff failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        return Vec::new();
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .filter(|line| !line.is_empty())
+        .map(|s| s.to_string())
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2084,5 +2153,34 @@ mod tests {
         let paths = extract_file_paths(text);
         assert_eq!(paths.len(), 1);
         assert_eq!(paths[0], "src/deprecated/legacy.rs");
+    }
+
+    // ========== extract_files_from_git_diff Tests ==========
+
+    #[test]
+    fn test_extract_files_from_git_diff_loop_not_found() {
+        let tmp = TempDir::new().unwrap();
+        let result = extract_files_from_git_diff(&"nonexistent-loop".to_string(), tmp.path());
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_extract_files_from_git_diff_no_git_repo() {
+        use crate::loop_registry::{LoopEntry, LoopRegistry};
+
+        let tmp = TempDir::new().unwrap();
+        let registry = LoopRegistry::new(tmp.path());
+
+        // Create a loop entry without a git repo
+        let entry = LoopEntry::with_workspace(
+            "test prompt",
+            None::<String>,
+            tmp.path().display().to_string(),
+        );
+        let loop_id = registry.register(entry).unwrap();
+
+        // Should return empty vector since there's no git repo
+        let result = extract_files_from_git_diff(&loop_id, tmp.path());
+        assert!(result.is_empty());
     }
 }

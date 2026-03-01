@@ -416,7 +416,7 @@ impl SessionManager {
     }
 
     /// Gets a session by ID (metadata only).
-    pub async fn get_meta(&self, session_id: &str) -> io::Result<SessionMeta> {
+    pub fn get_meta(&self, session_id: &str) -> io::Result<SessionMeta> {
         let sessions = self.list()?;
         sessions
             .into_iter()

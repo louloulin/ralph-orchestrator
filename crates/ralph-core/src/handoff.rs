@@ -228,12 +228,7 @@ impl HandoffWriter {
         content.push_str(&format!("**Pending messages:** {}\n\n", messages.len()));
 
         for (idx, entry) in messages.iter().enumerate() {
-            let source = entry
-                .event
-                .source_loop
-                .as_ref()
-                .map(|s| s.as_str())
-                .unwrap_or("unknown");
+            let source = entry.event.source_loop.as_deref().unwrap_or("unknown");
 
             let timestamp = entry.timestamp.format("%Y-%m-%d %H:%M:%S UTC");
             let payload_preview = if entry.event.payload.len() > 100 {

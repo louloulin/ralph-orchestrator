@@ -684,7 +684,7 @@ impl FileReservation {
         if parts.len() > 2 {
             // Handle patterns like *test*.rs
             let mut idx = 0;
-            for part in parts.iter() {
+            for part in &parts {
                 if part.is_empty() {
                     continue;
                 }

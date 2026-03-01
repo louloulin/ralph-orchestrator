@@ -216,13 +216,12 @@ impl MailboxStore {
             let path = entry.path();
 
             // Only process .jsonl files
-            if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
-                // Only include non-empty mailboxes
-                if entry.metadata()?.len() > 0 {
-                    if let Some(stem) = path.file_stem() {
-                        if let Some(loop_id) = stem.to_str() {
-                            loop_ids.push(loop_id.to_string());
-                        }
+            if path.extension().map(|e| e == "jsonl").unwrap_or(false)
+                && entry.metadata()?.len() > 0
+            {
+                if let Some(stem) = path.file_stem() {
+                    if let Some(loop_id) = stem.to_str() {
+                        loop_ids.push(loop_id.to_string());
                     }
                 }
             }
@@ -254,7 +253,8 @@ fn generate_message_id(timestamp: &DateTime<Utc>) -> String {
         .unwrap_or(0);
 
     // Simple hash for random-looking hex (not cryptographically secure)
-    let hash = ts_ms as u64 ^ random_seed ^ ((&random_seed as *const u64 as u64) << 32);
+    let hash =
+        ts_ms as u64 ^ random_seed ^ ((random_seed.wrapping_shl(32)) & 0xFFFF_FFFF_0000_0000);
 
     format!("msg-{}-{:08x}", ts_ms, hash & 0xFFFF_FFFF)
 }

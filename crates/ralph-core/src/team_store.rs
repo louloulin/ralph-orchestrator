@@ -366,7 +366,7 @@ impl FileReservation {
         if parts.len() > 2 {
             // Handle patterns like *test*.rs
             let mut idx = 0;
-            for (_i, part) in parts.iter().enumerate() {
+            for part in parts.iter() {
                 if part.is_empty() {
                     continue;
                 }
@@ -1034,6 +1034,101 @@ impl TeamStore {
 
         conflicts
     }
+}
+
+// ========== File Path Extraction Functions ==========
+
+/// Extracts file paths from task descriptions.
+///
+/// Parses text for file path mentions using regex patterns.
+/// Supports:
+/// - "Edit src/auth.rs" → "src/auth.rs"
+/// - "Modify tests/*.rs" → "tests/*.rs"
+/// - "Update crates/ralph-core/src/**/*.rs" → "crates/ralph-core/src/**/*.rs"
+/// - File extensions: .rs, .toml, .md, .json, .yaml, .yml, .ts, .tsx, .js, .jsx
+///
+/// # Arguments
+/// * `text` - The task description or text to parse
+///
+/// # Returns
+/// Vector of extracted file paths (may include glob patterns)
+pub fn extract_file_paths(text: &str) -> Vec<String> {
+    use regex::Regex;
+    use std::sync::OnceLock;
+
+    // Define supported file extensions
+    const EXTENSIONS: &str = r"rs|toml|md|json|ya?ml|ts|tsx|js|jsx|html|css|txt|sh";
+
+    // Regex patterns for file path extraction
+    // Pattern 1: Explicit action verbs followed by file path
+    // e.g., "Edit src/auth.rs", "Modify tests/*.rs", "Update crates/**/*.rs"
+    static ACTION_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let action_pattern = ACTION_PATTERN.get_or_init(|| {
+        let pattern = format!(
+            "(?i)(?:edit|modify|update|change|fix|refactor|add|create|delete|remove|read|write|open|check|review)\\s+([a-zA-Z0-9_\\-./]+(?:\\*\\*?/[a-zA-Z0-9_\\-./]*)*\\.({}))",
+            EXTENSIONS
+        );
+        Regex::new(&pattern).expect("Invalid action regex pattern")
+    });
+
+    // Pattern 2: File paths in quotes or code blocks
+    // e.g., "`src/main.rs`", "'config.toml'", "\"test.json\""
+    // Uses character class with backtick (U+0060), single quote, and double quote
+    static QUOTED_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let quoted_pattern = QUOTED_PATTERN.get_or_init(|| {
+        // Using escaped backtick \x60 and escaped single quote \x27 in character class
+        let pattern = format!(
+            "[\\x60\\x27\"]([a-zA-Z0-9_\\-./]+(?:\\*\\*?/[a-zA-Z0-9_\\-./]*)*\\.({}))[\\x60\\x27\"]",
+            EXTENSIONS
+        );
+        Regex::new(&pattern).expect("Invalid quoted path regex pattern")
+    });
+
+    // Pattern 3: Standalone file paths (paths that look like file paths)
+    // Must have at least one directory separator or start with a common prefix
+    // e.g., "src/main.rs", "crates/ralph-core/src/lib.rs", "tests/integration/*.rs"
+    static STANDALONE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let standalone_pattern = STANDALONE_PATTERN.get_or_init(|| {
+        let pattern = format!(
+            "(?m)(?:^|[^\\w/])([a-zA-Z][a-zA-Z0-9_\\-.]*(?:/[a-zA-Z0-9_\\-.*]+)+\\.({}))(?:[^\\w/]|$)",
+            EXTENSIONS
+        );
+        Regex::new(&pattern).expect("Invalid standalone path regex pattern")
+    });
+
+    let mut paths = Vec::new();
+
+    // Extract from action patterns
+    for caps in action_pattern.captures_iter(text) {
+        if let Some(path) = caps.get(1) {
+            let path_str = path.as_str().to_string();
+            if !paths.contains(&path_str) {
+                paths.push(path_str);
+            }
+        }
+    }
+
+    // Extract from quoted patterns
+    for caps in quoted_pattern.captures_iter(text) {
+        if let Some(path) = caps.get(1) {
+            let path_str = path.as_str().to_string();
+            if !paths.contains(&path_str) {
+                paths.push(path_str);
+            }
+        }
+    }
+
+    // Extract from standalone patterns
+    for caps in standalone_pattern.captures_iter(text) {
+        if let Some(path) = caps.get(1) {
+            let path_str = path.as_str().to_string();
+            if !paths.contains(&path_str) {
+                paths.push(path_str);
+            }
+        }
+    }
+
+    paths
 }
 
 #[cfg(test)]
@@ -1829,5 +1924,165 @@ mod tests {
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].severity, ConflictSeverity::Critical);
         assert_eq!(conflicts[0].conflicting_agents.len(), 2);
+    }
+
+    // ========== extract_file_paths Tests ==========
+
+    #[test]
+    fn test_extract_file_paths_action_edit() {
+        let text = "Edit src/auth.rs to add login functionality";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/auth.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_action_modify() {
+        let text = "Modify tests/*.rs to update test cases";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "tests/*.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_action_update() {
+        let text = "Update crates/ralph-core/src/**/*.rs files";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "crates/ralph-core/src/**/*.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_quoted_backtick() {
+        let text = "Work on `src/main.rs` and `lib.rs`";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/main.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_quoted_double() {
+        let text = "Read \"config.toml\" for settings";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "config.toml");
+    }
+
+    #[test]
+    fn test_extract_file_paths_quoted_single() {
+        let text = "Check 'package.json' for dependencies";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "package.json");
+    }
+
+    #[test]
+    fn test_extract_file_paths_standalone() {
+        let text = "The file src/models/user.rs needs updating";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/models/user.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_multiple_occurrences() {
+        let text = "Edit src/auth.rs and modify src/main.rs";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"src/auth.rs".to_string()));
+        assert!(paths.contains(&"src/main.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_file_paths_deduplicates() {
+        let text = "Edit src/auth.rs, fix src/auth.rs bugs, update src/auth.rs docs";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/auth.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_various_extensions() {
+        let text = "Edit src/main.rs, update Cargo.toml, fix README.md";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 3);
+        assert!(paths.contains(&"src/main.rs".to_string()));
+        assert!(paths.contains(&"Cargo.toml".to_string()));
+        assert!(paths.contains(&"README.md".to_string()));
+    }
+
+    #[test]
+    fn test_extract_file_paths_case_insensitive_verbs() {
+        let text = "EDIT src/auth.rs and Fix src/main.rs";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"src/auth.rs".to_string()));
+        assert!(paths.contains(&"src/main.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_file_paths_yaml_yml() {
+        let text = "Update config.yml and settings.yaml";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"config.yml".to_string()));
+        assert!(paths.contains(&"settings.yaml".to_string()));
+    }
+
+    #[test]
+    fn test_extract_file_paths_tsx_jsx() {
+        let text = "Edit components/Header.tsx and utils/Button.jsx";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"components/Header.tsx".to_string()));
+        assert!(paths.contains(&"utils/Button.jsx".to_string()));
+    }
+
+    #[test]
+    fn test_extract_file_paths_no_matches() {
+        let text = "This is just random text without file paths";
+        let paths = extract_file_paths(text);
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn test_extract_file_paths_complex_glob() {
+        let text = "Update all files in src/**/*.rs pattern";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/**/*.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_multiple_patterns() {
+        let text = "Edit src/auth/*.rs and tests/integration/**/*.rs";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"src/auth/*.rs".to_string()));
+        assert!(paths.contains(&"tests/integration/**/*.rs".to_string()));
+    }
+
+    #[test]
+    fn test_extract_file_paths_refactor_verb() {
+        let text = "Refactor src/lib.rs to improve performance";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/lib.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_create_verb() {
+        let text = "Create new file src/api/routes.rs";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/api/routes.rs");
+    }
+
+    #[test]
+    fn test_extract_file_paths_delete_verb() {
+        let text = "Delete old file src/deprecated/legacy.rs";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 1);
+        assert_eq!(paths[0], "src/deprecated/legacy.rs");
     }
 }

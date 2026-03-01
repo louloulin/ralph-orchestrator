@@ -231,12 +231,12 @@ impl TeamTask {
     /// The updated task with extracted_files populated from git diff
     pub fn with_extracted_files_from_git_diff(mut self, repo_root: &Path) -> Self {
         // Only extract if not already extracted from description
-        if self.extracted_files.is_none() {
-            if let Some(ref loop_id) = self.assigned_to {
-                let files = extract_files_from_git_diff(loop_id, repo_root);
-                if !files.is_empty() {
-                    self.extracted_files = Some(files);
-                }
+        if self.extracted_files.is_none()
+            && let Some(ref loop_id) = self.assigned_to
+        {
+            let files = extract_files_from_git_diff(loop_id, repo_root);
+            if !files.is_empty() {
+                self.extracted_files = Some(files);
             }
         }
         self
@@ -3767,7 +3767,7 @@ mod tests {
         assert_eq!(store.completions.len(), 3);
         for (i, completion) in store.completions.iter().enumerate() {
             let idx = i + 1;
-            assert_eq!(completion.task_id.starts_with("task-"), true);
+            assert!(completion.task_id.starts_with("task-"));
             assert_eq!(completion.teammate_id, format!("loop-{}", idx));
             assert_eq!(completion.priority, idx as u8);
         }
@@ -3785,7 +3785,7 @@ mod tests {
 
         assert_eq!(stats.team_id, team_id);
         assert_eq!(stats.team_metrics.total_completed, 0);
-        assert_eq!(stats.team_metrics.velocity, 0.0);
+        assert!((stats.team_metrics.velocity - 0.0).abs() < f64::EPSILON);
         assert!(stats.teammate_metrics.is_empty());
     }
 
@@ -3869,7 +3869,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(metrics.total_completed, 0);
-        assert_eq!(metrics.velocity, 0.0);
+        assert!((metrics.velocity - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -3903,7 +3903,7 @@ mod tests {
         assert_eq!(history.len(), 24);
         // All velocities should be 0.0 (no completions)
         for (_, velocity) in &history {
-            assert_eq!(*velocity, 0.0);
+            assert!((*velocity - 0.0).abs() < f64::EPSILON);
         }
     }
 
@@ -3930,7 +3930,7 @@ mod tests {
         assert_eq!(history.len(), 24);
         // Most recent hour should have velocity of 2.0
         let (_, latest_velocity) = history.last().unwrap();
-        assert_eq!(*latest_velocity, 2.0);
+        assert!((*latest_velocity - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -3981,7 +3981,7 @@ mod tests {
             .unwrap();
 
         let remaining = store.predict_remaining_work(&team_id).unwrap();
-        assert_eq!(remaining, 0.0);
+        assert!((remaining - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -4269,9 +4269,9 @@ mod tests {
         assert_eq!(metrics.tasks_last_24h, 0);
         assert_eq!(metrics.tasks_last_7d, 0);
         assert_eq!(metrics.total_completed, 0);
-        assert_eq!(metrics.avg_completion_time_secs, 0.0);
-        assert_eq!(metrics.completion_rate, 0.0);
-        assert_eq!(metrics.velocity, 0.0);
+        assert!((metrics.avg_completion_time_secs - 0.0).abs() < f64::EPSILON);
+        assert!((metrics.completion_rate - 0.0).abs() < f64::EPSILON);
+        assert!((metrics.velocity - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -4299,7 +4299,7 @@ mod tests {
         let velocity = metrics.calculate_velocity();
 
         // Should use 24h average
-        assert_eq!(velocity, 1.0);
+        assert!((velocity - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -4312,7 +4312,7 @@ mod tests {
         let velocity = metrics.calculate_velocity();
 
         // Should use 7-day average
-        assert_eq!(velocity, 1.0);
+        assert!((velocity - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -4321,7 +4321,7 @@ mod tests {
 
         let velocity = metrics.calculate_velocity();
 
-        assert_eq!(velocity, 0.0);
+        assert!((velocity - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -4372,7 +4372,7 @@ mod tests {
 
         let time_secs = completion.completion_time_secs();
 
-        assert_eq!(time_secs, Some(3600.0));
+        assert!(time_secs.is_some() && (time_secs.unwrap() - 3600.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -4407,7 +4407,7 @@ mod tests {
         let stats = TeamVelocityStats::new("team-123".to_string(), vec![]);
 
         assert_eq!(stats.team_metrics.total_completed, 0);
-        assert_eq!(stats.team_metrics.velocity, 0.0);
+        assert!((stats.team_metrics.velocity - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -4538,7 +4538,7 @@ mod tests {
 
         assert!(result.is_ok());
         // Should return 0 when no open tasks
-        assert_eq!(result.unwrap(), 0.0);
+        assert!((result.unwrap() - 0.0).abs() < f64::EPSILON);
     }
 
     #[test]

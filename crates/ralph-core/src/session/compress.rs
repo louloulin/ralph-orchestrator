@@ -101,6 +101,7 @@ impl SessionCompressor {
     ///
     /// # Returns
     /// A compressed summary suitable for context injection
+    #[allow(clippy::unused_async)]
     pub async fn compress(&self, session: &Session) -> io::Result<CompressedSummary> {
         if session.messages.is_empty() {
             return Ok(CompressedSummary::default());

@@ -149,6 +149,11 @@ pub struct TeamTask {
     /// When task was completed (ISO 8601)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub completed_at: Option<String>,
+
+    /// Files extracted from task description or git diff
+    /// Used for conflict detection
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extracted_files: Option<Vec<String>>,
 }
 
 impl TeamTask {
@@ -167,6 +172,7 @@ impl TeamTask {
             created_at: chrono::Utc::now().to_rfc3339(),
             claimed_at: None,
             completed_at: None,
+            extracted_files: None,
         }
     }
 
@@ -181,9 +187,18 @@ impl TeamTask {
         format!("task-{}-{}", timestamp, hex_suffix)
     }
 
-    /// Sets the description of the task.
+    /// Sets the description of the task and auto-extracts file paths.
     pub fn with_description(mut self, description: Option<String>) -> Self {
-        self.description = description;
+        self.description = description.clone();
+
+        // Auto-extract file paths from description
+        if let Some(ref desc) = description {
+            let files = extract_file_paths(desc);
+            if !files.is_empty() {
+                self.extracted_files = Some(files);
+            }
+        }
+
         self
     }
 
@@ -204,6 +219,27 @@ impl TeamTask {
                 .find(|t| &t.id == dep_id)
                 .is_some_and(|t| t.status == TeamTaskStatus::Done)
         })
+    }
+
+    /// Extracts files from git diff as a fallback when no files were extracted from description.
+    /// This should be called after the task is claimed (assigned_to is set).
+    ///
+    /// # Arguments
+    /// * `repo_root` - Path to the repository root
+    ///
+    /// # Returns
+    /// The updated task with extracted_files populated from git diff
+    pub fn with_extracted_files_from_git_diff(mut self, repo_root: &Path) -> Self {
+        // Only extract if not already extracted from description
+        if self.extracted_files.is_none() {
+            if let Some(ref loop_id) = self.assigned_to {
+                let files = extract_files_from_git_diff(loop_id, repo_root);
+                if !files.is_empty() {
+                    self.extracted_files = Some(files);
+                }
+            }
+        }
+        self
     }
 }
 
@@ -2182,5 +2218,76 @@ mod tests {
         // Should return empty vector since there's no git repo
         let result = extract_files_from_git_diff(&loop_id, tmp.path());
         assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_team_task_with_description_extracts_files() {
+        let task = TeamTask::new("Test task".to_string(), "team-123".to_string(), 2)
+            .with_description(Some("Edit src/auth.rs and modify tests/*.rs".to_string()));
+
+        assert!(task.extracted_files.is_some());
+        let files = task.extracted_files.unwrap();
+        assert_eq!(files.len(), 2);
+        assert!(files.contains(&"src/auth.rs".to_string()));
+        assert!(files.contains(&"tests/*.rs".to_string()));
+    }
+
+    #[test]
+    fn test_team_task_with_description_no_files() {
+        let task = TeamTask::new("Test task".to_string(), "team-123".to_string(), 2)
+            .with_description(Some("Just a description without file paths".to_string()));
+
+        assert!(task.extracted_files.is_none());
+    }
+
+    #[test]
+    fn test_team_task_with_description_none() {
+        let task = TeamTask::new("Test task".to_string(), "team-123".to_string(), 2)
+            .with_description(None);
+
+        assert!(task.extracted_files.is_none());
+    }
+
+    #[test]
+    fn test_team_task_with_extracted_files_from_git_diff() {
+        use crate::loop_registry::{LoopEntry, LoopRegistry};
+
+        let tmp = TempDir::new().unwrap();
+        let registry = LoopRegistry::new(tmp.path());
+
+        // Create a loop entry
+        let entry = LoopEntry::with_workspace(
+            "test prompt",
+            None::<String>,
+            tmp.path().display().to_string(),
+        );
+        let loop_id = registry.register(entry).unwrap();
+
+        // Create a task and assign it to the loop
+        let mut task = TeamTask::new("Test task".to_string(), "team-123".to_string(), 2);
+        task.assigned_to = Some(loop_id);
+
+        // Try to extract from git diff (will be empty since no git repo)
+        let task = task.with_extracted_files_from_git_diff(tmp.path());
+
+        // Should remain None since no git repo exists
+        assert!(task.extracted_files.is_none());
+    }
+
+    #[test]
+    fn test_team_task_extracted_files_preserves_existing() {
+        // Task with files already extracted from description
+        let task = TeamTask::new("Test task".to_string(), "team-123".to_string(), 2)
+            .with_description(Some("Edit src/auth.rs".to_string()));
+
+        assert!(task.extracted_files.is_some());
+        let original_files = task.extracted_files.clone();
+
+        // Try to extract from git diff (should preserve existing)
+        let tmp = TempDir::new().unwrap();
+        let task = task.with_extracted_files_from_git_diff(tmp.path());
+
+        // Should preserve the original files
+        assert_eq!(task.extracted_files, original_files);
     }
 }

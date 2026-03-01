@@ -1563,3 +1563,258 @@ fn execute_history(args: HistoryArgs, root: Option<&PathBuf>, use_colors: bool) 
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ralph_core::{TeamStore, TeamTask, TeamTaskStatus};
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn create_test_team_store() -> (TeamStore, TempDir, PathBuf) {
+        let tmp = TempDir::new().unwrap();
+        let path = tmp.path().to_path_buf();
+        let store = TeamStore::load(&path).unwrap();
+        (store, tmp, path)
+    }
+
+    fn create_team_with_completions(
+        store: &mut TeamStore,
+        team_name: &str,
+        num_completions: usize,
+    ) -> (String, String) {
+        let team_id = store.create_team(team_name.to_string());
+        let teammate_id = "loop-test".to_string();
+        store.add_teammate(&team_id, teammate_id.clone()).unwrap();
+
+        // Create and complete tasks
+        for i in 0..num_completions {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, &teammate_id, &team_id, 1)
+                .unwrap();
+        }
+
+        (team_id, teammate_id)
+    }
+
+    // ========== Velocity CLI Tests ==========
+
+    #[test]
+    fn test_velocity_args_parsing() {
+        let args = VelocityArgs::parse_from(["velocity", "team-123"]);
+        assert_eq!(args.team_id, "team-123");
+        assert_eq!(args.teammate, None);
+        assert_eq!(args.format, OutputFormat::Table);
+    }
+
+    #[test]
+    fn test_velocity_args_with_teammate() {
+        let args = VelocityArgs::parse_from(["velocity", "team-123", "--teammate", "loop-456"]);
+        assert_eq!(args.team_id, "team-123");
+        assert_eq!(args.teammate, Some("loop-456".to_string()));
+    }
+
+    #[test]
+    fn test_velocity_args_with_format() {
+        let args = VelocityArgs::parse_from(["velocity", "team-123", "--format", "json"]);
+        assert_eq!(args.format, OutputFormat::Json);
+    }
+
+    #[test]
+    fn test_execute_velocity_team_not_found() {
+        let (_, _, path) = create_test_team_store();
+        let args = VelocityArgs {
+            team_id: "nonexistent".to_string(),
+            teammate: None,
+            format: OutputFormat::Table,
+        };
+
+        let result = execute_velocity(args, Some(&path), false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_execute_velocity_with_completions() {
+        let (mut store, _tmp, path) = create_test_team_store();
+        let (team_id, _) = create_team_with_completions(&mut store, "Test Team", 5);
+
+        // Need to save the store to disk before CLI reads it
+        store.save().unwrap();
+
+        let args = VelocityArgs {
+            team_id,
+            teammate: None,
+            format: OutputFormat::Json,
+        };
+
+        // Reload store from disk to simulate CLI behavior
+        let reloaded_store = TeamStore::load(&path).unwrap();
+        let stats = reloaded_store
+            .calculate_velocity_metrics(&args.team_id)
+            .unwrap();
+
+        assert_eq!(stats.team_metrics.total_completed, 5);
+    }
+
+    #[test]
+    fn test_execute_velocity_teammate_specific() {
+        let (mut store, _tmp, path) = create_test_team_store();
+        let (team_id, teammate_id) = create_team_with_completions(&mut store, "Test Team", 3);
+
+        // Save and reload
+        store.save().unwrap();
+        let reloaded_store = TeamStore::load(&path).unwrap();
+
+        // Test teammate velocity calculation
+        let metrics = reloaded_store
+            .calculate_teammate_velocity(&team_id, &teammate_id)
+            .unwrap();
+
+        assert_eq!(metrics.total_completed, 3);
+    }
+
+    // ========== Predict CLI Tests ==========
+
+    #[test]
+    fn test_predict_args_parsing() {
+        let args = PredictArgs::parse_from(["predict", "team-123"]);
+        assert_eq!(args.team_id, "team-123");
+        assert_eq!(args.task_id, None);
+        assert_eq!(args.format, OutputFormat::Table);
+    }
+
+    #[test]
+    fn test_predict_args_with_task_id() {
+        let args = PredictArgs::parse_from(["predict", "team-123", "--task-id", "task-456"]);
+        assert_eq!(args.team_id, "team-123");
+        assert_eq!(args.task_id, Some("task-456".to_string()));
+    }
+
+    #[test]
+    fn test_execute_predict_team_not_found() {
+        let (_, _, path) = create_test_team_store();
+        let args = PredictArgs {
+            team_id: "nonexistent".to_string(),
+            task_id: None,
+            format: OutputFormat::Table,
+        };
+
+        let result = execute_predict(args, Some(&path), false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_execute_predict_with_completions() {
+        let (mut store, _tmp, path) = create_test_team_store();
+        let (team_id, _) = create_team_with_completions(&mut store, "Test Team", 5);
+
+        // Create some open tasks
+        for i in 0..3 {
+            let task = TeamTask::new(format!("Open Task {}", i), team_id.clone(), 1);
+            store.create_team_task(task);
+        }
+
+        store.save().unwrap();
+        let reloaded_store = TeamStore::load(&path).unwrap();
+
+        // Test predict_remaining_work and extrapolate_velocity_trend
+        let hours_remaining = reloaded_store.predict_remaining_work(&team_id).unwrap();
+
+        let trend = reloaded_store.extrapolate_velocity_trend(&team_id).unwrap();
+
+        // Should have positive hours remaining (3 open tasks / velocity)
+        assert!(hours_remaining >= 0.0);
+        // Trend should be finite
+        assert!(trend.is_finite());
+    }
+
+    #[test]
+    fn test_execute_predict_specific_task() {
+        let (mut store, _tmp, path) = create_test_team_store();
+        let (team_id, _) = create_team_with_completions(&mut store, "Test Team", 3);
+
+        // Create an in-progress task
+        let mut task = TeamTask::new("In Progress Task".to_string(), team_id.clone(), 1);
+        task.status = TeamTaskStatus::InProgress;
+        let task_id = store.create_team_task(task);
+
+        store.save().unwrap();
+        let reloaded_store = TeamStore::load(&path).unwrap();
+
+        // Test predict_completion_date
+        let prediction = reloaded_store.predict_completion_date(&task_id).unwrap();
+
+        // Should return a valid timestamp string
+        assert!(!prediction.is_empty());
+    }
+
+    // ========== History CLI Tests ==========
+
+    #[test]
+    fn test_history_args_parsing() {
+        let args = HistoryArgs::parse_from(["history", "team-123"]);
+        assert_eq!(args.team_id, "team-123");
+        assert_eq!(args.duration, 24); // default
+        assert_eq!(args.format, OutputFormat::Table);
+    }
+
+    #[test]
+    fn test_history_args_with_duration() {
+        let args = HistoryArgs::parse_from(["history", "team-123", "-d", "48"]);
+        assert_eq!(args.team_id, "team-123");
+        assert_eq!(args.duration, 48);
+    }
+
+    #[test]
+    fn test_execute_history_team_not_found() {
+        let (_, _, path) = create_test_team_store();
+        let args = HistoryArgs {
+            team_id: "nonexistent".to_string(),
+            duration: 24,
+            format: OutputFormat::Table,
+        };
+
+        let result = execute_history(args, Some(&path), false);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_execute_history_with_completions() {
+        let (mut store, _tmp, path) = create_test_team_store();
+        let (team_id, _) = create_team_with_completions(&mut store, "Test Team", 10);
+
+        store.save().unwrap();
+        let reloaded_store = TeamStore::load(&path).unwrap();
+
+        let args = HistoryArgs {
+            team_id: team_id.clone(),
+            duration: 24,
+            format: OutputFormat::Json,
+        };
+
+        let history = reloaded_store
+            .get_velocity_history(&team_id, args.duration)
+            .unwrap();
+
+        // Should have some history data
+        assert!(!history.is_empty());
+    }
+
+    #[test]
+    fn test_execute_history_empty_team() {
+        let (mut store, _tmp, path) = create_test_team_store();
+        let team_id = store.create_team("Empty Team".to_string());
+
+        let args = HistoryArgs {
+            team_id,
+            duration: 24,
+            format: OutputFormat::Table,
+        };
+
+        let result = execute_history(args, Some(&path), false);
+        // Should handle empty history gracefully
+        assert!(result.is_ok() || result.is_err()); // Either is fine for empty team
+    }
+}

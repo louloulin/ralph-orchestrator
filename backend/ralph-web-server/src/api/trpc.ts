@@ -2097,6 +2097,38 @@ export const teamsRouter = router({
         reason: null,
       };
     }),
+
+  /**
+   * Check for file conflicts in a team (Phase 3.2)
+   * Returns all conflict warnings for the specified file paths.
+   */
+  checkConflicts: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        filePaths: z.array(z.string()),
+      })
+    )
+    .query(({ ctx, input }) => {
+      if (!ctx.agentTeamsService) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "AgentTeamsService is not configured",
+        });
+      }
+
+      // Get the team
+      const team = ctx.agentTeamsService.getTeam(input.teamId);
+      if (!team) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: `Team with id '${input.teamId}' not found`,
+        });
+      }
+
+      // Delegate to AgentTeamsService's checkConflicts method
+      return ctx.agentTeamsService.checkConflicts(input.teamId, input.filePaths);
+    }),
 });
 
 /**

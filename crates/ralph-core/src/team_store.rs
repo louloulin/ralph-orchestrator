@@ -3772,4 +3772,942 @@ mod tests {
             assert_eq!(completion.priority, idx as u8);
         }
     }
+
+    // ========== Velocity Metrics Tests ==========
+
+    #[test]
+    fn test_calculate_velocity_metrics_empty_team() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        let stats = store.calculate_velocity_metrics(&team_id).unwrap();
+
+        assert_eq!(stats.team_id, team_id);
+        assert_eq!(stats.team_metrics.total_completed, 0);
+        assert_eq!(stats.team_metrics.velocity, 0.0);
+        assert!(stats.teammate_metrics.is_empty());
+    }
+
+    #[test]
+    fn test_calculate_velocity_metrics_with_completions() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create and complete tasks
+        for i in 1..=3 {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, "loop-123", &team_id, 1)
+                .unwrap();
+        }
+
+        let stats = store.calculate_velocity_metrics(&team_id).unwrap();
+
+        assert_eq!(stats.team_id, team_id);
+        assert_eq!(stats.team_metrics.total_completed, 3);
+        assert!(stats.team_metrics.velocity > 0.0);
+        assert_eq!(stats.teammate_metrics.len(), 1);
+        assert_eq!(stats.teammate_metrics[0].total_completed, 3);
+    }
+
+    #[test]
+    fn test_calculate_velocity_metrics_team_not_found() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.calculate_velocity_metrics("nonexistent-team");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_calculate_teammate_velocity() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create, assign, and complete tasks
+        for i in 1..=5 {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store.claim_task(&task_id, "loop-123".to_string()).unwrap();
+            store
+                .record_task_completion(&task_id, "loop-123", &team_id, 1)
+                .unwrap();
+        }
+
+        let metrics = store
+            .calculate_teammate_velocity(&team_id, "loop-123")
+            .unwrap();
+
+        assert_eq!(metrics.id, "loop-123");
+        assert_eq!(metrics.total_completed, 5);
+        assert_eq!(metrics.scope, VelocityScope::Teammate);
+        assert!(metrics.velocity > 0.0);
+        assert!(metrics.completion_rate > 0.0);
+    }
+
+    #[test]
+    fn test_calculate_teammate_velocity_no_completions() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-456".to_string())
+            .unwrap();
+
+        let metrics = store
+            .calculate_teammate_velocity(&team_id, "loop-456")
+            .unwrap();
+
+        assert_eq!(metrics.total_completed, 0);
+        assert_eq!(metrics.velocity, 0.0);
+    }
+
+    #[test]
+    fn test_calculate_teammate_velocity_team_not_found() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.calculate_teammate_velocity("nonexistent", "loop-123");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_calculate_teammate_velocity_teammate_not_found() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        let result = store.calculate_teammate_velocity(&team_id, "loop-999");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_get_velocity_history_empty() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        let history = store.get_velocity_history(&team_id, 24).unwrap();
+
+        assert_eq!(history.len(), 24);
+        // All velocities should be 0.0 (no completions)
+        for (_, velocity) in &history {
+            assert_eq!(*velocity, 0.0);
+        }
+    }
+
+    #[test]
+    fn test_get_velocity_history_with_completions() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create and complete 2 tasks (will be in the last hour)
+        for i in 1..=2 {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, "loop-123", &team_id, 1)
+                .unwrap();
+        }
+
+        let history = store.get_velocity_history(&team_id, 24).unwrap();
+
+        assert_eq!(history.len(), 24);
+        // Most recent hour should have velocity of 2.0
+        let (_, latest_velocity) = history.last().unwrap();
+        assert_eq!(*latest_velocity, 2.0);
+    }
+
+    #[test]
+    fn test_get_velocity_history_team_not_found() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.get_velocity_history("nonexistent", 24);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_get_velocity_history_chronological_order() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        let history = store.get_velocity_history(&team_id, 5).unwrap();
+
+        assert_eq!(history.len(), 5);
+        // Verify timestamps are in chronological order (oldest first)
+        for i in 0..history.len() - 1 {
+            let current = &history[i].0;
+            let next = &history[i + 1].0;
+            assert!(current < next);
+        }
+    }
+
+    // ========== Prediction Tests ==========
+
+    #[test]
+    fn test_predict_remaining_work_no_tasks() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Complete one task to establish velocity
+        let task = TeamTask::new("Task 1".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store
+            .update_task_status(&task_id, TeamTaskStatus::Done)
+            .unwrap();
+        store
+            .record_task_completion(&task_id, "loop-123", &team_id, 1)
+            .unwrap();
+
+        let remaining = store.predict_remaining_work(&team_id).unwrap();
+        assert_eq!(remaining, 0.0);
+    }
+
+    #[test]
+    fn test_predict_remaining_work_with_tasks() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Complete 3 tasks quickly to establish velocity
+        for i in 1..=3 {
+            let task = TeamTask::new(format!("Completed {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, "loop-123", &team_id, 1)
+                .unwrap();
+        }
+
+        // Create 2 open tasks
+        for i in 1..=2 {
+            let task = TeamTask::new(format!("Open {}", i), team_id.clone(), 1);
+            store.create_team_task(task);
+        }
+
+        let remaining = store.predict_remaining_work(&team_id).unwrap();
+        // Should return a positive number of seconds
+        assert!(remaining > 0.0);
+    }
+
+    #[test]
+    fn test_predict_remaining_work_no_velocity() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create open task without any completions
+        let task = TeamTask::new("Open Task".to_string(), team_id.clone(), 1);
+        store.create_team_task(task);
+
+        let result = store.predict_remaining_work(&team_id);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn test_predict_remaining_work_team_not_found() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.predict_remaining_work("nonexistent");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_predict_completion_date_in_progress() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create completed task to establish velocity
+        let completed_task = TeamTask::new("Completed".to_string(), team_id.clone(), 1);
+        let completed_id = store.create_team_task(completed_task);
+        store
+            .record_task_completion(&completed_id, "loop-123", &team_id, 1)
+            .unwrap();
+
+        // Create in-progress task
+        let mut task = TeamTask::new("In Progress".to_string(), team_id.clone(), 1);
+        task.status = TeamTaskStatus::InProgress;
+        let task_id = store.create_team_task(task);
+
+        let prediction = store.predict_completion_date(&task_id).unwrap();
+        // Should return a valid timestamp
+        assert!(chrono::DateTime::parse_from_rfc3339(&prediction).is_ok());
+    }
+
+    #[test]
+    fn test_predict_completion_date_todo() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create completed task to establish velocity
+        let completed_task = TeamTask::new("Completed".to_string(), team_id.clone(), 1);
+        let completed_id = store.create_team_task(completed_task);
+        store
+            .record_task_completion(&completed_id, "loop-123", &team_id, 1)
+            .unwrap();
+
+        // Create todo task
+        let task = TeamTask::new("Todo Task".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+
+        let prediction = store.predict_completion_date(&task_id).unwrap();
+        // Should return a valid timestamp
+        assert!(chrono::DateTime::parse_from_rfc3339(&prediction).is_ok());
+    }
+
+    #[test]
+    fn test_predict_completion_date_done() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create a completed task to establish velocity
+        let completed_task = TeamTask::new("Velocity Task".to_string(), team_id.clone(), 1);
+        let completed_id = store.create_team_task(completed_task);
+        store
+            .record_task_completion(&completed_id, "loop-123", &team_id, 1)
+            .unwrap();
+
+        // Create and complete a task
+        let mut task = TeamTask::new("Done Task".to_string(), team_id.clone(), 1);
+        task.status = TeamTaskStatus::Done;
+        task.completed_at = Some(chrono::Utc::now().to_rfc3339());
+        let task_id = store.create_team_task(task);
+
+        let prediction = store.predict_completion_date(&task_id).unwrap();
+        // Should return the completed_at timestamp
+        assert!(chrono::DateTime::parse_from_rfc3339(&prediction).is_ok());
+    }
+
+    #[test]
+    fn test_predict_completion_date_review() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create completed task to establish velocity
+        let completed_task = TeamTask::new("Completed".to_string(), team_id.clone(), 1);
+        let completed_id = store.create_team_task(completed_task);
+        store
+            .record_task_completion(&completed_id, "loop-123", &team_id, 1)
+            .unwrap();
+
+        // Create review task
+        let mut task = TeamTask::new("Review Task".to_string(), team_id.clone(), 1);
+        task.status = TeamTaskStatus::Review;
+        let task_id = store.create_team_task(task);
+
+        let prediction = store.predict_completion_date(&task_id).unwrap();
+        // Should return a valid timestamp (estimated 1 hour for review)
+        assert!(chrono::DateTime::parse_from_rfc3339(&prediction).is_ok());
+    }
+
+    #[test]
+    fn test_predict_completion_date_task_not_found() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.predict_completion_date("nonexistent-task");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_predict_completion_date_no_velocity() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create task without any completions
+        let task = TeamTask::new("Task".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+
+        let result = store.predict_completion_date(&task_id);
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn test_extrapolate_velocity_trend_stable() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create consistent completions (stable velocity)
+        for i in 0..24 {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, "loop-123", &team_id, 1)
+                .unwrap();
+        }
+
+        let trend = store.extrapolate_velocity_trend(&team_id).unwrap();
+        // Trend should be relatively stable (close to 0)
+        assert!(trend.abs() < 1.0);
+    }
+
+    #[test]
+    fn test_extrapolate_velocity_trend_team_not_found() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.extrapolate_velocity_trend("nonexistent");
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_velocity_metrics_time_windows() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store
+            .add_teammate(&team_id, "loop-123".to_string())
+            .unwrap();
+
+        // Create multiple completions
+        for i in 1..=10 {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, "loop-123", &team_id, 1)
+                .unwrap();
+        }
+
+        let metrics = store
+            .calculate_teammate_velocity(&team_id, "loop-123")
+            .unwrap();
+
+        // All 10 completions should be in the last hour/24h/7d
+        assert_eq!(metrics.tasks_last_hour, 10);
+        assert_eq!(metrics.tasks_last_24h, 10);
+        assert_eq!(metrics.tasks_last_7d, 10);
+        assert_eq!(metrics.total_completed, 10);
+    }
+
+    #[test]
+    fn test_team_velocity_stats_aggregation() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+        store.add_teammate(&team_id, "loop-2".to_string()).unwrap();
+
+        // Complete 3 tasks for each teammate
+        for teammate in &["loop-1", "loop-2"] {
+            for i in 1..=3 {
+                let task = TeamTask::new(format!("Task {}-{}", teammate, i), team_id.clone(), 1);
+                let task_id = store.create_team_task(task);
+                store
+                    .record_task_completion(&task_id, teammate, &team_id, 1)
+                    .unwrap();
+            }
+        }
+
+        let stats = store.calculate_velocity_metrics(&team_id).unwrap();
+
+        // Team should have aggregated metrics from both teammates
+        assert_eq!(stats.team_metrics.total_completed, 6);
+        assert_eq!(stats.teammate_metrics.len(), 2);
+
+        // Each teammate should have 3 completions
+        for teammate_metrics in &stats.teammate_metrics {
+            assert_eq!(teammate_metrics.total_completed, 3);
+        }
+    }
+
+    // ========== Velocity Metrics Tests ==========
+
+    #[test]
+    fn test_velocity_metrics_new() {
+        let metrics = VelocityMetrics::new("test-id".to_string(), VelocityScope::Team);
+
+        assert_eq!(metrics.id, "test-id");
+        assert_eq!(metrics.scope, VelocityScope::Team);
+        assert_eq!(metrics.tasks_last_hour, 0);
+        assert_eq!(metrics.tasks_last_24h, 0);
+        assert_eq!(metrics.tasks_last_7d, 0);
+        assert_eq!(metrics.total_completed, 0);
+        assert_eq!(metrics.avg_completion_time_secs, 0.0);
+        assert_eq!(metrics.completion_rate, 0.0);
+        assert_eq!(metrics.velocity, 0.0);
+    }
+
+    #[test]
+    fn test_velocity_metrics_calculate_velocity_high_activity() {
+        let mut metrics = VelocityMetrics::new("test".to_string(), VelocityScope::Team);
+        metrics.tasks_last_hour = 10;
+        metrics.tasks_last_24h = 50;
+        metrics.tasks_last_7d = 200;
+
+        let velocity = metrics.calculate_velocity();
+
+        // Should prioritize last hour (50% weight)
+        // 10 * 0.5 + (50/24) * 0.3 + (200/168) * 0.2
+        // = 5.0 + 2.083 * 0.3 + 1.19 * 0.2
+        // = 5.0 + 0.625 + 0.238
+        assert!(velocity > 5.5 && velocity < 6.5);
+    }
+
+    #[test]
+    fn test_velocity_metrics_calculate_velocity_moderate_activity() {
+        let mut metrics = VelocityMetrics::new("test".to_string(), VelocityScope::Team);
+        metrics.tasks_last_hour = 0;
+        metrics.tasks_last_24h = 24;
+
+        let velocity = metrics.calculate_velocity();
+
+        // Should use 24h average
+        assert_eq!(velocity, 1.0);
+    }
+
+    #[test]
+    fn test_velocity_metrics_calculate_velocity_low_activity() {
+        let mut metrics = VelocityMetrics::new("test".to_string(), VelocityScope::Team);
+        metrics.tasks_last_hour = 0;
+        metrics.tasks_last_24h = 0;
+        metrics.tasks_last_7d = 168;
+
+        let velocity = metrics.calculate_velocity();
+
+        // Should use 7-day average
+        assert_eq!(velocity, 1.0);
+    }
+
+    #[test]
+    fn test_velocity_metrics_calculate_velocity_no_activity() {
+        let metrics = VelocityMetrics::new("test".to_string(), VelocityScope::Team);
+
+        let velocity = metrics.calculate_velocity();
+
+        assert_eq!(velocity, 0.0);
+    }
+
+    #[test]
+    fn test_task_completion_new() {
+        let completion = TaskCompletion::new(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            "team-789".to_string(),
+            1,
+        );
+
+        assert_eq!(completion.task_id, "task-123");
+        assert_eq!(completion.teammate_id, "loop-456");
+        assert_eq!(completion.team_id, "team-789");
+        assert_eq!(completion.priority, 1);
+        assert!(completion.started_at.is_none());
+        assert!(completion.complexity.is_none());
+    }
+
+    #[test]
+    fn test_task_completion_new_with_start_time() {
+        let started_at = chrono::Utc::now().to_rfc3339();
+        let completion = TaskCompletion::with_timing(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            "team-789".to_string(),
+            1,
+            started_at.clone(),
+        );
+
+        assert_eq!(completion.task_id, "task-123");
+        assert_eq!(completion.started_at, Some(started_at));
+    }
+
+    #[test]
+    fn test_task_completion_completion_time_secs() {
+        let started_at = chrono::Utc::now() - chrono::Duration::seconds(3600);
+        let mut completion = TaskCompletion::with_timing(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            "team-789".to_string(),
+            1,
+            started_at.to_rfc3339(),
+        );
+
+        // Set completed_at to 1 hour after started_at
+        completion.completed_at = (started_at + chrono::Duration::seconds(3600)).to_rfc3339();
+
+        let time_secs = completion.completion_time_secs();
+
+        assert_eq!(time_secs, Some(3600.0));
+    }
+
+    #[test]
+    fn test_task_completion_completion_time_secs_no_start() {
+        let completion = TaskCompletion::new(
+            "task-123".to_string(),
+            "loop-456".to_string(),
+            "team-789".to_string(),
+            1,
+        );
+
+        let time_secs = completion.completion_time_secs();
+
+        assert_eq!(time_secs, None);
+    }
+
+    #[test]
+    fn test_team_velocity_stats_new() {
+        let teammate1 = VelocityMetrics::new("loop-1".to_string(), VelocityScope::Teammate);
+        let teammate2 = VelocityMetrics::new("loop-2".to_string(), VelocityScope::Teammate);
+
+        let stats = TeamVelocityStats::new("team-123".to_string(), vec![teammate1, teammate2]);
+
+        assert_eq!(stats.team_id, "team-123");
+        assert_eq!(stats.teammate_metrics.len(), 2);
+        assert_eq!(stats.time_range, "P7D");
+        assert_eq!(stats.team_metrics.scope, VelocityScope::Team);
+    }
+
+    #[test]
+    fn test_team_velocity_stats_aggregate_empty() {
+        let stats = TeamVelocityStats::new("team-123".to_string(), vec![]);
+
+        assert_eq!(stats.team_metrics.total_completed, 0);
+        assert_eq!(stats.team_metrics.velocity, 0.0);
+    }
+
+    #[test]
+    fn test_calculate_velocity_metrics_single_teammate() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Create and complete a task
+        let task = TeamTask::new("task-1".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store
+            .record_task_completion(&task_id, "loop-1", &team_id, 1)
+            .unwrap();
+
+        let stats = store.calculate_velocity_metrics(&team_id).unwrap();
+
+        assert_eq!(stats.teammate_metrics.len(), 1);
+        assert_eq!(stats.teammate_metrics[0].total_completed, 1);
+        assert_eq!(stats.team_metrics.total_completed, 1);
+    }
+
+    #[test]
+    fn test_calculate_velocity_metrics_nonexistent_team() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.calculate_velocity_metrics("nonexistent");
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_calculate_teammate_velocity_with_completions() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Create and complete 3 tasks
+        for i in 1..=3 {
+            let task = TeamTask::new(format!("task-{}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, "loop-1", &team_id, 1)
+                .unwrap();
+        }
+
+        let metrics = store
+            .calculate_teammate_velocity(&team_id, "loop-1")
+            .unwrap();
+
+        assert_eq!(metrics.total_completed, 3);
+        assert_eq!(metrics.id, "loop-1");
+        assert_eq!(metrics.scope, VelocityScope::Teammate);
+    }
+
+    #[test]
+    fn test_calculate_teammate_velocity_nonexistent_team() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.calculate_teammate_velocity("nonexistent", "loop-1");
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_calculate_teammate_velocity_nonexistent_teammate() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+
+        let result = store.calculate_teammate_velocity(&team_id, "nonexistent");
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_get_velocity_history() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Create and complete a task
+        let task = TeamTask::new("task-1".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store
+            .record_task_completion(&task_id, "loop-1", &team_id, 1)
+            .unwrap();
+
+        let history = store.get_velocity_history(&team_id, 24).unwrap();
+
+        // Should have at least one sample
+        assert!(!history.is_empty());
+    }
+
+    #[test]
+    fn test_get_velocity_history_nonexistent_team() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.get_velocity_history("nonexistent", 24);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_predict_remaining_work_with_completed_tasks() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Complete tasks and set them to Done status
+        for i in 1..=10 {
+            let task = TeamTask::new(format!("task-{}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store.claim_task(&task_id, "loop-1".to_string()).unwrap();
+            store
+                .update_task_status(&task_id, TeamTaskStatus::Done)
+                .unwrap();
+            store
+                .record_task_completion(&task_id, "loop-1", &team_id, 1)
+                .unwrap();
+        }
+
+        // Now there are 10 completed, 0 open
+        let result = store.predict_remaining_work(&team_id);
+
+        assert!(result.is_ok());
+        // Should return 0 when no open tasks
+        assert_eq!(result.unwrap(), 0.0);
+    }
+
+    #[test]
+    fn test_predict_remaining_work_with_open_tasks() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Create 3 todo tasks
+        for i in 1..=3 {
+            let task = TeamTask::new(format!("task-{}", i), team_id.clone(), 1);
+            store.create_team_task(task);
+        }
+
+        // Complete 1 task to establish velocity
+        let task = TeamTask::new("task-done".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store
+            .record_task_completion(&task_id, "loop-1", &team_id, 1)
+            .unwrap();
+
+        let result = store.predict_remaining_work(&team_id);
+
+        assert!(result.is_ok());
+        // Should predict > 0 seconds for 3 open tasks
+        assert!(result.unwrap() > 0.0);
+    }
+
+    #[test]
+    fn test_predict_remaining_work_nonexistent_team() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.predict_remaining_work("nonexistent");
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_predict_remaining_work_no_velocity_data() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Create todo task but don't complete anything (no velocity)
+        let task = TeamTask::new("task-1".to_string(), team_id.clone(), 1);
+        store.create_team_task(task);
+
+        let result = store.predict_remaining_work(&team_id);
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn test_predict_completion_date_done_task() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Create and complete a task
+        let task = TeamTask::new("task-1".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store.claim_task(&task_id, "loop-1".to_string()).unwrap();
+        store
+            .update_task_status(&task_id, TeamTaskStatus::Done)
+            .unwrap();
+        store
+            .record_task_completion(&task_id, "loop-1", &team_id, 1)
+            .unwrap();
+
+        let result = store.predict_completion_date(&task_id);
+
+        assert!(result.is_ok());
+        // Should return a timestamp string
+        let predicted = result.unwrap();
+        // Verify it's a non-empty timestamp string
+        assert!(!predicted.is_empty());
+        assert!(predicted.len() >= 10); // Minimum length for a date string
+    }
+
+    #[test]
+    fn test_predict_completion_date_nonexistent_task() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.predict_completion_date("nonexistent");
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_extrapolate_velocity_trend() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        // Complete multiple tasks to establish trend
+        for i in 1..=5 {
+            let task = TeamTask::new(format!("task-{}", i), team_id.clone(), 1);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, "loop-1", &team_id, 1)
+                .unwrap();
+        }
+
+        let result = store.extrapolate_velocity_trend(&team_id);
+
+        assert!(result.is_ok());
+        let slope = result.unwrap();
+        // Should return a slope value (f64)
+        // Slope can be positive, negative, or near zero
+        assert!(slope.is_finite());
+    }
+
+    #[test]
+    fn test_extrapolate_velocity_trend_nonexistent_team() {
+        let (store, _tmp) = create_test_store();
+
+        let result = store.extrapolate_velocity_trend("nonexistent");
+
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn test_record_task_completion_updates_completions() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        let initial_count = store.completions.len();
+
+        let task = TeamTask::new("task-1".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store
+            .record_task_completion(&task_id, "loop-1", &team_id, 1)
+            .unwrap();
+
+        assert_eq!(store.completions.len(), initial_count + 1);
+    }
+
+    #[test]
+    fn test_record_task_completion_with_start_time() {
+        let (mut store, _tmp) = create_test_store();
+        let team_id = store.create_team("Test Team".to_string());
+        store.add_teammate(&team_id, "loop-1".to_string()).unwrap();
+
+        let task = TeamTask::new("task-1".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+        store.claim_task(&task_id, "loop-1".to_string()).unwrap();
+
+        // Set completed_at on the task so record_task_completion extracts timing
+        if let Some(task) = store.tasks.get_mut(&task_id) {
+            task.completed_at = Some(chrono::Utc::now().to_rfc3339());
+        }
+
+        store
+            .record_task_completion(&task_id, "loop-1", &team_id, 1)
+            .unwrap();
+
+        // Find the completion record
+        let completion = store
+            .completions
+            .iter()
+            .find(|c| c.task_id == task_id)
+            .unwrap();
+
+        assert!(completion.started_at.is_some());
+        assert!(completion.completion_time_secs().is_some());
+    }
 }

@@ -2548,17 +2548,29 @@ mod tests {
         // All three agents should be able to claim and reserve their files without conflicts
         store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
         store
-            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/auth.rs".to_string()])
+            .reserve_files(
+                task1_id.clone(),
+                "loop-1".to_string(),
+                vec!["src/auth.rs".to_string()],
+            )
             .unwrap();
 
         store.claim_task(&task2_id, "loop-2".to_string()).unwrap();
         store
-            .reserve_files(task2_id.clone(), "loop-2".to_string(), vec!["src/database.rs".to_string()])
+            .reserve_files(
+                task2_id.clone(),
+                "loop-2".to_string(),
+                vec!["src/database.rs".to_string()],
+            )
             .unwrap();
 
         store.claim_task(&task3_id, "loop-3".to_string()).unwrap();
         store
-            .reserve_files(task3_id.clone(), "loop-3".to_string(), vec!["src/utils.rs".to_string()])
+            .reserve_files(
+                task3_id.clone(),
+                "loop-3".to_string(),
+                vec!["src/utils.rs".to_string()],
+            )
             .unwrap();
 
         // Verify all reservations exist
@@ -2581,12 +2593,18 @@ mod tests {
         // Agent 1 claims the task and reserves the file
         store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
         store
-            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/main.rs".to_string()])
+            .reserve_files(
+                task1_id.clone(),
+                "loop-1".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
             .unwrap();
         assert!(store.reservations.contains_key(&task1_id));
 
         // Release the task
-        store.release_task(&task1_id, &"loop-1".to_string()).unwrap();
+        store
+            .release_task(&task1_id, &"loop-1".to_string())
+            .unwrap();
         assert!(!store.reservations.contains_key(&task1_id));
 
         // Create another task with the same file
@@ -2597,7 +2615,11 @@ mod tests {
         // Agent 2 should now be able to claim and reserve without conflict
         store.claim_task(&task2_id, "loop-2".to_string()).unwrap();
         store
-            .reserve_files(task2_id.clone(), "loop-2".to_string(), vec!["src/main.rs".to_string()])
+            .reserve_files(
+                task2_id.clone(),
+                "loop-2".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
             .unwrap();
         assert!(store.reservations.contains_key(&task2_id));
     }
@@ -2614,7 +2636,11 @@ mod tests {
         let task_id = store.create_team_task(task);
         store.claim_task(&task_id, "loop-1".to_string()).unwrap();
         store
-            .reserve_files(task_id.clone(), "loop-1".to_string(), vec!["src/main.rs".to_string()])
+            .reserve_files(
+                task_id.clone(),
+                "loop-1".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
             .unwrap();
 
         // Verify reservation exists
@@ -2644,7 +2670,11 @@ mod tests {
         let task1_id = store.create_team_task(task1);
         store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
         store
-            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/**/*.rs".to_string()])
+            .reserve_files(
+                task1_id.clone(),
+                "loop-1".to_string(),
+                vec!["src/**/*.rs".to_string()],
+            )
             .unwrap();
 
         // Agent 2 tries to reserve an exact file that matches the glob
@@ -2671,7 +2701,11 @@ mod tests {
         let task1_id = store.create_team_task(task1);
         store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
         store
-            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/auth.rs".to_string()])
+            .reserve_files(
+                task1_id.clone(),
+                "loop-1".to_string(),
+                vec!["src/auth.rs".to_string()],
+            )
             .unwrap();
 
         // Agent 2 tries to reserve a glob that would match Agent 1's file
@@ -2711,7 +2745,11 @@ mod tests {
         let task2_id = store.create_team_task(task2);
         store.claim_task(&task2_id, "loop-2".to_string()).unwrap();
         store
-            .reserve_files(task2_id.clone(), "loop-2".to_string(), vec!["src/utils.rs".to_string()])
+            .reserve_files(
+                task2_id.clone(),
+                "loop-2".to_string(),
+                vec!["src/utils.rs".to_string()],
+            )
             .unwrap();
 
         // Agent 3 tries to reserve files that conflict with both Agent 1 and Agent 2
@@ -2720,7 +2758,8 @@ mod tests {
         let _task3_id = store.create_team_task(task3);
 
         // Check for conflicts
-        let conflicts = store.check_conflicts(&["src/auth.rs".to_string(), "src/utils.rs".to_string()]);
+        let conflicts =
+            store.check_conflicts(&["src/auth.rs".to_string(), "src/utils.rs".to_string()]);
         assert_eq!(conflicts.len(), 2);
 
         // Both should be High severity (one conflicting agent each)
@@ -2740,7 +2779,11 @@ mod tests {
         let task1_id = store.create_team_task(task1);
         store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
         store
-            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["tests/*.rs".to_string()])
+            .reserve_files(
+                task1_id.clone(),
+                "loop-1".to_string(),
+                vec!["tests/*.rs".to_string()],
+            )
             .unwrap();
 
         // Agent 2 tries to reserve the same glob pattern

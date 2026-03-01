@@ -970,6 +970,29 @@ pub async fn run_loop_impl(
             return Ok(reason);
         }
 
+        // Poll mailbox for pending messages from other loops
+        let mailbox_messages = event_loop.poll_mailbox();
+        if !mailbox_messages.is_empty() {
+            info!(
+                count = mailbox_messages.len(),
+                "Polled mailbox messages from other loops"
+            );
+
+            // Inject mailbox messages into EventBus
+            let injected_count = event_loop.inject_mailbox_messages(mailbox_messages);
+            debug!(
+                count = injected_count,
+                "Injected mailbox messages into event bus"
+            );
+
+            // Clear processed messages from mailbox
+            if event_loop.clear_mailbox() {
+                debug!("Cleared processed mailbox messages");
+            } else {
+                warn!("Failed to clear mailbox after processing");
+            }
+        }
+
         // Drain next-loop guidance queue and write as human.guidance events.
         // These will be picked up by process_events_from_jsonl() during build_prompt().
         // Handle both TUI guidance queue and RPC guidance channel.

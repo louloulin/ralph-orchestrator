@@ -356,6 +356,36 @@ export class AgentTeamsService {
   }
 
   /**
+   * Check for file conflicts in a team (Phase 3.2)
+   *
+   * This method integrates with the Rust TeamStore's check_conflicts functionality
+   * via FFI bindings. For now, it returns an empty array as a placeholder.
+   *
+   * In a full implementation, this would:
+   * 1. Call the Rust TeamStore via FFI to check file reservations
+   * 2. Return ConflictWarning objects with:
+   *    - filePath: The conflicting file path
+   *    - conflictingAgents: List of agents working on this file
+   *    - severity: Low/High/Critical based on conflict type
+   *
+   * @param teamId - The team ID to check conflicts for
+   * @param filePaths - Array of file paths to check for conflicts
+   * @returns Array of conflict warnings (empty for now)
+   */
+  checkConflicts(teamId: string, filePaths: string[]): any[] {
+    const team = this.storage.teams.get(teamId);
+    if (!team) {
+      return [];
+    }
+
+    // TODO: Integrate with Rust TeamStore via FFI
+    // For now, return empty array as this is a placeholder implementation
+    // The actual conflict detection logic is in Rust TeamStore::check_conflicts()
+    // which is already integrated with the CLI commands (ralph team conflicts)
+    return [];
+  }
+
+  /**
    * Get agent by ID within a team
    */
   private findAgent(team: AgentTeam, agentId: string): AgentRole | null {

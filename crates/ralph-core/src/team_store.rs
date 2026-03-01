@@ -1178,6 +1178,71 @@ impl TeamStore {
         self.save()
     }
 
+    /// Records a task completion event for velocity tracking.
+    ///
+    /// Creates a TaskCompletion record and persists it to the completions store.
+    /// This enables velocity metrics, completion rate analysis, and workload distribution tracking.
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - ID of the completed task
+    /// * `teammate_id` - ID of the teammate who completed the task
+    /// * `team_id` - ID of the team the task belongs to
+    /// * `priority` - Task priority (1-5, 1 = highest)
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(())` if the completion was recorded successfully.
+    /// Returns an error if saving fails.
+    pub fn record_task_completion(
+        &mut self,
+        task_id: &str,
+        teammate_id: &str,
+        team_id: &str,
+        priority: u8,
+    ) -> io::Result<()> {
+        // Get task details to extract timing information
+        let (use_timing, started_at) = if let Some(task) = self.tasks.get(task_id) {
+            let started = task.claimed_at.clone();
+            (task.completed_at.is_some(), started)
+        } else {
+            (false, None)
+        };
+
+        // Create completion record with timing if available
+        let completion = if use_timing {
+            if let Some(started) = started_at {
+                TaskCompletion::with_timing(
+                    task_id.to_string(),
+                    teammate_id.to_string(),
+                    team_id.to_string(),
+                    priority,
+                    started,
+                )
+            } else {
+                TaskCompletion::new(
+                    task_id.to_string(),
+                    teammate_id.to_string(),
+                    team_id.to_string(),
+                    priority,
+                )
+            }
+        } else {
+            TaskCompletion::new(
+                task_id.to_string(),
+                teammate_id.to_string(),
+                team_id.to_string(),
+                priority,
+            )
+        };
+
+        // Add to completions history
+        self.completions.push(completion);
+
+        // Persist to disk
+        self.save()
+    }
+
     /// Updates a task's status.
     pub fn update_task_status(&mut self, task_id: &str, status: TeamTaskStatus) -> io::Result<()> {
         let task = self.tasks.get_mut(task_id).ok_or_else(|| {
@@ -3129,5 +3194,107 @@ mod tests {
         assert_eq!(paths.len(), 2);
         assert!(paths.contains(&"src/main.rs".to_string()));
         assert!(paths.contains(&"lib.rs".to_string()));
+    }
+
+    #[test]
+    fn test_record_task_completion_basic() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        let task = TeamTask::new("Test Task".to_string(), team_id.clone(), 2);
+        let task_id = store.create_team_task(task);
+
+        // Record completion
+        store
+            .record_task_completion(&task_id, "loop-123", &team_id, 2)
+            .unwrap();
+
+        // Verify completion was recorded
+        assert_eq!(store.completions.len(), 1);
+        let completion = &store.completions[0];
+        assert_eq!(completion.task_id, task_id);
+        assert_eq!(completion.teammate_id, "loop-123");
+        assert_eq!(completion.team_id, team_id);
+        assert_eq!(completion.priority, 2);
+        assert!(completion.started_at.is_none()); // No timing since task wasn't claimed
+    }
+
+    #[test]
+    fn test_record_task_completion_with_timing() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        let task = TeamTask::new("Test Task".to_string(), team_id.clone(), 1);
+        let task_id = store.create_team_task(task);
+
+        // Claim task (sets claimed_at)
+        store.claim_task(&task_id, "loop-456".to_string()).unwrap();
+
+        // Mark as done (sets completed_at)
+        store
+            .update_task_status(&task_id, TeamTaskStatus::Done)
+            .unwrap();
+
+        // Record completion
+        store
+            .record_task_completion(&task_id, "loop-456", &team_id, 1)
+            .unwrap();
+
+        // Verify completion with timing
+        assert_eq!(store.completions.len(), 1);
+        let completion = &store.completions[0];
+        assert_eq!(completion.task_id, task_id);
+        assert_eq!(completion.teammate_id, "loop-456");
+        assert!(completion.started_at.is_some());
+        assert!(completion.completion_time_secs().is_some());
+    }
+
+    #[test]
+    fn test_record_task_completion_persists() {
+        let (mut store, tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        let task = TeamTask::new("Test Task".to_string(), team_id.clone(), 3);
+        let task_id = store.create_team_task(task);
+
+        // Record completion
+        store
+            .record_task_completion(&task_id, "loop-789", &team_id, 3)
+            .unwrap();
+
+        // Reload store from disk
+        let reloaded_store = TeamStore::load(tmp.path()).unwrap();
+
+        // Verify completion persisted
+        assert_eq!(reloaded_store.completions.len(), 1);
+        let completion = &reloaded_store.completions[0];
+        assert_eq!(completion.task_id, task_id);
+        assert_eq!(completion.teammate_id, "loop-789");
+        assert_eq!(completion.priority, 3);
+    }
+
+    #[test]
+    fn test_record_multiple_completions() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create and complete multiple tasks
+        for i in 1..=3 {
+            let task = TeamTask::new(format!("Task {}", i), team_id.clone(), i);
+            let task_id = store.create_team_task(task);
+            store
+                .record_task_completion(&task_id, &format!("loop-{}", i), &team_id, i)
+                .unwrap();
+        }
+
+        // Verify all completions recorded
+        assert_eq!(store.completions.len(), 3);
+        for (i, completion) in store.completions.iter().enumerate() {
+            let idx = i + 1;
+            assert_eq!(completion.task_id.starts_with("task-"), true);
+            assert_eq!(completion.teammate_id, format!("loop-{}", idx));
+            assert_eq!(completion.priority, idx as u8);
+        }
     }
 }

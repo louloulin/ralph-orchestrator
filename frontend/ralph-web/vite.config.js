@@ -48,7 +48,7 @@ export default defineConfig({
                     // UI libraries
                     "vendor-ui": ["@dnd-kit/core", "@dnd-kit/sortable", "@dnd-kit/utilities", "@xyflow/react"],
                     // State and data
-                    "vendor-data": ["zustand", "@trpc/client", "@trpc/react-query"],
+                    "vendor-data": ["zustand"],
                     // Utilities
                     "vendor-utils": ["date-fns", "clsx", "tailwind-merge"],
                 },

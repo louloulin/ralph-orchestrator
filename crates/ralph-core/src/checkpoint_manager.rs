@@ -60,6 +60,7 @@ pub enum CheckpointError {
 pub type CheckpointResult<T> = Result<T, CheckpointError>;
 
 /// Manages checkpoint lifecycle for Ralph loops.
+#[allow(dead_code)]
 pub struct CheckpointManager {
     /// Root directory for checkpoints (e.g., `.ralph/checkpoints`).
     checkpoints_dir: PathBuf,
@@ -211,7 +212,7 @@ impl CheckpointManager {
             .filter(|m| m.loop_id == loop_id)
             .collect();
 
-        checkpoints.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        checkpoints.sort_by_key(|b| std::cmp::Reverse(b.created_at));
         Ok(checkpoints)
     }
 

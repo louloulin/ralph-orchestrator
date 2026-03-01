@@ -163,7 +163,7 @@ fn test_team_task_suggest_no_tasks() {
     let ralph_dir = temp_path.join(".ralph");
     let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
     store
-        .add_teammate(&team_id, loop_id.to_string())
+        .add_teammate(team_id, loop_id.to_string())
         .expect("add teammate");
     store.save().expect("save team store");
 
@@ -194,13 +194,13 @@ fn test_team_task_suggest_priority_ordering() {
 
     let ralph_dir = temp_path.join(".ralph");
     let store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
-    let task1 = store.get_task(&task1_id).expect("task exists");
+    let task1 = store.get_task(task1_id).expect("task exists");
     assert_eq!(task1.priority, 1);
 
     // Claim the first task
     let mut store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
     store
-        .claim_task(&task1_id, loop1_id.clone())
+        .claim_task(task1_id, loop1_id.clone())
         .expect("claim task");
     store.save().expect("save team store");
 
@@ -212,6 +212,6 @@ fn test_team_task_suggest_priority_ordering() {
     let task2_id = stdout2.trim();
 
     let store = ralph_core::TeamStore::load(&ralph_dir).expect("load team store");
-    let task2 = store.get_task(&task2_id).expect("task exists");
+    let task2 = store.get_task(task2_id).expect("task exists");
     assert_eq!(task2.priority, 3);
 }

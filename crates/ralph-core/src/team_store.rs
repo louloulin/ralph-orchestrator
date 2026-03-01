@@ -1372,8 +1372,8 @@ impl TeamStore {
                 };
 
                 if let Ok(started) = chrono::DateTime::parse_from_rfc3339(started) {
-                    let duration = completed.with_timezone(&chrono::Utc)
-                        - started.with_timezone(&chrono::Utc);
+                    let duration =
+                        completed.with_timezone(&chrono::Utc) - started.with_timezone(&chrono::Utc);
                     Some(duration.num_seconds() as f64)
                 } else {
                     None
@@ -1465,6 +1465,257 @@ impl TeamStore {
         // Reverse to get chronological order (oldest first)
         history.reverse();
         Ok(history)
+    }
+
+    // ========== Prediction Methods ==========
+
+    /// Predicts remaining work time for a team.
+    ///
+    /// Estimates how long it will take to complete all open (todo + in_progress) tasks
+    /// based on the team's current velocity.
+    ///
+    /// # Arguments
+    ///
+    /// * `team_id` - ID of the team
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(estimated_seconds)` - estimated time in seconds to complete all open tasks.
+    /// Returns 0.0 if there are no open tasks.
+    /// Returns an error if the team doesn't exist or has no velocity data.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Count open tasks (todo + in_progress)
+    /// 2. Get team velocity (tasks per hour)
+    /// 3. Estimate: open_tasks / velocity = hours needed
+    ///
+    /// # Performance
+    ///
+    /// Target: <50ms
+    pub fn predict_remaining_work(&self, team_id: &str) -> io::Result<f64> {
+        // Verify team exists
+        let _team = self.teams.get(team_id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Team {} not found", team_id),
+            )
+        })?;
+
+        // Count open tasks
+        let open_tasks = self
+            .tasks
+            .values()
+            .filter(|t| {
+                t.team_id == team_id
+                    && (t.status == TeamTaskStatus::Todo || t.status == TeamTaskStatus::InProgress)
+            })
+            .count();
+
+        if open_tasks == 0 {
+            return Ok(0.0);
+        }
+
+        // Get team velocity
+        let stats = self.calculate_velocity_metrics(team_id)?;
+        let velocity = stats.team_metrics.velocity;
+
+        if velocity <= 0.0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Team {} has no velocity data", team_id),
+            ));
+        }
+
+        // Estimate: tasks / (tasks/hour) = hours
+        let hours_needed = open_tasks as f64 / velocity;
+        let seconds_needed = hours_needed * 3600.0;
+
+        Ok(seconds_needed)
+    }
+
+    /// Predicts when a specific task will be completed.
+    ///
+    /// Estimates the completion date for a task based on:
+    /// - Task status (todo tasks must wait for assignment)
+    /// - Team velocity
+    /// - Queue position (for todo tasks)
+    /// - Current progress (for in_progress tasks)
+    ///
+    /// # Arguments
+    ///
+    /// * `task_id` - ID of the task to predict
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(estimated_timestamp)` - ISO 8601 timestamp of estimated completion.
+    /// Returns an error if task not found, team not found, or no velocity data.
+    ///
+    /// # Algorithm
+    ///
+    /// For IN_PROGRESS tasks:
+    ///   - Use avg completion time from velocity metrics
+    ///   - estimated = now + avg_completion_time
+    ///
+    /// For TODO tasks:
+    ///   - Count tasks ahead in queue (todo + in_progress)
+    ///   - Estimate queue wait time: queue_position / velocity
+    ///   - Add avg task completion time
+    ///   - estimated = now + queue_wait + avg_completion_time
+    ///
+    /// For REVIEW/DONE tasks:
+    ///   - REVIEW: Estimate 1 hour for review
+    ///   - DONE: Return completed_at timestamp
+    ///
+    /// # Performance
+    ///
+    /// Target: <50ms
+    pub fn predict_completion_date(&self, task_id: &str) -> io::Result<String> {
+        let task = self.tasks.get(task_id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Task {} not found", task_id),
+            )
+        })?;
+
+        let team_id = &task.team_id;
+        let stats = self.calculate_velocity_metrics(team_id)?;
+        let velocity = stats.team_metrics.velocity;
+
+        if velocity <= 0.0 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("Team {} has no velocity data", team_id),
+            ));
+        }
+
+        let now = chrono::Utc::now();
+        let estimated_completion = match task.status {
+            TeamTaskStatus::Done => {
+                // Already done - return actual completion time
+                return Ok(task
+                    .completed_at
+                    .clone()
+                    .unwrap_or_else(|| now.to_rfc3339()));
+            }
+            TeamTaskStatus::Review => {
+                // In review - estimate 1 hour for review
+                now + chrono::Duration::hours(1)
+            }
+            TeamTaskStatus::InProgress => {
+                // In progress - use avg completion time
+                let avg_seconds = stats.team_metrics.avg_completion_time_secs;
+                if avg_seconds > 0.0 {
+                    now + chrono::Duration::seconds(avg_seconds as i64)
+                } else {
+                    // No avg time data - estimate 1 hour
+                    now + chrono::Duration::hours(1)
+                }
+            }
+            TeamTaskStatus::Todo => {
+                // Todo - estimate queue wait + completion time
+
+                // Count tasks ahead in queue (all todo + in_progress tasks)
+                let queue_position = self
+                    .tasks
+                    .values()
+                    .filter(|t| {
+                        t.team_id.as_str() == team_id
+                            && (t.status == TeamTaskStatus::Todo
+                                || t.status == TeamTaskStatus::InProgress)
+                            && t.priority <= task.priority // Higher or equal priority
+                            && t.id != task_id
+                    })
+                    .count();
+
+                // Queue wait time in hours
+                let queue_wait_hours = if velocity > 0.0 {
+                    queue_position as f64 / velocity
+                } else {
+                    0.0
+                };
+
+                // Task completion time
+                let avg_seconds = stats.team_metrics.avg_completion_time_secs;
+                let completion_hours = if avg_seconds > 0.0 {
+                    avg_seconds / 3600.0
+                } else {
+                    1.0 // Default 1 hour
+                };
+
+                let total_hours = queue_wait_hours + completion_hours;
+                now + chrono::Duration::seconds((total_hours * 3600.0) as i64)
+            }
+        };
+
+        Ok(estimated_completion.to_rfc3339())
+    }
+
+    /// Extrapolates velocity trend for a team.
+    ///
+    /// Analyzes velocity history to predict future velocity direction.
+    /// Uses simple linear regression on recent velocity samples.
+    ///
+    /// # Arguments
+    ///
+    /// * `team_id` - ID of the team
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(trend)` where trend is:
+    /// - Positive: velocity is increasing (team is accelerating)
+    /// - Negative: velocity is decreasing (team is slowing down)
+    /// - Near zero: velocity is stable
+    ///
+    /// Returns an error if team not found or insufficient data (<2 samples).
+    ///
+    /// # Algorithm
+    ///
+    /// Simple linear regression on last 24 hours of velocity data:
+    /// - slope > 0.1: accelerating
+    /// - slope < -0.1: decelerating
+    /// - else: stable
+    ///
+    /// # Performance
+    ///
+    /// Target: <50ms
+    pub fn extrapolate_velocity_trend(&self, team_id: &str) -> io::Result<f64> {
+        // Get last 24 hours of velocity history
+        let history = self.get_velocity_history(team_id, 24)?;
+
+        if history.len() < 2 {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!(
+                    "Insufficient velocity data for team {} (need >= 2 samples, got {})",
+                    team_id,
+                    history.len()
+                ),
+            ));
+        }
+
+        // Simple linear regression: y = mx + b
+        // where x = time index (0, 1, 2, ...) and y = velocity
+        let n = history.len() as f64;
+        let x_sum = (n * (n - 1.0)) / 2.0; // Sum of 0..n
+        let y_sum: f64 = history.iter().map(|(_, y)| y).sum();
+        let xy_sum: f64 = history
+            .iter()
+            .enumerate()
+            .map(|(i, (_, y))| i as f64 * y)
+            .sum();
+        let xx_sum: f64 = (0..history.len()).map(|i| (i * i) as f64).sum();
+
+        // Calculate slope (m)
+        let denominator = n * xx_sum - x_sum * x_sum;
+        if denominator.abs() < 1e-10 {
+            // All x values are the same (shouldn't happen)
+            return Ok(0.0);
+        }
+
+        let slope = (n * xy_sum - x_sum * y_sum) / denominator;
+
+        Ok(slope)
     }
 
     /// Updates a task's status.

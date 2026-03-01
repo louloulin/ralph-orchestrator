@@ -745,16 +745,22 @@ impl TeamStore {
     /// Claims a task for a teammate (self-assignment).
     ///
     /// Returns error if task doesn't exist or is not available.
+    /// If file conflicts are detected, they are logged as warnings but don't block the claim.
     pub fn claim_task(&mut self, task_id: &str, loop_id: LoopId) -> io::Result<()> {
         // First, gather the needed information without holding a mutable reference
-        let (task_status, dependencies) = {
+        let (task_status, dependencies, team_id, extracted_files) = {
             let task = self.tasks.get(task_id).ok_or_else(|| {
                 io::Error::new(
                     io::ErrorKind::NotFound,
                     format!("Task {} not found", task_id),
                 )
             })?;
-            (task.status, task.depends_on.clone())
+            (
+                task.status,
+                task.depends_on.clone(),
+                task.team_id.clone(),
+                task.extracted_files.clone(),
+            )
         };
 
         // Check if task is available for claiming
@@ -778,6 +784,30 @@ impl TeamStore {
                     io::ErrorKind::InvalidInput,
                     format!("Task {} has unmet dependencies", task_id),
                 ));
+            }
+        }
+
+        // Check for file conflicts if task has extracted files
+        if let Some(ref files) = extracted_files {
+            let conflicts = self.check_conflicts(files);
+            if !conflicts.is_empty() {
+                // Log warnings for each conflict
+                for conflict in &conflicts {
+                    warn!(
+                        task_id = %task_id,
+                        loop_id = %loop_id,
+                        file_path = %conflict.file_path,
+                        severity = ?conflict.severity,
+                        conflicting_agents = ?conflict.conflicting_agents,
+                        suggestion = %conflict.suggestion,
+                        "File conflict detected during task claim"
+                    );
+                }
+
+                // Emit conflict_detected event to event file if available
+                if let Err(e) = self.emit_conflict_event(&team_id, task_id, &loop_id, &conflicts) {
+                    warn!("Failed to emit conflict event: {}", e);
+                }
             }
         }
 
@@ -1069,6 +1099,62 @@ impl TeamStore {
         }
 
         conflicts
+    }
+
+    /// Emits a conflict_detected event to the events file.
+    ///
+    /// This method writes a structured event to `.ralph/events.jsonl` (or the path
+    /// specified in `.ralph/current-events`) that can be consumed by the event loop,
+    /// RObot, or other observers.
+    ///
+    /// # Arguments
+    /// * `team_id` - The team ID
+    /// * `task_id` - The task ID being claimed
+    /// * `loop_id` - The loop ID claiming the task
+    /// * `conflicts` - List of detected conflicts
+    ///
+    /// # Returns
+    /// * `Ok(())` - Event emitted successfully
+    /// * `Err(io::Error)` - Failed to write event (e.g., no events file)
+    fn emit_conflict_event(
+        &self,
+        team_id: &str,
+        task_id: &str,
+        loop_id: &LoopId,
+        conflicts: &[ConflictWarning],
+    ) -> io::Result<()> {
+        use std::io::Write;
+
+        // Determine events file path
+        let base_path = self
+            .teams_path
+            .parent()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Cannot determine base path"))?;
+
+        // Check for current-events marker file (set by ralph run)
+        let events_file = std::fs::read_to_string(base_path.join("current-events"))
+            .map(|s| base_path.join(s.trim()))
+            .unwrap_or_else(|_| base_path.join("events.jsonl"));
+
+        // Create event payload
+        let event_payload = serde_json::json!({
+            "type": "conflict_detected",
+            "team_id": team_id,
+            "task_id": task_id,
+            "loop_id": loop_id,
+            "conflicts": conflicts,
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+        });
+
+        // Write event as JSONL line
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&events_file)?;
+
+        writeln!(file, "{}", serde_json::to_string(&event_payload)?)?;
+
+        Ok(())
     }
 }
 
@@ -2289,5 +2375,143 @@ mod tests {
 
         // Should preserve the original files
         assert_eq!(task.extracted_files, original_files);
+    }
+
+    // ========== Conflict Detection Integration Tests ==========
+
+    #[test]
+    fn test_claim_task_with_conflict_detection_no_conflicts() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+        let task = TeamTask::new("Test Task".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/main.rs".to_string()));
+        let task_id = store.create_team_task(task);
+
+        // Claim should succeed without conflicts
+        let result = store.claim_task(&task_id, "loop-123".to_string());
+        assert!(result.is_ok());
+
+        let task = store.get_task(&task_id).unwrap();
+        assert_eq!(task.status, TeamTaskStatus::InProgress);
+    }
+
+    #[test]
+    fn test_claim_task_with_conflict_detection_logs_warnings() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // First task reserves a file
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/main.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+        store.claim_task(&task1_id, "loop-123".to_string()).unwrap();
+        store
+            .reserve_files(
+                task1_id.clone(),
+                "loop-123".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
+            .unwrap();
+
+        // Second task wants the same file
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 2)
+            .with_description(Some("Modify src/main.rs".to_string()));
+        let task2_id = store.create_team_task(task2);
+
+        // Claim should succeed but log warnings (not block)
+        let result = store.claim_task(&task2_id, "loop-456".to_string());
+        assert!(result.is_ok());
+
+        let task2 = store.get_task(&task2_id).unwrap();
+        assert_eq!(task2.status, TeamTaskStatus::InProgress);
+    }
+
+    #[test]
+    fn test_claim_task_no_extracted_files_skips_conflict_check() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Task without file paths
+        let task = TeamTask::new("Test Task".to_string(), team_id.clone(), 1);
+        assert!(task.extracted_files.is_none());
+        let task_id = store.create_team_task(task);
+
+        // Claim should succeed without conflict check
+        let result = store.claim_task(&task_id, "loop-123".to_string());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_claim_task_with_multiple_conflicts() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // First task reserves multiple files
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/main.rs and src/lib.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+        store.claim_task(&task1_id, "loop-123".to_string()).unwrap();
+        store
+            .reserve_files(
+                task1_id.clone(),
+                "loop-123".to_string(),
+                vec!["src/main.rs".to_string(), "src/lib.rs".to_string()],
+            )
+            .unwrap();
+
+        // Second task wants both files
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 2)
+            .with_description(Some("Modify src/main.rs and src/lib.rs".to_string()));
+        let task2_id = store.create_team_task(task2);
+
+        // Claim should succeed with multiple conflict warnings
+        let result = store.claim_task(&task2_id, "loop-456".to_string());
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_emit_conflict_event_creates_event_file() {
+        let (mut store, tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create and reserve files for task1
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/main.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+        store.claim_task(&task1_id, "loop-123".to_string()).unwrap();
+        store
+            .reserve_files(
+                task1_id.clone(),
+                "loop-123".to_string(),
+                vec!["src/main.rs".to_string()],
+            )
+            .unwrap();
+
+        // Create task2 that conflicts
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 2)
+            .with_description(Some("Modify src/main.rs".to_string()));
+        let task2_id = store.create_team_task(task2);
+
+        // Claim task2 (should emit event)
+        store.claim_task(&task2_id, "loop-456".to_string()).unwrap();
+
+        // Check that events file was created
+        let events_path = tmp.path().join("events.jsonl");
+        assert!(events_path.exists());
+
+        // Read and parse the event
+        let content = std::fs::read_to_string(&events_path).unwrap();
+        let event: serde_json::Value = serde_json::from_str(&content).unwrap();
+
+        assert_eq!(event["type"], "conflict_detected");
+        assert_eq!(event["task_id"], task2_id);
+        assert_eq!(event["loop_id"], "loop-456");
+        assert!(event["conflicts"].is_array());
+        assert_eq!(event["conflicts"].as_array().unwrap().len(), 1);
     }
 }

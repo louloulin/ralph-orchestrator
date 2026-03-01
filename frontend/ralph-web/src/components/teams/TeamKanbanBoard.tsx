@@ -31,6 +31,7 @@ import { Button } from "../ui/button";
 
 interface TeamKanbanBoardProps {
   tasks: TeamTask[];
+  teamId: string;
   onTaskStatusChange: (taskId: string, newStatus: TeamTaskStatus) => void;
   onCreateTask: () => void;
 }
@@ -44,6 +45,7 @@ const COLUMNS: { id: TeamTaskStatus; title: string }[] = [
 
 export function TeamKanbanBoard({
   tasks,
+  teamId,
   onTaskStatusChange,
   onCreateTask,
 }: TeamKanbanBoardProps) {
@@ -144,7 +146,7 @@ export function TeamKanbanBoard({
                   >
                     <div className="space-y-2">
                       {columnTasks.map((task) => (
-                        <TaskCard key={task.id} task={task} />
+                        <TaskCard key={task.id} task={task} teamId={teamId} />
                       ))}
                       {columnTasks.length === 0 && (
                         <div className="text-center py-8 text-gray-500 text-sm">
@@ -161,7 +163,7 @@ export function TeamKanbanBoard({
 
         {/* Drag Overlay */}
         <DragOverlay>
-          {activeTask ? <TaskCard task={activeTask} isDragging /> : null}
+          {activeTask ? <TaskCard task={activeTask} teamId={teamId} isDragging /> : null}
         </DragOverlay>
       </DndContext>
     </div>

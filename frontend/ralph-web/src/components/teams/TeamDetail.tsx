@@ -395,6 +395,7 @@ export function TeamDetail({ team: initialTeam, onBack }: TeamDetailProps) {
       {/* Kanban Board */}
       <TeamKanbanBoard
         tasks={tasks}
+        teamId={team.id}
         onTaskStatusChange={handleTaskStatusChange}
         onCreateTask={handleCreateTask}
       />

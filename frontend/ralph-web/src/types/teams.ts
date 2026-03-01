@@ -223,3 +223,56 @@ export const TASK_STATUS_COLORS: Record<TeamTaskStatus, string> = {
   review: "bg-yellow-500",
   done: "bg-green-500"
 };
+
+/**
+ * Conflict severity levels
+ */
+export type ConflictSeverity = "Low" | "High" | "Critical";
+
+/**
+ * Agent involved in a conflict
+ */
+export interface ConflictAgent {
+  loopId: string;
+  taskId: string;
+  taskTitle: string;
+  reservedAt: string;
+}
+
+/**
+ * Conflict warning for file conflicts
+ */
+export interface ConflictWarning {
+  filePath: string;
+  conflictingAgents: ConflictAgent[];
+  severity: ConflictSeverity;
+  suggestion: string;
+}
+
+/**
+ * File reservation info
+ */
+export interface FileReservation {
+  taskId: string;
+  loopId: string;
+  filePaths: string[];
+  reservedAt: string;
+}
+
+/**
+ * Conflict severity colors for UI
+ */
+export const CONFLICT_SEVERITY_COLORS: Record<ConflictSeverity, string> = {
+  Low: "text-yellow-400 border-yellow-800 bg-yellow-900/20",
+  High: "text-orange-400 border-orange-800 bg-orange-900/20",
+  Critical: "text-red-400 border-red-800 bg-red-900/20"
+};
+
+/**
+ * Conflict severity icons
+ */
+export const CONFLICT_SEVERITY_ICONS: Record<ConflictSeverity, string> = {
+  Low: "⚠️",
+  High: "🔶",
+  Critical: "🚨"
+};

@@ -780,9 +780,11 @@ pub struct TeamStore {
     teams_path: std::path::PathBuf,
     tasks_path: std::path::PathBuf,
     reservations_path: std::path::PathBuf,
+    completions_path: std::path::PathBuf,
     teams: HashMap<String, Team>,
     tasks: HashMap<String, TeamTask>,
     reservations: HashMap<String, FileReservation>,
+    completions: Vec<TaskCompletion>,
     lock: FileLock,
 }
 
@@ -797,6 +799,7 @@ impl TeamStore {
         let teams_path = base_path.join("teams.jsonl");
         let tasks_path = base_path.join("team_tasks.jsonl");
         let reservations_path = base_path.join("file_reservations.jsonl");
+        let completions_path = base_path.join("task_completions.jsonl");
 
         // Use lock file for coordination
         let lock_path = base_path.join("team_store.lock");
@@ -806,14 +809,17 @@ impl TeamStore {
         let teams = Self::load_teams_from_file(&teams_path)?;
         let tasks = Self::load_tasks_from_file(&tasks_path)?;
         let reservations = Self::load_reservations_from_file(&reservations_path)?;
+        let completions = Self::load_completions_from_file(&completions_path)?;
 
         Ok(Self {
             teams_path,
             tasks_path,
             reservations_path,
+            completions_path,
             teams,
             tasks,
             reservations,
+            completions,
             lock,
         })
     }
@@ -896,6 +902,32 @@ impl TeamStore {
         Ok(reservations)
     }
 
+    fn load_completions_from_file(path: &Path) -> io::Result<Vec<TaskCompletion>> {
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+
+        let content = std::fs::read_to_string(path)?;
+        let mut completions = Vec::new();
+
+        for line in content.lines().filter(|l| !l.trim().is_empty()) {
+            match serde_json::from_str::<TaskCompletion>(line) {
+                Ok(completion) => {
+                    completions.push(completion);
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        line = line.chars().take(200).collect::<String>(),
+                        "Skipping malformed completion line in JSONL"
+                    );
+                }
+            }
+        }
+
+        Ok(completions)
+    }
+
     /// Saves all teams and tasks to their respective JSONL files.
     ///
     /// Creates parent directories if they don't exist.
@@ -952,6 +984,22 @@ impl TeamStore {
                 String::new()
             } else {
                 reservations_content + "\n"
+            },
+        )?;
+
+        // Save completions
+        let completions_content: String = self
+            .completions
+            .iter()
+            .map(|c| serde_json::to_string(c))
+            .collect::<Result<Vec<_>, _>>()?
+            .join("\n");
+        std::fs::write(
+            &self.completions_path,
+            if completions_content.is_empty() {
+                String::new()
+            } else {
+                completions_content + "\n"
             },
         )?;
 

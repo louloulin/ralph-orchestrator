@@ -26,10 +26,10 @@ export function TeamsList({ onSelectTeam }: TeamsListProps) {
   const [showCreateDialog, setShowCreateDialog] = React.useState(false);
 
   // Fetch teams list
-  const { data: teams, isLoading: teamsLoading } = trpc.teams.list.useQuery();
+  const { data: teams, isLoading: teamsLoading } = trpc.teams.list.useQuery(undefined);
 
   // Fetch team statistics
-  const { data: stats } = trpc.teams.stats.useQuery();
+  const { data: stats } = trpc.teams.getStats.useQuery();
 
   if (teamsLoading) {
     return (

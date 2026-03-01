@@ -9,7 +9,7 @@
 use crate::display::colors;
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand, ValueEnum};
-use ralph_core::{MailboxStore, TeamStore, TeamTask, TeamTaskStatus};
+use ralph_core::{ConflictSeverity, MailboxStore, TeamStore, TeamTask, TeamTaskStatus};
 use ralph_proto::Event;
 use std::path::{Path, PathBuf};
 
@@ -70,6 +70,12 @@ pub enum TeamCommands {
 
     /// Suggest a task for a teammate based on load balancing
     Suggest(SuggestArgs),
+
+    /// Show all potential file conflicts for a team
+    Conflicts(ConflictsArgs),
+
+    /// Check specific files for conflicts
+    CheckFiles(CheckFilesArgs),
 }
 
 /// Arguments for the `team create` command.
@@ -227,6 +233,29 @@ pub struct SuggestArgs {
     pub format: OutputFormat,
 }
 
+/// Arguments for the `team conflicts` command.
+#[derive(Parser, Debug)]
+pub struct ConflictsArgs {
+    /// Team ID
+    pub team_id: String,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub format: OutputFormat,
+}
+
+/// Arguments for the `team check-files` command.
+#[derive(Parser, Debug)]
+pub struct CheckFilesArgs {
+    /// File paths to check (comma-separated or multiple --files flags)
+    #[arg(short = 'f', long = "files", value_delimiter = ',')]
+    pub files: Vec<String>,
+
+    /// Output format
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    pub format: OutputFormat,
+}
+
 /// Gets the team store base path.
 fn get_team_store_path(root: Option<&PathBuf>) -> PathBuf {
     let base = root.map(|p| p.as_path()).unwrap_or(Path::new("."));
@@ -287,6 +316,12 @@ pub fn execute(args: TeamArgs, use_colors: bool) -> Result<()> {
         }
         TeamCommands::Suggest(suggest_args) => {
             execute_suggest(suggest_args, root.as_ref(), use_colors)
+        }
+        TeamCommands::Conflicts(conflicts_args) => {
+            execute_conflicts(conflicts_args, root.as_ref(), use_colors)
+        }
+        TeamCommands::CheckFiles(check_files_args) => {
+            execute_check_files(check_files_args, root.as_ref(), use_colors)
         }
     }
 }
@@ -899,6 +934,261 @@ fn execute_suggest(args: SuggestArgs, root: Option<&PathBuf>, use_colors: bool) 
                 println!("{}", task_id);
             }
             // No output if no task available (for scripting)
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_conflicts(args: ConflictsArgs, root: Option<&PathBuf>, use_colors: bool) -> Result<()> {
+    let base_path = get_team_store_path(root);
+    let store = TeamStore::load(&base_path).context("Failed to load team store")?;
+
+    // Verify team exists
+    let team = store
+        .get_team(&args.team_id)
+        .context(format!("Team {} not found", args.team_id))?;
+
+    // Collect all files from tasks that have extracted_files
+    let tasks = store.get_team_tasks(&args.team_id);
+    let mut all_files: Vec<String> = Vec::new();
+
+    for task in &tasks {
+        if let Some(ref files) = task.extracted_files {
+            all_files.extend(files.clone());
+        }
+    }
+
+    // Remove duplicates
+    all_files.sort();
+    all_files.dedup();
+
+    // Check conflicts for all files
+    let conflicts = store.check_conflicts(&all_files);
+
+    match args.format {
+        OutputFormat::Table => {
+            if conflicts.is_empty() {
+                println!("No file conflicts detected for team '{}'", team.name);
+            } else {
+                if use_colors {
+                    println!(
+                        "{}File conflicts for team '{}' ({} conflicts):{}",
+                        colors::YELLOW,
+                        team.name,
+                        conflicts.len(),
+                        colors::RESET
+                    );
+                    println!("{}{}{}", colors::DIM, "-".repeat(100), colors::RESET);
+                } else {
+                    println!(
+                        "File conflicts for team '{}' ({} conflicts):",
+                        team.name,
+                        conflicts.len()
+                    );
+                    println!("{}", "-".repeat(100));
+                }
+
+                for conflict in &conflicts {
+                    let severity_color = match conflict.severity {
+                        ConflictSeverity::Low => colors::DIM,
+                        ConflictSeverity::High => colors::YELLOW,
+                        ConflictSeverity::Critical => colors::RED,
+                    };
+
+                    let severity_str = match conflict.severity {
+                        ConflictSeverity::Low => "LOW",
+                        ConflictSeverity::High => "HIGH",
+                        ConflictSeverity::Critical => "CRITICAL",
+                    };
+
+                    if use_colors {
+                        println!(
+                            "{}[{}]{} {}{}",
+                            severity_color,
+                            severity_str,
+                            colors::RESET,
+                            conflict.file_path,
+                            colors::RESET
+                        );
+                    } else {
+                        println!("[{}] {}", severity_str, conflict.file_path);
+                    }
+
+                    for agent in &conflict.conflicting_agents {
+                        let loop_short = agent.loop_id.split('-').last().unwrap_or(&agent.loop_id);
+                        if use_colors {
+                            println!(
+                                "  {}↳{} Loop {} (Task: {}) {}{}",
+                                colors::DIM,
+                                colors::RESET,
+                                loop_short,
+                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent.task_title,
+                                colors::RESET
+                            );
+                        } else {
+                            println!(
+                                "  ↳ Loop {} (Task: {}) {}",
+                                loop_short,
+                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent.task_title
+                            );
+                        }
+                    }
+                    println!("  Suggestion: {}", conflict.suggestion);
+                    println!();
+                }
+            }
+        }
+        OutputFormat::Json => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "teamId": args.team_id,
+                    "teamName": team.name,
+                    "conflictCount": conflicts.len(),
+                    "conflicts": conflicts
+                }))?
+            );
+        }
+        OutputFormat::Quiet => {
+            // Output count only
+            println!("{}", conflicts.len());
+        }
+    }
+
+    Ok(())
+}
+
+fn execute_check_files(
+    args: CheckFilesArgs,
+    root: Option<&PathBuf>,
+    use_colors: bool,
+) -> Result<()> {
+    if args.files.is_empty() {
+        anyhow::bail!("No files specified. Use --files path1,path2 or -f path1 -f path2");
+    }
+
+    let base_path = get_team_store_path(root);
+    let store = TeamStore::load(&base_path).context("Failed to load team store")?;
+
+    let conflicts = store.check_conflicts(&args.files);
+
+    match args.format {
+        OutputFormat::Table => {
+            if conflicts.is_empty() {
+                println!("No conflicts detected for the specified files:");
+                for file in &args.files {
+                    println!("  ✓ {}", file);
+                }
+            } else {
+                if use_colors {
+                    println!(
+                        "{}Conflicts detected ({} files affected):{}",
+                        colors::YELLOW,
+                        conflicts.len(),
+                        colors::RESET
+                    );
+                    println!("{}{}{}", colors::DIM, "-".repeat(100), colors::RESET);
+                } else {
+                    println!("Conflicts detected ({} files affected):", conflicts.len());
+                    println!("{}", "-".repeat(100));
+                }
+
+                for conflict in &conflicts {
+                    let severity_color = match conflict.severity {
+                        ConflictSeverity::Low => colors::DIM,
+                        ConflictSeverity::High => colors::YELLOW,
+                        ConflictSeverity::Critical => colors::RED,
+                    };
+
+                    let severity_str = match conflict.severity {
+                        ConflictSeverity::Low => "LOW",
+                        ConflictSeverity::High => "HIGH",
+                        ConflictSeverity::Critical => "CRITICAL",
+                    };
+
+                    if use_colors {
+                        println!(
+                            "{}[{}]{} {}",
+                            severity_color,
+                            severity_str,
+                            colors::RESET,
+                            conflict.file_path
+                        );
+                    } else {
+                        println!("[{}] {}", severity_str, conflict.file_path);
+                    }
+
+                    for agent in &conflict.conflicting_agents {
+                        let loop_short = agent.loop_id.split('-').last().unwrap_or(&agent.loop_id);
+                        if use_colors {
+                            println!(
+                                "  {}↳{} Loop {} (Task: {}) {}",
+                                colors::DIM,
+                                colors::RESET,
+                                loop_short,
+                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent.task_title
+                            );
+                        } else {
+                            println!(
+                                "  ↳ Loop {} (Task: {}) {}",
+                                loop_short,
+                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent.task_title
+                            );
+                        }
+                    }
+                }
+
+                // Print summary of safe files
+                let conflicted_paths: std::collections::HashSet<_> =
+                    conflicts.iter().map(|c| c.file_path.as_str()).collect();
+                let safe_files: Vec<_> = args
+                    .files
+                    .iter()
+                    .filter(|f| !conflicted_paths.contains(f.as_str()))
+                    .collect();
+
+                if !safe_files.is_empty() {
+                    println!();
+                    if use_colors {
+                        println!(
+                            "{}Safe files:{} ({} files)",
+                            colors::GREEN,
+                            colors::RESET,
+                            safe_files.len()
+                        );
+                    } else {
+                        println!("Safe files: ({} files)", safe_files.len());
+                    }
+                    for file in safe_files {
+                        if use_colors {
+                            println!("  {}✓{} {}", colors::GREEN, colors::RESET, file);
+                        } else {
+                            println!("  ✓ {}", file);
+                        }
+                    }
+                }
+            }
+        }
+        OutputFormat::Json => {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({
+                    "filesChecked": args.files,
+                    "conflictCount": conflicts.len(),
+                    "conflicts": conflicts
+                }))?
+            );
+        }
+        OutputFormat::Quiet => {
+            // Output only conflicted file paths
+            for conflict in &conflicts {
+                println!("{}", conflict.file_path);
+            }
         }
     }
 

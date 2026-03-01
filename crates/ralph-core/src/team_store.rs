@@ -414,6 +414,124 @@ impl TaskCompletion {
     }
 }
 
+/// Aggregated velocity statistics for an entire team.
+///
+/// Combines individual teammate metrics into team-wide performance indicators.
+/// Used for team-level velocity tracking, capacity planning, and workload analysis.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamVelocityStats {
+    /// Team ID these stats belong to
+    pub team_id: String,
+
+    /// Individual teammate metrics
+    pub teammate_metrics: Vec<VelocityMetrics>,
+
+    /// Team-wide aggregated metrics
+    pub team_metrics: VelocityMetrics,
+
+    /// Time range covered by these stats (ISO 8601 duration)
+    pub time_range: String,
+
+    /// When these stats were calculated (ISO 8601)
+    pub calculated_at: String,
+}
+
+impl TeamVelocityStats {
+    /// Creates new team velocity stats by aggregating teammate metrics.
+    pub fn new(team_id: String, teammate_metrics: Vec<VelocityMetrics>) -> Self {
+        let team_metrics = Self::aggregate_team_metrics(&team_id, &teammate_metrics);
+        Self {
+            team_id: team_id.clone(),
+            teammate_metrics,
+            team_metrics,
+            time_range: "P7D".to_string(), // 7 days (ISO 8601 duration)
+            calculated_at: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+
+    /// Aggregates individual teammate metrics into team-wide metrics.
+    fn aggregate_team_metrics(
+        team_id: &str,
+        teammate_metrics: &[VelocityMetrics],
+    ) -> VelocityMetrics {
+        if teammate_metrics.is_empty() {
+            return VelocityMetrics::new(team_id.to_string(), VelocityScope::Team);
+        }
+
+        let total_completed: usize = teammate_metrics.iter().map(|m| m.total_completed).sum();
+        let tasks_last_hour: usize = teammate_metrics.iter().map(|m| m.tasks_last_hour).sum();
+        let tasks_last_24h: usize = teammate_metrics.iter().map(|m| m.tasks_last_24h).sum();
+        let tasks_last_7d: usize = teammate_metrics.iter().map(|m| m.tasks_last_7d).sum();
+
+        // Calculate weighted average completion time
+        let avg_completion_time_secs = if total_completed > 0 {
+            teammate_metrics
+                .iter()
+                .map(|m| m.avg_completion_time_secs * m.total_completed as f64)
+                .sum::<f64>()
+                / total_completed as f64
+        } else {
+            0.0
+        };
+
+        // Calculate average completion rate
+        let completion_rate = teammate_metrics
+            .iter()
+            .map(|m| m.completion_rate)
+            .sum::<f64>()
+            / teammate_metrics.len() as f64;
+
+        // Calculate team velocity (sum of individual velocities)
+        let velocity: f64 = teammate_metrics.iter().map(|m| m.velocity).sum();
+
+        let mut metrics = VelocityMetrics::new(team_id.to_string(), VelocityScope::Team);
+        metrics.tasks_last_hour = tasks_last_hour;
+        metrics.tasks_last_24h = tasks_last_24h;
+        metrics.tasks_last_7d = tasks_last_7d;
+        metrics.total_completed = total_completed;
+        metrics.avg_completion_time_secs = avg_completion_time_secs;
+        metrics.completion_rate = completion_rate;
+        metrics.velocity = velocity;
+        metrics.updated_at = chrono::Utc::now().to_rfc3339();
+        metrics
+    }
+
+    /// Finds the top performing teammate by velocity.
+    pub fn top_performer(&self) -> Option<&VelocityMetrics> {
+        self.teammate_metrics.iter().max_by(|a, b| {
+            a.velocity
+                .partial_cmp(&b.velocity)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+    }
+
+    /// Calculates workload distribution (standard deviation of velocities).
+    pub fn workload_balance(&self) -> f64 {
+        if self.teammate_metrics.len() < 2 {
+            return 1.0; // Perfect balance with 0 or 1 teammate
+        }
+
+        let mean_velocity = self.team_metrics.velocity / self.teammate_metrics.len() as f64;
+        if mean_velocity == 0.0 {
+            return 1.0; // Perfect balance when no activity
+        }
+
+        let variance: f64 = self
+            .teammate_metrics
+            .iter()
+            .map(|m| {
+                let diff = m.velocity - mean_velocity;
+                diff * diff
+            })
+            .sum::<f64>()
+            / self.teammate_metrics.len() as f64;
+
+        let std_dev = variance.sqrt();
+        // Convert to balance score: 1.0 = perfect balance, 0.0 = highly imbalanced
+        1.0 - (std_dev / mean_velocity).min(1.0)
+    }
+}
+
 /// Maximum number of tasks a teammate can work on simultaneously.
 ///
 /// This limit prevents agent overload and ensures fair task distribution.

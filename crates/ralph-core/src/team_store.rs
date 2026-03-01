@@ -303,8 +303,13 @@ impl FileReservation {
             }
 
             // Glob pattern matching (simple * and ** support)
+            // Check both directions: reserved glob vs path, and path glob vs reserved
             if reserved.contains('*') {
                 return Self::glob_match(reserved, path);
+            }
+
+            if path.contains('*') {
+                return Self::glob_match(path, reserved);
             }
 
             false
@@ -842,7 +847,10 @@ impl TeamStore {
         task.assigned_to = None;
         task.claimed_at = None;
 
-        Ok(())
+        // Release file reservations for this task
+        self.reservations.remove(task_id);
+
+        self.save()
     }
 
     /// Updates a task's status.
@@ -1178,8 +1186,8 @@ pub fn extract_file_paths(text: &str) -> Vec<String> {
     use regex::Regex;
     use std::sync::OnceLock;
 
-    // Define supported file extensions
-    const EXTENSIONS: &str = r"rs|toml|md|json|ya?ml|ts|tsx|js|jsx|html|css|txt|sh";
+    // Define supported file extensions (order matters: longer extensions first to avoid partial matches)
+    const EXTENSIONS: &str = r"toml|json|ya?ml|tsx|jsx|html|css|txt|rs|md|ts|js|sh";
 
     // Regex patterns for file path extraction
     // Pattern 1: Explicit action verbs followed by file path
@@ -2147,8 +2155,9 @@ mod tests {
     fn test_extract_file_paths_quoted_backtick() {
         let text = "Work on `src/main.rs` and `lib.rs`";
         let paths = extract_file_paths(text);
-        assert_eq!(paths.len(), 1);
-        assert_eq!(paths[0], "src/main.rs");
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"src/main.rs".to_string()));
+        assert!(paths.contains(&"lib.rs".to_string()));
     }
 
     #[test]
@@ -2213,7 +2222,7 @@ mod tests {
 
     #[test]
     fn test_extract_file_paths_yaml_yml() {
-        let text = "Update config.yml and settings.yaml";
+        let text = "Update config.yml and modify settings.yaml";
         let paths = extract_file_paths(text);
         assert_eq!(paths.len(), 2);
         assert!(paths.contains(&"config.yml".to_string()));
@@ -2513,5 +2522,244 @@ mod tests {
         assert_eq!(event["loop_id"], "loop-456");
         assert!(event["conflicts"].is_array());
         assert_eq!(event["conflicts"].as_array().unwrap().len(), 1);
+    }
+
+    // ========== Concurrent Reservation Tests ==========
+
+    #[test]
+    fn test_concurrent_reservations_non_overlapping_files() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create multiple tasks with non-overlapping file paths
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/auth.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/database.rs".to_string()));
+        let task2_id = store.create_team_task(task2);
+
+        let task3 = TeamTask::new("Task 3".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/utils.rs".to_string()));
+        let task3_id = store.create_team_task(task3);
+
+        // All three agents should be able to claim and reserve their files without conflicts
+        store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
+        store
+            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/auth.rs".to_string()])
+            .unwrap();
+
+        store.claim_task(&task2_id, "loop-2".to_string()).unwrap();
+        store
+            .reserve_files(task2_id.clone(), "loop-2".to_string(), vec!["src/database.rs".to_string()])
+            .unwrap();
+
+        store.claim_task(&task3_id, "loop-3".to_string()).unwrap();
+        store
+            .reserve_files(task3_id.clone(), "loop-3".to_string(), vec!["src/utils.rs".to_string()])
+            .unwrap();
+
+        // Verify all reservations exist
+        assert!(store.reservations.contains_key(&task1_id));
+        assert!(store.reservations.contains_key(&task2_id));
+        assert!(store.reservations.contains_key(&task3_id));
+    }
+
+    #[test]
+    fn test_release_reservation_allows_new_claim() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create a task with a file
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/main.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+
+        // Agent 1 claims the task and reserves the file
+        store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
+        store
+            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/main.rs".to_string()])
+            .unwrap();
+        assert!(store.reservations.contains_key(&task1_id));
+
+        // Release the task
+        store.release_task(&task1_id, &"loop-1".to_string()).unwrap();
+        assert!(!store.reservations.contains_key(&task1_id));
+
+        // Create another task with the same file
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 1)
+            .with_description(Some("Modify src/main.rs".to_string()));
+        let task2_id = store.create_team_task(task2);
+
+        // Agent 2 should now be able to claim and reserve without conflict
+        store.claim_task(&task2_id, "loop-2".to_string()).unwrap();
+        store
+            .reserve_files(task2_id.clone(), "loop-2".to_string(), vec!["src/main.rs".to_string()])
+            .unwrap();
+        assert!(store.reservations.contains_key(&task2_id));
+    }
+
+    #[test]
+    fn test_reservations_persist_across_reload() {
+        let (mut store, tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Create and claim a task
+        let task = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/main.rs".to_string()));
+        let task_id = store.create_team_task(task);
+        store.claim_task(&task_id, "loop-1".to_string()).unwrap();
+        store
+            .reserve_files(task_id.clone(), "loop-1".to_string(), vec!["src/main.rs".to_string()])
+            .unwrap();
+
+        // Verify reservation exists
+        assert!(store.reservations.contains_key(&task_id));
+
+        // Save and reload
+        store.save().unwrap();
+        let reloaded_store = TeamStore::load(tmp.path()).unwrap();
+
+        // Verify reservation persisted
+        assert!(reloaded_store.reservations.contains_key(&task_id));
+        let reservation = &reloaded_store.reservations[&task_id];
+        assert_eq!(reservation.task_id, task_id);
+        assert_eq!(reservation.loop_id, "loop-1");
+        assert!(reservation.file_paths.contains(&"src/main.rs".to_string()));
+    }
+
+    #[test]
+    fn test_glob_conflict_with_exact_path() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Agent 1 reserves a glob pattern
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/**/*.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+        store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
+        store
+            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/**/*.rs".to_string()])
+            .unwrap();
+
+        // Agent 2 tries to reserve an exact file that matches the glob
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 1)
+            .with_description(Some("Modify src/auth.rs".to_string()));
+        let _task2_id = store.create_team_task(task2);
+
+        // Check for conflicts before claiming
+        let conflicts = store.check_conflicts(&["src/auth.rs".to_string()]);
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].file_path, "src/auth.rs");
+        assert_eq!(conflicts[0].severity, ConflictSeverity::High);
+    }
+
+    #[test]
+    fn test_exact_path_conflicts_with_glob_reservation() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Agent 1 reserves an exact file
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/auth.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+        store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
+        store
+            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["src/auth.rs".to_string()])
+            .unwrap();
+
+        // Agent 2 tries to reserve a glob that would match Agent 1's file
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 1)
+            .with_description(Some("Modify src/**/*.rs".to_string()));
+        let _task2_id = store.create_team_task(task2);
+
+        // Check for conflicts before claiming
+        let conflicts = store.check_conflicts(&["src/**/*.rs".to_string()]);
+        assert_eq!(conflicts.len(), 1);
+        // The conflict should be on src/auth.rs since it matches the glob
+        assert_eq!(conflicts[0].file_path, "src/**/*.rs");
+    }
+
+    #[test]
+    fn test_multiple_concurrent_conflicts_different_files() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Agent 1 reserves multiple files
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/auth.rs and src/database.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+        store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
+        store
+            .reserve_files(
+                task1_id.clone(),
+                "loop-1".to_string(),
+                vec!["src/auth.rs".to_string(), "src/database.rs".to_string()],
+            )
+            .unwrap();
+
+        // Agent 2 reserves a different file
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/utils.rs".to_string()));
+        let task2_id = store.create_team_task(task2);
+        store.claim_task(&task2_id, "loop-2".to_string()).unwrap();
+        store
+            .reserve_files(task2_id.clone(), "loop-2".to_string(), vec!["src/utils.rs".to_string()])
+            .unwrap();
+
+        // Agent 3 tries to reserve files that conflict with both Agent 1 and Agent 2
+        let task3 = TeamTask::new("Task 3".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit src/auth.rs and src/utils.rs".to_string()));
+        let _task3_id = store.create_team_task(task3);
+
+        // Check for conflicts
+        let conflicts = store.check_conflicts(&["src/auth.rs".to_string(), "src/utils.rs".to_string()]);
+        assert_eq!(conflicts.len(), 2);
+
+        // Both should be High severity (one conflicting agent each)
+        assert_eq!(conflicts[0].severity, ConflictSeverity::High);
+        assert_eq!(conflicts[1].severity, ConflictSeverity::High);
+    }
+
+    #[test]
+    fn test_concurrent_glob_reservations_same_pattern() {
+        let (mut store, _tmp) = create_test_store();
+
+        let team_id = store.create_team("Test Team".to_string());
+
+        // Agent 1 reserves a glob pattern
+        let task1 = TeamTask::new("Task 1".to_string(), team_id.clone(), 1)
+            .with_description(Some("Edit tests/*.rs".to_string()));
+        let task1_id = store.create_team_task(task1);
+        store.claim_task(&task1_id, "loop-1".to_string()).unwrap();
+        store
+            .reserve_files(task1_id.clone(), "loop-1".to_string(), vec!["tests/*.rs".to_string()])
+            .unwrap();
+
+        // Agent 2 tries to reserve the same glob pattern
+        let task2 = TeamTask::new("Task 2".to_string(), team_id.clone(), 1)
+            .with_description(Some("Modify tests/*.rs".to_string()));
+        let _task2_id = store.create_team_task(task2);
+
+        // Check for conflicts - should conflict since they're the same pattern
+        let conflicts = store.check_conflicts(&["tests/*.rs".to_string()]);
+        assert_eq!(conflicts.len(), 1);
+        assert_eq!(conflicts[0].severity, ConflictSeverity::High);
+    }
+
+    #[test]
+    fn test_file_extraction_with_backticks() {
+        let text = "Work on `src/main.rs` and `lib.rs`";
+        let paths = extract_file_paths(text);
+        assert_eq!(paths.len(), 2);
+        assert!(paths.contains(&"src/main.rs".to_string()));
+        assert!(paths.contains(&"lib.rs".to_string()));
     }
 }

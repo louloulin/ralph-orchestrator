@@ -45,6 +45,10 @@ serde_yaml.workspace = true
 regex.workspace = true
 keyring.workspace = true
 
+# For table formatting
+tabled = "0.16"
+console = "0.15"
+
 # For raw mode handling in PTY mode
 crossterm.workspace = true
 scopeguard.workspace = true

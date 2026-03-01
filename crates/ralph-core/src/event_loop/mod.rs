@@ -9,12 +9,14 @@ mod tests;
 pub use loop_state::LoopState;
 
 use crate::config::{HatBackend, InjectMode, RalphConfig};
+use crate::diagnostics::DiagnosticsCollector;
 use crate::event_parser::{EventParser, MutationEvidence, MutationStatus};
 use crate::event_reader::EventReader;
 use crate::hat_registry::HatRegistry;
 use crate::hatless_ralph::HatlessRalph;
 use crate::instructions::InstructionBuilder;
 use crate::loop_context::LoopContext;
+use crate::mailbox_store::{MailboxEntry, MailboxStore};
 use crate::memory_store::{MarkdownMemoryStore, format_memories_as_markdown, truncate_to_budget};
 use crate::skill_registry::SkillRegistry;
 use crate::text::floor_char_boundary;
@@ -125,7 +127,7 @@ pub struct EventLoop {
     /// Event reader for consuming events from JSONL file.
     /// Made pub(crate) to allow tests to override the path.
     pub(crate) event_reader: EventReader,
-    diagnostics: crate::diagnostics::DiagnosticsCollector,
+    diagnostics: DiagnosticsCollector,
     /// Loop context for path resolution (None for legacy single-loop mode).
     loop_context: Option<LoopContext>,
     /// Skill registry for the current loop.
@@ -133,6 +135,8 @@ pub struct EventLoop {
     /// Robot service for human-in-the-loop communication.
     /// Injected externally when `human.enabled` is true and this is the primary loop.
     robot_service: Option<Box<dyn RobotService>>,
+    /// Mailbox store for cross-loop communication.
+    mailbox_store: MailboxStore,
 }
 
 impl EventLoop {
@@ -248,6 +252,9 @@ impl EventLoop {
             .unwrap_or_else(|_| context.events_path());
         let event_reader = EventReader::new(&events_path);
 
+        // Initialize mailbox store for cross-loop communication
+        let mailbox_store = MailboxStore::new(context.workspace().to_path_buf());
+
         Self {
             config,
             registry,
@@ -261,6 +268,7 @@ impl EventLoop {
             loop_context: Some(context),
             skill_registry,
             robot_service: None,
+            mailbox_store,
         }
     }
 
@@ -338,6 +346,10 @@ impl EventLoop {
             .unwrap_or_else(|_| ".ralph/events.jsonl".to_string());
         let event_reader = EventReader::new(&events_path);
 
+        // Initialize mailbox store for cross-loop communication
+        // Use current directory for legacy single-loop mode
+        let mailbox_store = MailboxStore::new(PathBuf::from("."));
+
         Self {
             config,
             registry,
@@ -351,6 +363,7 @@ impl EventLoop {
             loop_context: None,
             skill_registry,
             robot_service: None,
+            mailbox_store,
         }
     }
 
@@ -376,6 +389,125 @@ impl EventLoop {
     /// This is used when tagging events with source_loop for routing.
     pub fn get_loop_id(&self) -> Option<&str> {
         self.loop_context.as_ref().and_then(|ctx| ctx.loop_id())
+    }
+
+    /// Polls the mailbox for this loop and returns pending messages.
+    ///
+    /// This method retrieves all pending mailbox messages for this loop
+    /// from the MailboxStore. Returns an empty vector if there are no
+    /// messages or if an error occurs during retrieval.
+    ///
+    /// # Returns
+    ///
+    /// A vector of `MailboxEntry` objects representing pending messages.
+    /// Returns an empty vector if no messages are available or on error.
+    pub fn poll_mailbox(&self) -> Vec<MailboxEntry> {
+        // Get loop ID for this loop (primary loops don't have mailboxes yet)
+        let loop_id = match self.get_loop_id() {
+            Some(id) => id.to_string(),
+            None => {
+                // Primary loop uses "(primary)" as loop_id for mailbox
+                "(primary)".to_string()
+            }
+        };
+
+        match self.mailbox_store.receive(&loop_id) {
+            Ok(messages) => {
+                debug!(
+                    loop_id = %loop_id,
+                    count = messages.len(),
+                    "Polled mailbox messages"
+                );
+                messages
+            }
+            Err(e) => {
+                warn!(
+                    loop_id = %loop_id,
+                    error = %e,
+                    "Failed to poll mailbox"
+                );
+                Vec::new()
+            }
+        }
+    }
+
+    /// Injects mailbox messages into the event bus.
+    ///
+    /// Converts `MailboxEntry` objects to Events and publishes them
+    /// to the EventBus for processing by hats.
+    ///
+    /// # Arguments
+    ///
+    /// * `messages` - The mailbox messages to inject as events.
+    ///
+    /// # Returns
+    ///
+    /// The number of events successfully published.
+    pub fn inject_mailbox_messages(&mut self, messages: Vec<MailboxEntry>) -> usize {
+        let count = messages.len();
+        let loop_id = self.get_loop_id().map(|s| s.to_string());
+
+        for entry in messages {
+            // Tag the event with target_loop (this loop) and preserve source_loop
+            let mut event = entry.event;
+            if let Some(ref id) = loop_id {
+                event = event.with_target_loop(id);
+            }
+
+            debug!(
+                event_type = %event.topic,
+                message_id = %entry.id,
+                source_loop = ?event.source_loop,
+                target_loop = ?event.target_loop,
+                "Injecting mailbox message as event"
+            );
+
+            self.bus.publish(event);
+        }
+
+        if count > 0 {
+            debug!(
+                loop_id = ?loop_id,
+                count = count,
+                "Injected mailbox messages into event bus"
+            );
+        }
+
+        count
+    }
+
+    /// Clears processed messages from the mailbox.
+    ///
+    /// After messages have been successfully injected into the event bus,
+    /// call this method to remove them from the mailbox file to prevent
+    /// re-processing on the next iteration.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the mailbox was successfully cleared, `false` on error.
+    pub fn clear_mailbox(&self) -> bool {
+        let loop_id = match self.get_loop_id() {
+            Some(id) => id.to_string(),
+            None => "(primary)".to_string(),
+        };
+
+        match self.mailbox_store.clear(&loop_id) {
+            Ok(()) => {
+                debug!(
+                    loop_id = %loop_id,
+                    "Cleared mailbox after processing"
+                );
+                true
+            }
+            Err(e) => {
+                warn!(
+                    loop_id = %loop_id,
+                    error = %e,
+                    "Failed to clear mailbox"
+                );
+                false
+            }
+        }
     }
 
     /// Returns the tasks path based on loop context or default.

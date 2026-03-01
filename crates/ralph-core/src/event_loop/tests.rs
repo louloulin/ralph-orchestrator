@@ -3317,3 +3317,120 @@ hats:
     assert!(drop_again);
     assert!(event_again.is_none());
 }
+
+#[test]
+fn test_poll_mailbox_empty() {
+    // Test polling an empty mailbox returns empty vector
+    let config = RalphConfig::default();
+    let event_loop = EventLoop::new(config);
+
+    let messages = event_loop.poll_mailbox();
+    assert!(
+        messages.is_empty(),
+        "Empty mailbox should return empty vector"
+    );
+}
+
+#[test]
+fn test_inject_mailbox_messages_empty() {
+    // Test injecting empty vector does nothing
+    let config = RalphConfig::default();
+    let mut event_loop = EventLoop::new(config);
+
+    let count = event_loop.inject_mailbox_messages(Vec::new());
+    assert_eq!(count, 0, "Injecting empty vector should return 0");
+}
+
+#[test]
+fn test_inject_mailbox_messages_publishes_events() {
+    // Test injecting messages publishes them to EventBus
+    let config = RalphConfig::default();
+    let mut event_loop = EventLoop::new(config);
+
+    // Create a test mailbox entry
+    let event = Event::new("test.message", "Hello from another loop");
+    let entry = MailboxEntry {
+        id: "msg-123".to_string(),
+        event,
+        timestamp: chrono::Utc::now(),
+    };
+
+    // Inject the message
+    let count = event_loop.inject_mailbox_messages(vec![entry]);
+    assert_eq!(count, 1, "Should inject 1 message");
+
+    // Verify the event was published to the bus
+    let next = event_loop.next_hat();
+    assert!(next.is_some(), "Event should be pending on the bus");
+}
+
+#[test]
+fn test_clear_mailbox_nonexistent() {
+    // Test clearing a nonexistent mailbox returns true (no-op success)
+    let config = RalphConfig::default();
+    let event_loop = EventLoop::new(config);
+
+    let result = event_loop.clear_mailbox();
+    // clear() returns Ok(()) even if file doesn't exist (no-op)
+    assert!(
+        result,
+        "Clearing nonexistent mailbox should return true (no-op)"
+    );
+}
+
+#[test]
+fn test_mailbox_integration_poll_inject_clear() {
+    // Test the full mailbox workflow: poll, inject, clear
+    use std::io::Write;
+
+    let config = RalphConfig::default();
+    let mut event_loop = EventLoop::new(config);
+
+    // The EventLoop creates MailboxStore with base_path "." for legacy mode
+    // So we need to create the mailbox at "./mailboxes/(primary).jsonl"
+    let mailbox_dir = "mailboxes";
+    let mailbox_path = "mailboxes/(primary).jsonl";
+    std::fs::create_dir_all(mailbox_dir).ok();
+
+    // Write a test message to the mailbox
+    let event = Event::new("mailbox.test", "Test message content");
+    let entry = MailboxEntry {
+        id: "test-msg-001".to_string(),
+        event,
+        timestamp: chrono::Utc::now(),
+    };
+
+    let file = std::fs::File::create(mailbox_path).unwrap();
+    let mut writer = std::io::BufWriter::new(file);
+    writeln!(writer, "{}", serde_json::to_string(&entry).unwrap()).unwrap();
+    writer.flush().unwrap();
+    drop(writer);
+
+    // Poll the mailbox
+    let messages = event_loop.poll_mailbox();
+    assert_eq!(messages.len(), 1, "Should receive 1 message");
+    assert_eq!(messages[0].id, "test-msg-001");
+
+    // Inject the messages
+    let count = event_loop.inject_mailbox_messages(messages);
+    assert_eq!(count, 1, "Should inject 1 message");
+
+    // Verify event is on the bus
+    let next = event_loop.next_hat();
+    assert!(next.is_some(), "Event should be pending after injection");
+
+    // Clear the mailbox
+    let cleared = event_loop.clear_mailbox();
+    assert!(cleared, "Mailbox should be cleared successfully");
+
+    // Verify mailbox is empty after clear
+    let messages_after_clear = event_loop.poll_mailbox();
+    assert!(
+        messages_after_clear.is_empty(),
+        "Mailbox should be empty after clear"
+    );
+
+    // Cleanup
+    std::fs::remove_file(mailbox_path).ok();
+    std::fs::remove_dir(mailbox_dir).ok();
+}

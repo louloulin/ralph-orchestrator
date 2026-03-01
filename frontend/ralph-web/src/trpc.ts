@@ -261,6 +261,12 @@ function useRpcUtils() {
             ? invalidatePrefix("teams", "teams.suggestTask")
             : invalidateExact("teams", "teams.suggestTask", input),
       },
+      checkConflicts: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("teams", "teams.checkConflicts")
+            : invalidateExact("teams", "teams.checkConflicts", input),
+      },
     },
   };
 }
@@ -964,6 +970,15 @@ export const trpc = {
     }>({
       scope: "teams",
       method: "teams.suggestTask",
+    }),
+
+    checkConflicts: createQueryProcedure<{
+      teamId: string;
+      filePaths: string[];
+    }, any[], any[]>({
+      scope: "teams",
+      method: "teams.checkConflicts",
+      mapResult: (result) => result ?? [],
     }),
   },
 };

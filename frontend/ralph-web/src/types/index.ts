@@ -87,6 +87,10 @@ export type {
   UpdateTeamInput,
   TeamStats,
   AgentActivityLog,
+  ConflictSeverity,
+  ConflictAgent,
+  ConflictWarning,
+  FileReservation,
 } from "./teams";
 
 export {
@@ -95,6 +99,8 @@ export {
   AGENT_STATUS_COLORS,
   TEAM_STATUS_COLORS,
   TASK_STATUS_COLORS,
+  CONFLICT_SEVERITY_COLORS,
+  CONFLICT_SEVERITY_ICONS,
 } from "./teams";
 
 // Task types for code review (P5-5)

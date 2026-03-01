@@ -1243,6 +1243,230 @@ impl TeamStore {
         self.save()
     }
 
+    // ========== Velocity Metrics Methods ==========
+
+    /// Calculates velocity metrics for a team.
+    ///
+    /// Aggregates completion data for all teammates in the team and computes
+    /// team-wide velocity metrics including tasks/hour, completion rate, and trends.
+    ///
+    /// # Arguments
+    ///
+    /// * `team_id` - ID of the team to calculate metrics for
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(TeamVelocityStats)` with aggregated metrics for the team and individual teammates.
+    /// Returns an error if the team doesn't exist.
+    ///
+    /// # Performance
+    ///
+    /// Target: <100ms for 1000 completions
+    pub fn calculate_velocity_metrics(&self, team_id: &str) -> io::Result<TeamVelocityStats> {
+        let team = self.teams.get(team_id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Team {} not found", team_id),
+            )
+        })?;
+
+        // Calculate metrics for each teammate
+        let teammate_metrics: Vec<VelocityMetrics> = team
+            .teammates
+            .iter()
+            .map(|teammate_id| self.calculate_teammate_velocity_internal(team_id, teammate_id))
+            .collect();
+
+        Ok(TeamVelocityStats::new(
+            team_id.to_string(),
+            teammate_metrics,
+        ))
+    }
+
+    /// Calculates velocity metrics for an individual teammate.
+    ///
+    /// # Arguments
+    ///
+    /// * `team_id` - ID of the team the teammate belongs to
+    /// * `loop_id` - ID of the teammate (loop ID)
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(VelocityMetrics)` with individual velocity metrics.
+    /// Returns an error if the teammate has no completions.
+    pub fn calculate_teammate_velocity(
+        &self,
+        team_id: &str,
+        loop_id: &str,
+    ) -> io::Result<VelocityMetrics> {
+        // Verify teammate belongs to team
+        let team = self.teams.get(team_id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Team {} not found", team_id),
+            )
+        })?;
+
+        if !team.teammates.contains(&loop_id.to_string()) {
+            return Err(io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Teammate {} not found in team {}", loop_id, team_id),
+            ));
+        }
+
+        Ok(self.calculate_teammate_velocity_internal(team_id, loop_id))
+    }
+
+    /// Internal helper to calculate teammate velocity without validation.
+    fn calculate_teammate_velocity_internal(
+        &self,
+        team_id: &str,
+        loop_id: &str,
+    ) -> VelocityMetrics {
+        let now = chrono::Utc::now();
+        let one_hour_ago = now - chrono::Duration::hours(1);
+        let one_day_ago = now - chrono::Duration::days(1);
+        let seven_days_ago = now - chrono::Duration::days(7);
+
+        // Filter completions for this teammate
+        let teammate_completions: Vec<&TaskCompletion> = self
+            .completions
+            .iter()
+            .filter(|c| c.team_id == team_id && c.teammate_id == loop_id)
+            .collect();
+
+        let mut metrics = VelocityMetrics::new(loop_id.to_string(), VelocityScope::Teammate);
+
+        if teammate_completions.is_empty() {
+            return metrics;
+        }
+
+        // Count completions in time windows
+        for completion in &teammate_completions {
+            if let Ok(completed_at) = chrono::DateTime::parse_from_rfc3339(&completion.completed_at)
+            {
+                let completed_at = completed_at.with_timezone(&chrono::Utc);
+                if completed_at > one_hour_ago {
+                    metrics.tasks_last_hour += 1;
+                }
+                if completed_at > one_day_ago {
+                    metrics.tasks_last_24h += 1;
+                }
+                if completed_at > seven_days_ago {
+                    metrics.tasks_last_7d += 1;
+                }
+            }
+        }
+
+        metrics.total_completed = teammate_completions.len();
+
+        // Calculate average completion time
+        let completion_times: Vec<f64> = teammate_completions
+            .iter()
+            .filter_map(|c| {
+                let (Some(started), Ok(completed)) = (
+                    &c.started_at,
+                    chrono::DateTime::parse_from_rfc3339(&c.completed_at),
+                ) else {
+                    return None;
+                };
+
+                if let Ok(started) = chrono::DateTime::parse_from_rfc3339(started) {
+                    let duration = completed.with_timezone(&chrono::Utc)
+                        - started.with_timezone(&chrono::Utc);
+                    Some(duration.num_seconds() as f64)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        if !completion_times.is_empty() {
+            metrics.avg_completion_time_secs =
+                completion_times.iter().sum::<f64>() / completion_times.len() as f64;
+        }
+
+        // Calculate velocity using exponential weighted average
+        metrics.velocity = metrics.calculate_velocity();
+
+        // Calculate completion rate (completed / total assigned)
+        let assigned_count = self
+            .tasks
+            .values()
+            .filter(|t| t.team_id == team_id && t.assigned_to.as_deref() == Some(loop_id))
+            .count();
+        if assigned_count > 0 {
+            metrics.completion_rate = metrics.total_completed as f64 / assigned_count as f64;
+        }
+
+        metrics.updated_at = now.to_rfc3339();
+        metrics
+    }
+
+    /// Gets velocity history for a team over a time period.
+    ///
+    /// Returns time-series data showing how team velocity has changed over time.
+    /// Useful for trend analysis and performance visualization.
+    ///
+    /// # Arguments
+    ///
+    /// * `team_id` - ID of the team
+    /// * `duration_hours` - Number of hours of history to return (e.g., 168 for 7 days)
+    ///
+    /// # Returns
+    ///
+    /// Returns a vector of (timestamp, velocity) tuples representing hourly velocity samples.
+    /// Each sample shows the velocity at that point in time based on the preceding hour.
+    pub fn get_velocity_history(
+        &self,
+        team_id: &str,
+        duration_hours: u64,
+    ) -> io::Result<Vec<(String, f64)>> {
+        let team = self.teams.get(team_id).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                format!("Team {} not found", team_id),
+            )
+        })?;
+
+        let now = chrono::Utc::now();
+        let mut history = Vec::new();
+
+        // Sample velocity at hourly intervals
+        for hour_offset in 0..duration_hours {
+            let sample_time = now - chrono::Duration::hours(hour_offset as i64);
+            let window_start = sample_time - chrono::Duration::hours(1);
+
+            // Count completions in this hour window
+            let completions_in_hour = self
+                .completions
+                .iter()
+                .filter(|c| {
+                    if c.team_id != team_id {
+                        return false;
+                    }
+                    if !team.teammates.contains(&c.teammate_id) {
+                        return false;
+                    }
+                    if let Ok(completed_at) = chrono::DateTime::parse_from_rfc3339(&c.completed_at)
+                    {
+                        let completed_at = completed_at.with_timezone(&chrono::Utc);
+                        return completed_at >= window_start && completed_at < sample_time;
+                    }
+                    false
+                })
+                .count();
+
+            // Velocity is tasks per hour
+            let velocity = completions_in_hour as f64;
+            history.push((sample_time.to_rfc3339(), velocity));
+        }
+
+        // Reverse to get chronological order (oldest first)
+        history.reverse();
+        Ok(history)
+    }
+
     /// Updates a task's status.
     pub fn update_task_status(&mut self, task_id: &str, status: TeamTaskStatus) -> io::Result<()> {
         let task = self.tasks.get_mut(task_id).ok_or_else(|| {

@@ -10,11 +10,13 @@
 //! - `skill`: Load skill content on demand
 //! - `interact`: Human-in-the-loop communication (progress updates, notifications)
 //! - `test`: Agent-driven E2E testing tools
+//! - `mailbox`: Cross-loop agent-to-agent messaging
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 
 use crate::interact;
+use crate::mailbox;
 use crate::memory;
 use crate::skill_cli;
 use crate::task_cli;
@@ -43,6 +45,9 @@ pub enum ToolsCommands {
 
     /// Agent-driven E2E testing tools
     Test(test_tools::TestToolsArgs),
+
+    /// Cross-loop agent-to-agent mailbox messaging
+    Mailbox(mailbox::MailboxArgs),
 }
 
 /// Execute a tools command.
@@ -53,5 +58,6 @@ pub async fn execute(args: ToolsArgs, use_colors: bool) -> Result<()> {
         ToolsCommands::Skill(skill_args) => skill_cli::execute(skill_args),
         ToolsCommands::Interact(interact_args) => interact::execute(interact_args).await,
         ToolsCommands::Test(test_args) => test_tools::execute(test_args).await,
+        ToolsCommands::Mailbox(mailbox_args) => mailbox::execute(mailbox_args, use_colors),
     }
 }

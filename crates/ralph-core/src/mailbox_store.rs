@@ -196,6 +196,47 @@ impl MailboxStore {
             .join("mailboxes")
             .join(format!("{}.jsonl", loop_id))
     }
+
+    /// Lists all loops that have mailboxes with pending messages.
+    ///
+    /// Returns loop IDs extracted from mailbox filenames in the mailboxes directory.
+    /// Only includes mailboxes with content (non-zero file size).
+    pub fn list_mailboxes(&self) -> Result<Vec<String>, MailboxError> {
+        let mailboxes_dir = self.base_path.join("mailboxes");
+
+        if !mailboxes_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut loop_ids = Vec::new();
+
+        let entries = std::fs::read_dir(&mailboxes_dir)?;
+        for entry in entries {
+            let entry = entry?;
+            let path = entry.path();
+
+            // Only process .jsonl files
+            if path.extension().map(|e| e == "jsonl").unwrap_or(false) {
+                // Only include non-empty mailboxes
+                if entry.metadata()?.len() > 0 {
+                    if let Some(stem) = path.file_stem() {
+                        if let Some(loop_id) = stem.to_str() {
+                            loop_ids.push(loop_id.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        loop_ids.sort();
+        Ok(loop_ids)
+    }
+
+    /// Returns the number of pending messages in a loop's mailbox.
+    pub fn count(&self, loop_id: &str) -> Result<usize, MailboxError> {
+        let messages = self.receive(loop_id)?;
+        Ok(messages.len())
+    }
 }
 
 /// Generates a unique message ID.
@@ -383,5 +424,73 @@ mod tests {
 
         assert_eq!(entry.id, deserialized.id);
         assert_eq!(entry.event.payload, deserialized.event.payload);
+    }
+
+    #[test]
+    fn test_list_mailboxes_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let store = MailboxStore::new(temp_dir.path().to_path_buf());
+
+        let mailboxes = store.list_mailboxes().unwrap();
+        assert!(mailboxes.is_empty());
+    }
+
+    #[test]
+    fn test_list_mailboxes_multiple() {
+        let temp_dir = TempDir::new().unwrap();
+        let store = MailboxStore::new(temp_dir.path().to_path_buf());
+
+        // Create mailboxes for 3 loops
+        for loop_id in &["loop-3", "loop-1", "loop-2"] {
+            let event = Event::new("mailbox.message", "Test");
+            store.send(loop_id, &event).unwrap();
+        }
+
+        let mailboxes = store.list_mailboxes().unwrap();
+        // Should be sorted
+        assert_eq!(mailboxes, vec!["loop-1", "loop-2", "loop-3"]);
+    }
+
+    #[test]
+    fn test_list_mailboxes_excludes_empty() {
+        let temp_dir = TempDir::new().unwrap();
+        let store = MailboxStore::new(temp_dir.path().to_path_buf());
+
+        // Create mailbox for loop-1 with a message
+        let event = Event::new("mailbox.message", "Test");
+        store.send("loop-1", &event).unwrap();
+
+        // Create empty mailbox file for loop-2
+        let mailboxes_dir = temp_dir.path().join("mailboxes");
+        std::fs::create_dir_all(&mailboxes_dir).unwrap();
+        std::fs::File::create(mailboxes_dir.join("loop-2.jsonl")).unwrap();
+
+        let mailboxes = store.list_mailboxes().unwrap();
+        // Only loop-1 should be included (loop-2 is empty)
+        assert_eq!(mailboxes, vec!["loop-1"]);
+    }
+
+    #[test]
+    fn test_count_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let store = MailboxStore::new(temp_dir.path().to_path_buf());
+
+        // Send 3 messages
+        for i in 0..3 {
+            let event = Event::new("mailbox.message", &format!("Message {}", i));
+            store.send("loop-123", &event).unwrap();
+        }
+
+        let count = store.count("loop-123").unwrap();
+        assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_count_empty_mailbox() {
+        let temp_dir = TempDir::new().unwrap();
+        let store = MailboxStore::new(temp_dir.path().to_path_buf());
+
+        let count = store.count("loop-nonexistent").unwrap();
+        assert_eq!(count, 0);
     }
 }

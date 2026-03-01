@@ -21,6 +21,7 @@ mod init;
 mod interact;
 mod loop_runner;
 mod loops;
+mod mailbox;
 mod memory;
 mod preflight;
 mod presets;

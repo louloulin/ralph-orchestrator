@@ -11,6 +11,7 @@
 
 use crate::git_ops::{get_commit_summary, get_current_branch, get_head_sha, get_recent_files};
 use crate::loop_context::LoopContext;
+use crate::mailbox_store::MailboxStore;
 use crate::task::{Task, TaskStatus};
 use crate::task_store::TaskStore;
 use crate::text::floor_char_boundary;
@@ -103,6 +104,10 @@ impl HandoffWriter {
         content.push_str("\n## Tasks\n\n");
         self.write_tasks_section(&mut content);
 
+        // Mailbox messages section
+        content.push_str("\n## Mailbox Messages\n\n");
+        self.write_mailbox_section(&mut content);
+
         // Key files section
         content.push_str("\n## Key Files\n\n");
         self.write_key_files(&mut content);
@@ -194,6 +199,58 @@ impl HandoffWriter {
                 };
                 content.push_str(&format!("- {} {}{}\n", status_marker, task.title, blocked));
             }
+        }
+    }
+
+    /// Writes the mailbox messages section with pending messages.
+    fn write_mailbox_section(&self, content: &mut String) {
+        let workspace = self.context.workspace();
+        let ralph_path = workspace.join(".ralph");
+        let mailbox_store = MailboxStore::new(ralph_path);
+
+        // Get loop ID for this loop
+        let loop_id = self.context.loop_id().unwrap_or("(primary)").to_string();
+
+        // Read pending messages
+        let messages = match mailbox_store.receive(&loop_id) {
+            Ok(msgs) => msgs,
+            Err(_) => {
+                content.push_str("_No mailbox messages._\n");
+                return;
+            }
+        };
+
+        if messages.is_empty() {
+            content.push_str("_No pending mailbox messages._\n");
+            return;
+        }
+
+        content.push_str(&format!("**Pending messages:** {}\n\n", messages.len()));
+
+        for (idx, entry) in messages.iter().enumerate() {
+            let source = entry
+                .event
+                .source_loop
+                .as_ref()
+                .map(|s| s.as_str())
+                .unwrap_or("unknown");
+
+            let timestamp = entry.timestamp.format("%Y-%m-%d %H:%M:%S UTC");
+            let payload_preview = if entry.event.payload.len() > 100 {
+                format!("{}...", &entry.event.payload[..100])
+            } else {
+                entry.event.payload.clone()
+            };
+
+            content.push_str(&format!(
+                "### Message {} — `{}`\n\n",
+                idx + 1,
+                &entry.id[..8]
+            ));
+            content.push_str(&format!("- **From:** `{}`\n", source));
+            content.push_str(&format!("- **At:** {}\n", timestamp));
+            content.push_str(&format!("- **Topic:** `{}`\n", entry.event.topic));
+            content.push_str(&format!("- **Payload:** {}\n\n", payload_preview));
         }
     }
 
@@ -365,6 +422,46 @@ mod tests {
         assert!(content.contains("[x] Completed task"));
         assert!(content.contains("[ ] Open task"));
         assert!(content.contains("Remaining tasks"));
+    }
+
+    #[test]
+    fn test_handoff_with_mailbox_messages() {
+        use crate::mailbox_store::MailboxStore;
+        use ralph_proto::Event;
+
+        let (_temp, ctx) = setup_test_context();
+
+        // Create a mailbox store and send a message to this loop
+        let ralph_path = ctx.workspace().join(".ralph");
+        let mailbox_store = MailboxStore::new(ralph_path);
+
+        let event = Event::new("test.topic", "Test mailbox message payload");
+        mailbox_store.send("(primary)", &event).unwrap();
+
+        let writer = HandoffWriter::new(ctx.clone());
+        writer.write("Test prompt").unwrap();
+
+        let content = fs::read_to_string(ctx.handoff_path()).unwrap();
+
+        // Verify mailbox section exists
+        assert!(content.contains("## Mailbox Messages"));
+        assert!(content.contains("**Pending messages:** 1"));
+        assert!(content.contains("Test mailbox message payload"));
+        assert!(content.contains("**From:** `unknown`")); // No source_loop set
+        assert!(content.contains("**Topic:** `test.topic`"));
+    }
+
+    #[test]
+    fn test_handoff_mailbox_empty() {
+        let (_temp, ctx) = setup_test_context();
+        let writer = HandoffWriter::new(ctx.clone());
+        writer.write("Test prompt").unwrap();
+
+        let content = fs::read_to_string(ctx.handoff_path()).unwrap();
+
+        // Verify mailbox section exists even when empty
+        assert!(content.contains("## Mailbox Messages"));
+        assert!(content.contains("_No pending mailbox messages._"));
     }
 
     #[test]

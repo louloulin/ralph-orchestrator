@@ -8,3 +8,4 @@ export { TeamsList } from "./TeamsList";
 export { TeamCard } from "./TeamCard";
 export { TeamCreateDialog } from "./TeamCreateDialog";
 export { TeamDetail } from "./TeamDetail";
+export { TeamVelocityCard, TeamVelocityBadge } from "./TeamVelocityCard";

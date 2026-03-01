@@ -6,6 +6,16 @@ All notable changes to ralph-orchestrator are documented here.
 
 ### Added
 
+- **Team Velocity Metrics and Prediction** (Phase 3.3): Complete velocity tracking system for agent teams
+  - Velocity calculation methods: `calculate_velocity_metrics`, `calculate_teammate_velocity`, `get_velocity_history`
+  - Prediction algorithms: `predict_remaining_work`, `predict_completion_date`, `extrapolate_velocity_trend`
+  - CLI commands: `ralph team velocity`, `ralph team predict`, `ralph team history`
+  - Backend tRPC endpoints: `/api/team/[teamId]/velocity`, `/api/team/[teamId]/predict`, `/api/team/[teamId]/history`
+  - Frontend components: `TeamVelocityCard`, `TeamVelocityBadge` with trend indicators
+  - Data structures: `VelocityMetrics`, `TaskCompletion`, `TeamVelocityStats`
+  - JSONL persistence for task completions
+  - Comprehensive test coverage: 28 core tests, 16 CLI tests, 25 frontend tests
+
 - **LLM Semantic Ranking**: Memory retrieval now supports true LLM-based semantic ranking
   - `SemanticRanker` with Claude CLI integration for relevance scoring (0.0-1.0)
   - Three ranking modes: `Llm` (LLM only), `Heuristic` (keyword matching), `Hybrid` (default)
@@ -50,6 +60,27 @@ All notable changes to ralph-orchestrator are documented here.
 
 3. **Memory System Location Update** (AGENTS.md:62)
    - Add: `crates/ralph-core/src/memory/semantic.rs` for semantic ranking
+
+4. **Velocity Calculation Pattern** (team_store.rs)
+   - Use exponential weighted average for velocity: recent completions have higher weight
+   - Supports multiple time windows: 1h, 24h, 7d
+   - Returns tasks/hour rate
+
+5. **Linear Regression for Trend Analysis** (team_store.rs)
+   - Sample velocity data over time window
+   - Calculate slope (m) in y = mx + b
+   - Positive = accelerating, Negative = decelerating, Near zero = stable
+
+6. **Status-Aware Task Prediction** (team_store.rs)
+   - DONE: Return actual completion time
+   - REVIEW: Estimate 1 hour for review
+   - IN_PROGRESS: Use average completion time
+   - TODO: Calculate queue position + avg completion time
+
+7. **CLI-to-tRPC Integration Pattern** (trpc.ts, SpawnHelper.ts)
+   - Backend spawns CLI commands for data
+   - Parse JSON output for API responses
+   - Enables reuse of core business logic
 
 ## [2.6.0] - 2026-02-25
 

@@ -749,7 +749,7 @@ fn execute_list_tasks(args: ListTasksArgs, root: Option<&PathBuf>, use_colors: b
                     let assigned = task
                         .assigned_to
                         .as_ref()
-                        .map(|id| id.split('-').last().unwrap_or(id).to_string())
+                        .map(|id| id.split('-').next_back().unwrap_or(id).to_string())
                         .unwrap_or_else(|| "(unassigned)".to_string());
 
                     let title_truncated = if task.title.len() > 60 {
@@ -882,7 +882,7 @@ fn execute_messages(args: MessagesArgs, root: Option<&PathBuf>, use_colors: bool
                         .event
                         .source_loop
                         .as_ref()
-                        .map(|s| s.split('-').last().unwrap_or(s).to_string())
+                        .map(|s| s.split('-').next_back().unwrap_or(s).to_string())
                         .unwrap_or_else(|| "(unknown)".to_string());
 
                     let timestamp = msg.timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
@@ -893,7 +893,7 @@ fn execute_messages(args: MessagesArgs, root: Option<&PathBuf>, use_colors: bool
                         msg.event.payload.clone()
                     };
 
-                    let msg_id_short = msg.id.split('-').last().unwrap_or(&msg.id);
+                    let msg_id_short = msg.id.split('-').next_back().unwrap_or(&msg.id);
 
                     if use_colors {
                         println!(
@@ -1079,14 +1079,22 @@ fn execute_conflicts(args: ConflictsArgs, root: Option<&PathBuf>, use_colors: bo
                     }
 
                     for agent in &conflict.conflicting_agents {
-                        let loop_short = agent.loop_id.split('-').last().unwrap_or(&agent.loop_id);
+                        let loop_short = agent
+                            .loop_id
+                            .split('-')
+                            .next_back()
+                            .unwrap_or(&agent.loop_id);
                         if use_colors {
                             println!(
                                 "  {}↳{} Loop {} (Task: {}) {}{}",
                                 colors::DIM,
                                 colors::RESET,
                                 loop_short,
-                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent
+                                    .task_id
+                                    .split('-')
+                                    .next_back()
+                                    .unwrap_or(&agent.task_id),
                                 agent.task_title,
                                 colors::RESET
                             );
@@ -1094,7 +1102,11 @@ fn execute_conflicts(args: ConflictsArgs, root: Option<&PathBuf>, use_colors: bo
                             println!(
                                 "  ↳ Loop {} (Task: {}) {}",
                                 loop_short,
-                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent
+                                    .task_id
+                                    .split('-')
+                                    .next_back()
+                                    .unwrap_or(&agent.task_id),
                                 agent.task_title
                             );
                         }
@@ -1185,21 +1197,33 @@ fn execute_check_files(
                     }
 
                     for agent in &conflict.conflicting_agents {
-                        let loop_short = agent.loop_id.split('-').last().unwrap_or(&agent.loop_id);
+                        let loop_short = agent
+                            .loop_id
+                            .split('-')
+                            .next_back()
+                            .unwrap_or(&agent.loop_id);
                         if use_colors {
                             println!(
                                 "  {}↳{} Loop {} (Task: {}) {}",
                                 colors::DIM,
                                 colors::RESET,
                                 loop_short,
-                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent
+                                    .task_id
+                                    .split('-')
+                                    .next_back()
+                                    .unwrap_or(&agent.task_id),
                                 agent.task_title
                             );
                         } else {
                             println!(
                                 "  ↳ Loop {} (Task: {}) {}",
                                 loop_short,
-                                agent.task_id.split('-').last().unwrap_or(&agent.task_id),
+                                agent
+                                    .task_id
+                                    .split('-')
+                                    .next_back()
+                                    .unwrap_or(&agent.task_id),
                                 agent.task_title
                             );
                         }
@@ -1332,7 +1356,7 @@ fn execute_velocity(args: VelocityArgs, root: Option<&PathBuf>, use_colors: bool
                 println!();
                 println!("Teammates: {}", stats.teammate_metrics.len());
                 for tm in &stats.teammate_metrics {
-                    let id_short = tm.id.split('-').last().unwrap_or(&tm.id);
+                    let id_short = tm.id.split('-').next_back().unwrap_or(&tm.id);
                     println!(
                         "  - {}: {:.2} tasks/hr ({} tasks)",
                         id_short, tm.velocity, tm.total_completed
@@ -1519,11 +1543,7 @@ fn execute_history(args: HistoryArgs, root: Option<&PathBuf>, use_colors: bool) 
                 }
 
                 for (timestamp, velocity) in &history {
-                    if use_colors {
-                        println!("{:<25} {:.2}", timestamp, velocity);
-                    } else {
-                        println!("{:<25} {:.2}", timestamp, velocity);
-                    }
+                    println!("{:<25} {:.2}", timestamp, velocity);
                 }
 
                 // Calculate and print average

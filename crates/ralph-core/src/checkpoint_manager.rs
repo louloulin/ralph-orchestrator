@@ -600,7 +600,7 @@ mod tests {
 
         let latest = manager.get_latest("loop-test").unwrap();
         assert!(latest.is_some());
-        assert_eq!(latest.unwrap().id.starts_with("cp-"), true);
+        assert!(latest.unwrap().id.starts_with("cp-"));
     }
 
     #[test]

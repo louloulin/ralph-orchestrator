@@ -447,7 +447,7 @@ mod tests {
     fn test_rank_options_default() {
         let options = RankOptions::default();
         assert!(options.limit.is_none());
-        assert_eq!(options.min_score, 0.3);
+        assert!((options.min_score - 0.3).abs() < f64::EPSILON);
         assert!(options.include_scores);
     }
 
@@ -455,13 +455,13 @@ mod tests {
     fn test_rank_options_with_limit() {
         let options = RankOptions::with_limit(10);
         assert_eq!(options.limit, Some(10));
-        assert_eq!(options.min_score, 0.3);
+        assert!((options.min_score - 0.3).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_rank_options_with_min_score() {
         let options = RankOptions::with_min_score(0.5);
-        assert_eq!(options.min_score, 0.5);
+        assert!((options.min_score - 0.5).abs() < f64::EPSILON);
         assert!(options.limit.is_none());
     }
 
@@ -658,7 +658,7 @@ mod tests {
         let options = RankOptions::with_limit(5).use_llm();
         assert_eq!(options.method, RankingMethod::Llm);
         assert_eq!(options.limit, Some(5));
-        assert_eq!(options.min_score, 0.3); // default
+        assert!((options.min_score - 0.3).abs() < f64::EPSILON); // default
     }
 
     // Tests for rank with different methods

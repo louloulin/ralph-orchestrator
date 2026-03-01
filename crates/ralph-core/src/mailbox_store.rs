@@ -218,12 +218,10 @@ impl MailboxStore {
             // Only process .jsonl files
             if path.extension().map(|e| e == "jsonl").unwrap_or(false)
                 && entry.metadata()?.len() > 0
+                && let Some(stem) = path.file_stem()
+                && let Some(loop_id) = stem.to_str()
             {
-                if let Some(stem) = path.file_stem() {
-                    if let Some(loop_id) = stem.to_str() {
-                        loop_ids.push(loop_id.to_string());
-                    }
-                }
+                loop_ids.push(loop_id.to_string());
             }
         }
 
@@ -314,7 +312,7 @@ mod tests {
 
         // Send multiple messages
         for i in 0..5 {
-            let event = Event::new("mailbox.message", &format!("Message {}", i));
+            let event = Event::new("mailbox.message", format!("Message {}", i));
             store.send("loop-123", &event).unwrap();
         }
 
@@ -394,7 +392,7 @@ mod tests {
 
                 for j in 0..5 {
                     let event =
-                        Event::new("mailbox.message", &format!("Thread {} Message {}", i, j));
+                        Event::new("mailbox.message", format!("Thread {} Message {}", i, j));
                     store_clone.send("loop-123", &event).unwrap();
                 }
             });
@@ -477,7 +475,7 @@ mod tests {
 
         // Send 3 messages
         for i in 0..3 {
-            let event = Event::new("mailbox.message", &format!("Message {}", i));
+            let event = Event::new("mailbox.message", format!("Message {}", i));
             store.send("loop-123", &event).unwrap();
         }
 

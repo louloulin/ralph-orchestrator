@@ -535,7 +535,7 @@ mod tests {
         assert_eq!(config.config_file, PathBuf::from("ralph.yml"));
         assert!(matches!(config.prompt, PromptSource::Inline(p) if p == "Say hello"));
         assert_eq!(config.max_iterations, 1);
-        assert_eq!(config.timeout, Duration::from_secs(300));
+        assert_eq!(config.timeout, Duration::from_mins(5));
         assert!(config.extra_args.is_empty());
     }
 

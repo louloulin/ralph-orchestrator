@@ -263,7 +263,7 @@ mod tests {
         let event: Event = team_event.into();
         assert_eq!(event.topic, Topic::from("team.progress"));
         assert!(event.payload.contains("team-abc"));
-        assert!(event.payload.contains("5"));
+        assert!(event.payload.contains('5'));
         assert!(event.payload.contains("10"));
     }
 

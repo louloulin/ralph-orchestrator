@@ -255,6 +255,94 @@ pub struct TeamStatus {
     pub teammates: Vec<LoopId>,
 }
 
+/// Velocity metrics for a team or individual teammate.
+///
+/// Tracks task completion velocity and efficiency over time.
+/// Used for performance prediction and workload balancing.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VelocityMetrics {
+    /// Team or teammate ID
+    pub id: String,
+
+    /// Whether this metrics is for a team or individual
+    pub scope: VelocityScope,
+
+    /// Tasks completed in the last hour
+    pub tasks_last_hour: usize,
+
+    /// Tasks completed in the last 24 hours
+    pub tasks_last_24h: usize,
+
+    /// Tasks completed in the last 7 days
+    pub tasks_last_7d: usize,
+
+    /// Total tasks completed (all time)
+    pub total_completed: usize,
+
+    /// Average completion time in seconds (for completed tasks)
+    pub avg_completion_time_secs: f64,
+
+    /// Completion rate: completed / total tasks (0.0 to 1.0)
+    pub completion_rate: f64,
+
+    /// Velocity: tasks per hour
+    pub velocity: f64,
+
+    /// When these metrics were last updated (ISO 8601)
+    pub updated_at: String,
+}
+
+/// Scope of velocity metrics (team-wide or individual teammate).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VelocityScope {
+    /// Team-wide metrics (aggregated across all teammates)
+    Team,
+    /// Individual teammate metrics
+    Teammate,
+}
+
+impl VelocityMetrics {
+    /// Creates new velocity metrics for a team or teammate.
+    pub fn new(id: String, scope: VelocityScope) -> Self {
+        Self {
+            id,
+            scope,
+            tasks_last_hour: 0,
+            tasks_last_24h: 0,
+            tasks_last_7d: 0,
+            total_completed: 0,
+            avg_completion_time_secs: 0.0,
+            completion_rate: 0.0,
+            velocity: 0.0,
+            updated_at: chrono::Utc::now().to_rfc3339(),
+        }
+    }
+
+    /// Calculates velocity (tasks per hour) from recent data.
+    ///
+    /// Uses exponential weighted average prioritizing recent activity:
+    /// - Last hour: 50% weight
+    /// - Last 24h: 30% weight
+    /// - Last 7d: 20% weight
+    pub fn calculate_velocity(&self) -> f64 {
+        if self.tasks_last_hour > 0 {
+            // High recent activity: prioritize last hour
+            (self.tasks_last_hour as f64 * 0.5)
+                + (self.tasks_last_24h as f64 / 24.0 * 0.3)
+                + (self.tasks_last_7d as f64 / 168.0 * 0.2) // 168 hours in 7 days
+        } else if self.tasks_last_24h > 0 {
+            // Moderate activity: use 24h average
+            self.tasks_last_24h as f64 / 24.0
+        } else if self.tasks_last_7d > 0 {
+            // Low activity: use 7-day average
+            self.tasks_last_7d as f64 / 168.0
+        } else {
+            0.0
+        }
+    }
+}
+
 /// Maximum number of tasks a teammate can work on simultaneously.
 ///
 /// This limit prevents agent overload and ensures fair task distribution.

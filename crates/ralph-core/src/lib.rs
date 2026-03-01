@@ -125,7 +125,10 @@ pub use task_definition::{
 };
 pub use task_store::TaskStore;
 // Team store exports
-pub use team_store::{LoopId, Team, TeamStatus, TeamStore, TeamTask, TeamTaskStatus};
+pub use team_store::{
+    ConflictAgent, ConflictSeverity, ConflictWarning, LoopId, Team, TeamStatus, TeamStore,
+    TeamTask, TeamTaskStatus,
+};
 // Checkpoint exports
 pub use checkpoint::{
     CheckpointConfig, CheckpointIndex, CheckpointMeta, CheckpointState, CheckpointType,

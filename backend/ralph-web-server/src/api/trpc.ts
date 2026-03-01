@@ -2129,6 +2129,69 @@ export const teamsRouter = router({
       // Delegate to AgentTeamsService's checkConflicts method
       return ctx.agentTeamsService.checkConflicts(input.teamId, input.filePaths);
     }),
+
+  /**
+   * Get velocity metrics for a team (Phase 3.3)
+   * Returns velocity metrics including tasks/hour, completion times, etc.
+   */
+  getVelocity: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        teammateId: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { spawnAsync } = await import("../services/SpawnHelper");
+      const args = ["team", "velocity", input.teamId, "--format", "json"];
+      if (input.teammateId) {
+        args.push("--teammate", input.teammateId);
+      }
+      const result = await spawnAsync("ralph", args);
+      return result;
+    }),
+
+  /**
+   * Get completion predictions for a team (Phase 3.3)
+   * Returns estimated completion time based on current velocity.
+   */
+  predictCompletion: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        taskId: z.string().optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { spawnAsync } = await import("../services/SpawnHelper");
+      const args = ["team", "predict", input.teamId, "--format", "json"];
+      if (input.taskId) {
+        args.push("--task-id", input.taskId);
+      }
+      const result = await spawnAsync("ralph", args);
+      return result;
+    }),
+
+  /**
+   * Get velocity history for a team (Phase 3.3)
+   * Returns time-series velocity data for charting.
+   */
+  getVelocityHistory: publicProcedure
+    .input(
+      z.object({
+        teamId: z.string(),
+        durationHours: z.number().int().min(1).max(168).default(24).optional(),
+      })
+    )
+    .query(async ({ input }) => {
+      const { spawnAsync } = await import("../services/SpawnHelper");
+      const args = ["team", "history", input.teamId, "--format", "json"];
+      if (input.durationHours) {
+        args.push("-d", input.durationHours.toString());
+      }
+      const result = await spawnAsync("ralph", args);
+      return result;
+    }),
 });
 
 /**

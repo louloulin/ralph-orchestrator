@@ -267,6 +267,27 @@ function useRpcUtils() {
             ? invalidatePrefix("teams", "teams.checkConflicts")
             : invalidateExact("teams", "teams.checkConflicts", input),
       },
+      // Velocity metrics invalidation (Phase 3.3)
+      getVelocity: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("teams", "teams.getVelocity")
+            : invalidateExact("teams", "teams.getVelocity", input),
+      },
+      // Completion predictions invalidation (Phase 3.3)
+      predictCompletion: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("teams", "teams.predictCompletion")
+            : invalidateExact("teams", "teams.predictCompletion", input),
+      },
+      // Velocity history invalidation (Phase 3.3)
+      getVelocityHistory: {
+        invalidate: (input?: unknown) =>
+          input === undefined
+            ? invalidatePrefix("teams", "teams.getVelocityHistory")
+            : invalidateExact("teams", "teams.getVelocityHistory", input),
+      },
     },
   };
 }
@@ -979,6 +1000,33 @@ export const trpc = {
       scope: "teams",
       method: "teams.checkConflicts",
       mapResult: (result) => result ?? [],
+    }),
+
+    // Velocity metrics (Phase 3.3)
+    getVelocity: createQueryProcedure<{
+      teamId: string;
+      teammateId?: string;
+    }, any, any>({
+      scope: "teams",
+      method: "teams.getVelocity",
+    }),
+
+    // Completion predictions (Phase 3.3)
+    predictCompletion: createQueryProcedure<{
+      teamId: string;
+      taskId?: string;
+    }, any, any>({
+      scope: "teams",
+      method: "teams.predictCompletion",
+    }),
+
+    // Velocity history (Phase 3.3)
+    getVelocityHistory: createQueryProcedure<{
+      teamId: string;
+      durationHours?: number;
+    }, any, any>({
+      scope: "teams",
+      method: "teams.getVelocityHistory",
     }),
   },
 };

@@ -343,6 +343,77 @@ impl VelocityMetrics {
     }
 }
 
+/// Tracks individual task completion events for velocity metrics.
+///
+/// Records when tasks are completed, enabling time-series analysis of team velocity.
+/// Used to calculate completion rates, velocity trends, and workload distribution.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskCompletion {
+    /// ID of the completed task
+    pub task_id: String,
+
+    /// ID of the teammate who completed the task
+    pub teammate_id: String,
+
+    /// ID of the team the task belongs to
+    pub team_id: String,
+
+    /// When the task was completed (ISO 8601)
+    pub completed_at: String,
+
+    /// When the task was started (ISO 8601), if available
+    pub started_at: Option<String>,
+
+    /// Task priority (for weighted metrics)
+    pub priority: u8,
+
+    /// Optional complexity score (for weighted velocity)
+    pub complexity: Option<f64>,
+}
+
+impl TaskCompletion {
+    /// Creates a new task completion record.
+    pub fn new(task_id: String, teammate_id: String, team_id: String, priority: u8) -> Self {
+        Self {
+            task_id,
+            teammate_id,
+            team_id,
+            completed_at: chrono::Utc::now().to_rfc3339(),
+            started_at: None,
+            priority,
+            complexity: None,
+        }
+    }
+
+    /// Creates a task completion record with timing information.
+    pub fn with_timing(
+        task_id: String,
+        teammate_id: String,
+        team_id: String,
+        priority: u8,
+        started_at: String,
+    ) -> Self {
+        Self {
+            task_id,
+            teammate_id,
+            team_id,
+            completed_at: chrono::Utc::now().to_rfc3339(),
+            started_at: Some(started_at),
+            priority,
+            complexity: None,
+        }
+    }
+
+    /// Calculates completion time in seconds, if started_at is available.
+    pub fn completion_time_secs(&self) -> Option<f64> {
+        self.started_at.as_ref()?;
+        let started = chrono::DateTime::parse_from_rfc3339(self.started_at.as_ref()?).ok()?;
+        let completed = chrono::DateTime::parse_from_rfc3339(&self.completed_at).ok()?;
+        let duration = completed.signed_duration_since(started);
+        Some(duration.num_seconds() as f64)
+    }
+}
+
 /// Maximum number of tasks a teammate can work on simultaneously.
 ///
 /// This limit prevents agent overload and ensures fair task distribution.

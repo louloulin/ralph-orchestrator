@@ -42,7 +42,7 @@ function KnownFixItem({
 
   const getActionLabel = (action: FixAction): string => {
     if ("restart" in action) return "Restart";
-    if ("switch_backend" in action) return `Switch to ${action.backend}`;
+    if ("switch_backend" in action) return `Switch to ${(action as { backend: string }).backend}`;
     if ("inject_context" in action) return "Inject Context";
     if ("skip_step" in action) return "Skip Step";
     if ("request_human" in action) return "Request Human";
@@ -109,7 +109,6 @@ function KnownFixItem({
  * Add new fix form
  */
 function AddKnownFixForm({ onAdd }: { onAdd: () => void }) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
 
   const [id, setId] = React.useState("");
@@ -263,11 +262,10 @@ function AddKnownFixForm({ onAdd }: { onAdd: () => void }) {
  * KnownFixesList main component
  */
 export function KnownFixesList({ className }: KnownFixesListProps) {
-  const { toast } = useToast();
   const utils = trpc.useUtils();
   const [showAddForm, setShowAddForm] = React.useState(false);
 
-  const { data: fixes, isLoading } = trpc.healing.getKnownFixes.useQuery({});
+  const { data: fixes, isLoading } = trpc.healing.getKnownFixes.useQuery();
 
   const testFix = trpc.healing.testFix.useMutation();
 
@@ -329,7 +327,7 @@ export function KnownFixesList({ className }: KnownFixesListProps) {
 
         {fixes && fixes.length > 0 ? (
           <div className="space-y-2">
-            {fixes.map((fix) => (
+            {fixes.map((fix: KnownFix) => (
               <KnownFixItem
                 key={fix.id}
                 fix={fix}

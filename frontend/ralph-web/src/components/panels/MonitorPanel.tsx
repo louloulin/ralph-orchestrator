@@ -71,19 +71,19 @@ export function MonitorPanel() {
   const alerts = alertsData?.alerts ?? [];
 
   // Filter processes based on search
-  const filteredProcesses = processes.filter((p) =>
+  const filteredProcesses = processes.filter((p: { id: string; loopId?: string; status: string }) =>
     p.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
     p.loopId?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Count processes by status
-  const runningCount = processes.filter((p) => p.status === "running").length;
-  const stoppedCount = processes.filter((p) => p.status === "stopped").length;
-  const crashedCount = processes.filter((p) => p.status === "crashed").length;
+  const runningCount = processes.filter((p: { status: string }) => p.status === "running").length;
+  const stoppedCount = processes.filter((p: { status: string }) => p.status === "stopped").length;
+  const crashedCount = processes.filter((p: { status: string }) => p.status === "crashed").length;
 
   // Count alerts by severity
-  const criticalAlerts = alerts.filter((a) => a.severity === "critical").length;
-  const warningAlerts = alerts.filter((a) => a.severity === "warning").length;
+  const criticalAlerts = alerts.filter((a: { severity: string }) => a.severity === "critical").length;
+  const warningAlerts = alerts.filter((a: { severity: string }) => a.severity === "warning").length;
 
   const handleRefresh = () => {
     refetchProcesses();
@@ -220,7 +220,7 @@ export function MonitorPanel() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredProcesses.map((process) => (
+            {filteredProcesses.map((process: { id: string; loopId?: string; status: string; health?: string; pid?: number }) => (
               <Card
                 key={process.id}
                 className={cn(
@@ -263,7 +263,7 @@ export function MonitorPanel() {
             {t("monitoring.activeAlerts")}
           </h4>
           <div className="space-y-2 max-h-32 overflow-y-auto">
-            {alerts.slice(0, 3).map((alert) => (
+            {alerts.slice(0, 3).map((alert: { id: string; severity: string; ruleName: string; message?: string }) => (
               <Card key={alert.id} className={cn(
                 "p-2",
                 alert.severity === "critical" ? "border-red-500/50" : "border-yellow-500/50"

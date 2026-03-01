@@ -11,7 +11,7 @@ import { Pause, Play, Square, AlertCircle, CheckCircle2, Loader2 } from "lucide-
 import { useTranslation } from "@/hooks/useTranslation";
 import { trpc } from "@/trpc";
 import { useLoopStore } from "@/stores/loopStore";
-import { toast } from "@/stores/toastStore";
+import { useToast } from "@/stores/toastStore";
 
 interface LoopCardProps {
   loop: {
@@ -112,7 +112,8 @@ function truncatePrompt(prompt?: string): string {
 export function LoopCard({ loop }: LoopCardProps) {
   const { t } = useTranslation();
   const { refresh } = useLoopStore();
-  const utils = trpc.useContext();
+  const toast = useToast();
+  const utils = trpc.useUtils();
   const { mutate: stopLoop } = trpc.loops.stop.useMutation();
   const { mutate: mergeLoop } = trpc.loops.merge.useMutation();
 
@@ -121,22 +122,14 @@ export function LoopCard({ loop }: LoopCardProps) {
     if (stopLoop.isSuccess) {
       utils.loops.list.invalidate();
       refresh();
-      toast.add({
-        type: "success",
-        title: t("dock.loopStopped"),
-        message: t("dock.loopStoppedMessage"),
-      });
+      toast.success(t("dock.loopStopped"), t("dock.loopStoppedMessage"));
     }
   }, [stopLoop.isSuccess, utils.loops.list, refresh, toast, t]);
 
   // Handle stop mutation error
   useEffect(() => {
     if (stopLoop.isError && stopLoop.error) {
-      toast.add({
-        type: "error",
-        title: t("dock.stopFailed"),
-        message: stopLoop.error.message,
-      });
+      toast.error(t("dock.stopFailed"), stopLoop.error.message);
     }
   }, [stopLoop.isError, stopLoop.error, toast, t]);
 
@@ -145,22 +138,14 @@ export function LoopCard({ loop }: LoopCardProps) {
     if (mergeLoop.isSuccess) {
       utils.loops.list.invalidate();
       refresh();
-      toast.add({
-        type: "success",
-        title: t("dock.mergeTriggered"),
-        message: t("dock.mergeTriggeredMessage"),
-      });
+      toast.success(t("dock.mergeTriggered"), t("dock.mergeTriggeredMessage"));
     }
   }, [mergeLoop.isSuccess, utils.loops.list, refresh, toast, t]);
 
   // Handle merge mutation error
   useEffect(() => {
     if (mergeLoop.isError && mergeLoop.error) {
-      toast.add({
-        type: "error",
-        title: t("dock.mergeFailed"),
-        message: mergeLoop.error.message,
-      });
+      toast.error(t("dock.mergeFailed"), mergeLoop.error.message);
     }
   }, [mergeLoop.isError, mergeLoop.error, toast, t]);
 

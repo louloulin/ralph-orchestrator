@@ -2,7 +2,7 @@
  * ErrorBoundary Component Tests
  */
 
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ErrorBoundary, InlineErrorFallback } from "../ErrorBoundary";
@@ -106,7 +106,7 @@ describe("ErrorBoundary", () => {
   it("should navigate to dashboard on Go Home button", () => {
     const originalLocation = window.location;
     delete (window as { location?: typeof originalLocation }).location;
-    window.location = { ...originalLocation, href: "" };
+    window.location = { href: "" } as any;
 
     const ThrowError = () => {
       throw new Error("Test error");
@@ -124,7 +124,7 @@ describe("ErrorBoundary", () => {
     expect(window.location.href).toBe("/dashboard");
 
     // Restore original location
-    window.location = originalLocation;
+    (window as { location?: typeof originalLocation }).location = originalLocation;
   });
 
   it("should reload page on reload link", () => {
@@ -133,6 +133,7 @@ describe("ErrorBoundary", () => {
     Object.defineProperty(window, "location", {
       value: { ...originalLocation, reload: reloadMock },
       writable: true,
+      configurable: true,
     });
 
     const ThrowError = () => {
@@ -151,7 +152,7 @@ describe("ErrorBoundary", () => {
     expect(reloadMock).toHaveBeenCalled();
 
     // Restore original location
-    window.location = originalLocation;
+    (window as { location?: typeof originalLocation }).location = originalLocation;
   });
 
   it("should show error details when showDetails is true", () => {

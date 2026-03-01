@@ -9,7 +9,7 @@
  * Mobile: Hidden by default, slides in as overlay when toggled
  */
 
-import { PanelLeftClose, PanelLeft, Settings, ListTodo, Menu, X, Users, Folder, Lightbulb, Sparkles, Wrench, MessageSquare, Gauge, History } from "lucide-react";
+import { PanelLeftClose, PanelLeft, Settings, ListTodo, Menu, X, Users, Folder, Lightbulb, Sparkles, Wrench, MessageSquare, Gauge, History, type LucideIcon } from "lucide-react";
 import { NavItem } from "./NavItem";
 import { NavSection } from "./NavSection";
 import { useUIStore } from "@/store";

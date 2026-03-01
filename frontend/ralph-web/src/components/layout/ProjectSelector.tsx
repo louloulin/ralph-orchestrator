@@ -22,7 +22,7 @@ export function ProjectSelector() {
   useEffect(() => {
     if (projects && !useProjectStore.getState().isLoaded) {
       // Set active project from server if not set locally
-      const serverActive = projects.find((p) => p.isActive);
+      const serverActive = projects.find((p: Project) => p.isActive);
       if (serverActive) {
         setActiveProject(serverActive);
       }
@@ -79,7 +79,7 @@ export function ProjectSelector() {
           <div className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto">
             {projects && projects.length > 0 ? (
               <div className="py-1">
-                {projects.map((project) => (
+                {projects.map((project: Project) => (
                   <button
                     key={project.id}
                     onClick={() => handleSelect(project)}

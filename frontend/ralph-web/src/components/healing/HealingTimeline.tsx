@@ -72,14 +72,16 @@ function HealingEventItem({ event }: { event: HealingEvent }) {
           <div className="text-sm space-y-1">
             <p className="font-medium">{event.action.reason}</p>
             {isSuccess ? (
-              <p className="text-muted-foreground">{event.result.details}</p>
+              <p className="text-muted-foreground">
+                {"details" in event.result ? event.result.details : "Healing successful"}
+              </p>
             ) : (
               <div className="flex items-center gap-2 text-red-400">
                 <AlertTriangle className="h-3 w-3" />
-                <span>{event.result.error}</span>
-                {event.result.nextLayer && (
+                <span>{"error" in event.result ? event.result.error : "Healing failed"}</span>
+                {"nextLayer" in event.result && event.result.nextLayer && (
                   <Badge variant="outline" className="text-xs">
-                    Next: {HEALING_LAYER_LABELS[event.result.nextLayer]}
+                    Next: {HEALING_LAYER_LABELS[event.result.nextLayer as keyof typeof HEALING_LAYER_LABELS]}
                   </Badge>
                 )}
               </div>
@@ -200,7 +202,7 @@ export function HealingTimeline({ loopId, limit = 20, className }: HealingTimeli
       <CardContent>
         {events && events.length > 0 ? (
           <div className="space-y-0">
-            {events.map((event) => (
+            {events.map((event: HealingEvent) => (
               <HealingEventItem key={event.id} event={event} />
             ))}
           </div>

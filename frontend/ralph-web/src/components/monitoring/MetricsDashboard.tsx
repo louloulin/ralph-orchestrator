@@ -186,23 +186,23 @@ export function MetricsDashboard({
 
     // Filter by name prefix
     if (namePrefix) {
-      metrics = metrics.filter((m) => m.name.startsWith(namePrefix));
+      metrics = metrics.filter((m: AnyMetric) => m.name.startsWith(namePrefix));
     }
 
     // Filter by search term
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       metrics = metrics.filter(
-        (m) =>
+        (m: AnyMetric) =>
           m.name.toLowerCase().includes(term) ||
           m.help?.toLowerCase().includes(term) ||
-          m.labels?.some((l) => l.value.toLowerCase().includes(term))
+          m.labels?.some((l: { value: string }) => l.value.toLowerCase().includes(term))
       );
     }
 
     // Filter by metric type
     if (typeFilter !== "all") {
-      metrics = metrics.filter((m) => m.type === typeFilter);
+      metrics = metrics.filter((m: AnyMetric) => m.type === typeFilter);
     }
 
     // Apply limit

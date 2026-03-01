@@ -32,20 +32,22 @@ export function PlanPanel() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch specs for list
-  const { data: specsData, isLoading } = trpc.spec.list.useQuery();
-  const specs = specsData?.specs ?? [];
+  // TODO: Implement spec router in backend
+  // const { data: specsData, isLoading } = trpc.spec.list.useQuery();
+  // const specs = specsData?.specs ?? [];
+  const specs: any[] = [];
+  const isLoading = false;
 
   // Filter specs based on search
-  const filteredSpecs = specs.filter((spec) =>
+  const filteredSpecs = specs.filter((spec: any) =>
     spec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     spec.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Count specs by status
-  const draftCount = specs.filter((s) => s.status === "draft").length;
-  const approvedCount = specs.filter((s) => s.status === "approved").length;
-  const inProgressCount = specs.filter((s) => s.status === "in-progress").length;
+  const draftCount = specs.filter((s: any) => s.status === "draft").length;
+  const approvedCount = specs.filter((s: any) => s.status === "approved").length;
+  const inProgressCount = specs.filter((s: any) => s.status === "in-progress").length;
 
   const handleCreateSpec = () => {
     // TODO: Open spec creation modal
@@ -176,7 +178,7 @@ export function PlanPanel() {
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredSpecs.map((spec) => (
+            {filteredSpecs.map((spec: any) => (
               <Card
                 key={spec.id}
                 className={cn(

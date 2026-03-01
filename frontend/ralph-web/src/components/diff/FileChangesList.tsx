@@ -8,7 +8,7 @@
 import { useState } from "react";
 import { Check, X, FileCode, Loader2, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { trpc } from "@/lib/trpc";
+import { trpc } from "@/trpc";
 import { Button } from "@/components/ui/button";
 import type { FileChange, FileChangeApprovalStatus } from "@/types/task";
 

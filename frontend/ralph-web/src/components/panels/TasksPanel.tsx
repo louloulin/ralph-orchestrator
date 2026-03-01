@@ -33,13 +33,13 @@ export function TasksPanel() {
   const [quickInput, setQuickInput] = useState("");
 
   // Fetch tasks for stats
-  const { data: tasksData, isLoading } = trpc.task.list.useQuery({ limit: 100 });
+  const { data: tasksData, isLoading } = trpc.task.list.useQuery({});
   const tasks = tasksData?.tasks ?? [];
 
   // Count tasks by status for badges
-  const runningCount = tasks.filter((t) => t.status === "running").length;
-  const pendingCount = tasks.filter((t) => t.status === "pending").length;
-  const completedCount = tasks.filter((t) => t.status === "completed").length;
+  const runningCount = tasks.filter((t: { status: string }) => t.status === "running").length;
+  const pendingCount = tasks.filter((t: { status: string }) => t.status === "pending").length;
+  const completedCount = tasks.filter((t: { status: string }) => t.status === "completed").length;
 
   const handleQuickCreate = () => {
     if (!quickInput.trim()) return;

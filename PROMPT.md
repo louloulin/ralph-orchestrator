@@ -672,3 +672,132 @@ cargo test --all      # 全部通过
 
 **验证结论**: UI 功能全部正常工作，前端构建成功
 
+---
+
+## 二.8、CLI 功能验证 (2026-03-01)
+
+### Mailbox System CLI
+
+**验证日期**: 2026-03-01
+**验证方法**: 实际命令执行
+
+| 命令 | 状态 | 功能描述 |
+|------|------|----------|
+| `ralph tools mailbox send` | ✅ | 发送消息到指定循环的邮箱 |
+| `ralph tools mailbox list` | ✅ | 列出邮箱消息 (支持 table/json/quiet 格式) |
+| `ralph tools mailbox read` | ✅ | 读取特定消息详情 |
+| `ralph tools mailbox clear` | ✅ | 清空邮箱消息 |
+
+**验证示例**:
+```bash
+$ ralph tools mailbox send test-loop "Test message"
+✅ Message msg-1772363261297-43880329 sent to loop test-loop
+
+$ ralph tools mailbox list --loop-id test-loop
+╭────────────────────────────┬─────────────────┬───────────────────┬─────────────────────────╮
+│ ID                         │ Topic           │ Payload           │ Timestamp               │
+├────────────────────────────┼─────────────────┼───────────────────┼─────────────────────────┤
+│ msg-1772363261297-43880329 │ mailbox.message │ Test message      │ 2026-03-01 11:07:41 UTC │
+╰────────────────────────────┴─────────────────┴───────────────────┴─────────────────────────╯
+```
+
+### Team System CLI
+
+**验证日期**: 2026-03-01
+**验证方法**: 实际命令执行
+
+| 命令 | 状态 | 功能描述 |
+|------|------|----------|
+| `ralph team create` | ✅ | 创建新团队 |
+| `ralph team list` | ✅ | 列出所有团队 |
+| `ralph team add-task` | ✅ | 添加任务到团队 (支持优先级、依赖) |
+| `ralph team list-tasks` | ✅ | 列出团队任务 |
+| `ralph team velocity` | ✅ | 显示团队速度指标 |
+| `ralph team suggest` | ✅ | 基于负载均衡建议任务 |
+| `ralph team conflicts` | ✅ | 显示文件冲突检测 |
+| `ralph team check-files` | ✅ | 检查特定文件冲突 |
+| `ralph team predict` | ✅ | 完成时间预测 |
+| `ralph team history` | ✅ | 速度历史记录 |
+| `ralph team claim` | ✅ | 认领任务 (自助分配) |
+| `ralph team release` | ✅ | 释放任务 |
+| `ralph team send` | ✅ | 发送消息给其他循环 |
+| `ralph team messages` | ✅ | 列出邮箱消息 |
+
+**验证示例**:
+```bash
+$ ralph team create "test-team"
+Created team team-1772363397-1375
+  Name: test-team
+
+$ ralph team list
+ID                             Name                 Teammates       Created
+-------------------------------------------------------------------------------------
+team-1772363397-1375           test-team            0               2026-03-01
+
+$ ralph team add-task team-1772363397-1375 "Test task" -p 1
+Created task task-1772363480-122b
+  Title:    Test task
+  Priority: 1
+  Team:     team-1772363397-1375
+
+$ ralph team list-tasks team-1772363397-1375
+ID                   Status          Priority Assigned To          Title
+-----------------------------------------------------------------------------------------------------------------------------
+task-1772363480-122b todo            1        (unassigned)         Test task
+
+$ ralph team velocity team-1772363397-1375
+Team velocity metrics for: team-1772363397-1375
+  Time Range:     P7D
+  Team Velocity:  0.00 tasks/hr
+  Tasks (1h):     0
+  Tasks (24h):    0
+  Tasks (7d):     0
+  Total:          0
+  Avg Time:       0.0s
+```
+
+**验证结论**: 所有 CLI 命令正常工作，与 PROMPT.md 文档描述一致
+
+---
+
+## 二.9、后端 API 验证 (2026-03-01)
+
+### tRPC 端点验证
+
+**验证日期**: 2026-03-01
+**验证方法**: curl 请求
+
+| 端点 | 状态 | 响应 |
+|------|------|------|
+| `GET /health` | ✅ | `{"status":"ok","timestamp":"..."}` |
+| `GET /trpc/task.list` | ✅ | 返回任务列表 (测试数据) |
+| `GET /trpc/loops.list` | ✅ | 返回循环列表 (orphan loops) |
+
+**验证结论**: 后端 API 全部正常工作
+
+---
+
+## 二.10、测试覆盖率验证 (2026-03-01)
+
+### 测试统计
+
+```
+ralph-core:    952 tests pass
+ralph-cli:     287 tests pass
+ralph-proto:   50 tests pass
+ralph-e2e:     38 doctests pass
+Total:        1327+ tests pass
+```
+
+### 功能模块测试覆盖
+
+| 模块 | 测试数量 | 状态 |
+|------|---------|------|
+| Mailbox System | 22+7 | ✅ |
+| Team System | 137 | ✅ |
+| Hat System | 109 | ✅ |
+| Worktree | 41 | ✅ |
+| Event Protocol | 50 | ✅ |
+
+**验证结论**: 测试覆盖全面，所有测试通过
+

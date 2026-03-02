@@ -6,15 +6,37 @@ All notable changes to ralph-orchestrator are documented here.
 
 ### Added
 
-- **Team Velocity Metrics and Prediction** (Phase 3.3): Complete velocity tracking system for agent teams
-  - Velocity calculation methods: `calculate_velocity_metrics`, `calculate_teammate_velocity`, `get_velocity_history`
-  - Prediction algorithms: `predict_remaining_work`, `predict_completion_date`, `extrapolate_velocity_trend`
+- **Agent-to-Agent Mailbox System** (Phase 3.4): Cross-loop messaging for multi-agent collaboration
+  - Phase 1: Loop addressing with `source_loop`/`target_loop` fields in Event struct
+  - Phase 2: File-based MailboxStore at `.ralph/mailboxes/{loop_id}.jsonl` with file locking
+  - Phase 3: CLI commands: `ralph tools mailbox send/list/read/clear` with table/json/quiet formats
+  - Phase 4: Event loop integration with `poll_mailbox()`, `inject_mailbox_messages()`, `clear_mailbox()`
+  - Handoff context includes mailbox messages section
+  - Test coverage: 22+ mailbox tests, 7 integration tests
+
+- **Claude Code Agent Teams Integration**: Full architecture implementation verified
+  - Team Lead (Hat System): 109 tests, role coordination, event routing, backpressure gates
+  - Teammates (Worktree Loops): 41 tests, git worktree isolation, independent 200K token contexts
+  - Shared Task List (TaskStore): 137 tests, task claim/release, conflict detection, velocity tracking
+  - Mailbox System: Cross-loop messaging (22+7 tests)
+  - Architecture alignment: 100% match with Claude Code Agent Teams
+
+- **File-Level Conflict Detection** (Phase 3.2): Proactive file conflict prevention
+  - FileReservation/ConflictWarning data structures
+  - Glob pattern support (* and **)
+  - CLI commands: `ralph team conflicts`, `ralph team check-files`
+  - Backend tRPC endpoint: `/api/team/checkConflicts`
+  - Test coverage: 80 unit tests, 14 integration tests
+
+- **Team Velocity Metrics and Prediction** (Phase 3.3): Complete velocity tracking system
+  - Velocity calculation methods: `calculate_velocity_metrics`, `calculate_teammate_velocity`
+  - Prediction algorithms: `predict_remaining_work`, `predict_completion_date`
   - CLI commands: `ralph team velocity`, `ralph team predict`, `ralph team history`
-  - Backend tRPC endpoints: `/api/team/[teamId]/velocity`, `/api/team/[teamId]/predict`, `/api/team/[teamId]/history`
+  - Backend tRPC endpoints: `/api/team/[teamId]/velocity`, `/api/team/[teamId]/predict`
   - Frontend components: `TeamVelocityCard`, `TeamVelocityBadge` with trend indicators
   - Data structures: `VelocityMetrics`, `TaskCompletion`, `TeamVelocityStats`
   - JSONL persistence for task completions
-  - Comprehensive test coverage: 28 core tests, 16 CLI tests, 25 frontend tests
+  - Test coverage: 28 core tests, 16 CLI tests, 25 frontend tests
 
 - **LLM Semantic Ranking**: Memory retrieval now supports true LLM-based semantic ranking
   - `SemanticRanker` with Claude CLI integration for relevance scoring (0.0-1.0)
@@ -42,6 +64,12 @@ All notable changes to ralph-orchestrator are documented here.
   - Added: ChatPage as default (/chat), SidePanel system, ActiveLoopsDock for multi-task visibility
   - Removed: Skills page (underlying Claude Code already supports)
   - Implementation: 12 tasks created (P0:5, P1:3, P2:2)
+
+### Crates Affected
+
+- `ralph-core`: MailboxStore, TeamStore, EventLoop integration, Handoff context
+- `ralph-cli`: Team commands (14), Mailbox commands (4)
+- `ralph-proto`: Event struct with source_loop/target_loop fields
 
 ## Suggested AGENTS.md Updates
 
@@ -81,6 +109,22 @@ All notable changes to ralph-orchestrator are documented here.
    - Backend spawns CLI commands for data
    - Parse JSON output for API responses
    - Enables reuse of core business logic
+
+8. **File-Based Message Queue Pattern** (mailbox_store.rs)
+   - JSONL format for append-only storage
+   - File locking for concurrent access
+   - Loop ID as partition key
+   - Located at `.ralph/mailboxes/{loop_id}.jsonl`
+
+9. **Event Source/Target Pattern** (ralph-proto/src/event.rs)
+   - Use `source_loop` and `target_loop` fields for cross-loop routing
+   - Builder pattern: `event.with_source_loop(id).with_target_loop(id)`
+   - Enables agent-to-agent messaging without parent-child relationship
+
+10. **Handoff Context Injection Pattern** (handoff.rs)
+    - Read from external stores (MailboxStore, TaskStore)
+    - Format as markdown sections
+    - Inject into agent context for fresh iteration
 
 ## [2.6.0] - 2026-02-25
 

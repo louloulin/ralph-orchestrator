@@ -118,11 +118,11 @@ Previous work completed on feature B.
         .current_dir(temp_path)
         .output()?;
 
-    let _stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let _stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Should find the existing scratchpad (logged via tracing to stdout)
-    assert!(stdout.contains("Found existing scratchpad"));
+    // Should find the existing scratchpad (via eprintln to stderr)
+    assert!(stderr.contains("Found existing scratchpad"));
 
     Ok(())
 }
@@ -356,11 +356,11 @@ This scratchpad contains UNIQUE_CONTENT_MARKER for testing.
         .current_dir(temp_path)
         .output()?;
 
-    let _stderr = String::from_utf8_lossy(&output.stderr);
-    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    let _stdout = String::from_utf8_lossy(&output.stdout);
 
-    // Should log that it found the existing scratchpad (logged via tracing output)
-    assert!(stdout.contains("Found existing scratchpad"));
+    // Should log that it found the existing scratchpad (via eprintln to stderr)
+    assert!(stderr.contains("Found existing scratchpad"));
 
     Ok(())
 }

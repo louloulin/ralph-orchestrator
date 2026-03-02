@@ -887,7 +887,7 @@ async fn main() -> Result<()> {
     // Detect if TUI mode is requested - TUI owns the terminal, so logs must not go to stdout
     // TUI is enabled by default unless --no-tui, --autonomous, or --rpc is specified
     // RPC mode also suppresses stdout logging (JSON-only output)
-    let tui_enabled = match &cli.command {
+    let _tui_enabled = match &cli.command {
         Some(Commands::Run(args)) => !args.no_tui && !args.autonomous && !args.rpc,
         Some(Commands::Resume(args)) => !args.no_tui && !args.autonomous && !args.rpc,
         None => true,
@@ -899,7 +899,8 @@ async fn main() -> Result<()> {
         _ => false,
     };
 
-    // Initialize logging - suppress in TUI mode to avoid corrupting the display
+    // Initialize logging - always write to file to avoid "窜出" logs to terminal
+    // Only RPC mode outputs to stderr to keep stdout clean for JSON-lines
     let filter = if cli.verbose { "debug" } else { "info" };
 
     // Check if diagnostics are enabled
@@ -907,8 +908,14 @@ async fn main() -> Result<()> {
         .map(|v| v == "1")
         .unwrap_or(false);
 
-    if tui_enabled {
-        // TUI mode: logs would corrupt the display, so write to a rotating log file
+    if rpc_enabled {
+        // RPC mode: logs must go to stderr to keep stdout clean for JSON-lines
+        tracing_subscriber::fmt()
+            .with_env_filter(filter)
+            .with_writer(std::io::stderr)
+            .init();
+    } else {
+        // All other modes (TUI, --no-tui, --autonomous): write logs to file
         if let Ok((file, _log_path)) =
             ralph_core::diagnostics::create_log_file(std::path::Path::new("."))
         {
@@ -947,41 +954,6 @@ async fn main() -> Result<()> {
             }
         }
         // If log file creation fails, silently continue without logging
-    } else if rpc_enabled {
-        // RPC mode: logs must go to stderr to keep stdout clean for JSON-lines
-        tracing_subscriber::fmt()
-            .with_env_filter(filter)
-            .with_writer(std::io::stderr)
-            .init();
-    } else {
-        // Normal mode: logs go to stdout
-        if diagnostics_enabled {
-            // Normal mode + diagnostics: stdout + trace layer
-            use ralph_core::diagnostics::DiagnosticTraceLayer;
-            use tracing_subscriber::prelude::*;
-
-            if let Ok(collector) =
-                ralph_core::diagnostics::DiagnosticsCollector::new(std::path::Path::new("."))
-                && let Some(session_dir) = collector.session_dir()
-            {
-                if let Ok(trace_layer) = DiagnosticTraceLayer::new(session_dir) {
-                    tracing_subscriber::registry()
-                        .with(tracing_subscriber::fmt::layer())
-                        .with(tracing_subscriber::EnvFilter::new(filter))
-                        .with(trace_layer)
-                        .init();
-                } else {
-                    // Fallback: just stdout
-                    tracing_subscriber::fmt().with_env_filter(filter).init();
-                }
-            } else {
-                // Fallback: just stdout
-                tracing_subscriber::fmt().with_env_filter(filter).init();
-            }
-        } else {
-            // Normal mode without diagnostics: just stdout
-            tracing_subscriber::fmt().with_env_filter(filter).init();
-        }
     }
 
     // Parse all config sources from CLI
@@ -1284,7 +1256,7 @@ async fn run_command(
                 config.core.scratchpad
             );
         }
-        info!(
+        eprintln!(
             "Found existing scratchpad at '{}', continuing from previous state",
             config.core.scratchpad
         );
@@ -1823,12 +1795,13 @@ async fn run_subprocess_tui(
 
     info!(child_args = ?child_args, "Spawning subprocess for TUI mode");
 
-    // Spawn child process
+    // Spawn child process - stderr is redirected to log file by the child process itself
+    // (in RPC mode, logs go to file, not stderr)
     let mut child = Command::new(std::env::current_exe()?)
         .args(&child_args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::inherit()) // Pass stderr through for debugging
+        .stderr(Stdio::null()) // Suppress stderr - logs go to file in subprocess
         .spawn()
         .context("Failed to spawn ralph subprocess for TUI")?;
 

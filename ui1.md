@@ -1,8 +1,6 @@
 # Ralph Web UI 1.0 - AI 原生界面设计
 
-> **状态**: 已批准 - 需要修订 | **版本**: 1.1 | **创建日期**: 2026-02-26 | **最后更新**: 2026-02-26
-
-**实施状态**: Phase 1 已完成约 60%
+> **状态**: 草稿 | **版本**: 1.0 | **创建日期**: 2026-02-26
 
 ## 执行摘要
 
@@ -307,73 +305,47 @@ ActiveLoopsDock（显示状态）
 
 ## UI 组件系统
 
-### 已实现组件（Phase 1 进度：约 60%）
+### 新组件（待创建）
 
-#### ✅ ChatPage
-- 位置: `frontend/ralph-web/src/pages/ChatPage.tsx`
-- 功能: 主聊天界面
-- 状态: 已实现，路由已配置为默认首页
+#### MessageThread
+- 虚拟滚动支持
+- 多种消息类型（user, agent, thinking, tool, diff, status, error）
+- 流式消息支持
 
-#### ✅ ChatInput
-- 位置: `frontend/ralph-web/src/components/chat/ChatInput.tsx`
-- 功能: 消息输入组件
-- 特性: 文件附件支持、上下文菜单
-- 状态: 已实现
+#### ChatInput
+- 自动展开 textarea
+- 文件拖放附件
+- 上下文菜单（附加规格、选择预设）
+- 键盘快捷键（⌘↵ 发送）
 
-#### ✅ MessageThread
-- 位置: `frontend/ralph-web/src/components/chat/MessageThread.tsx`
-- 功能: 消息列表显示
-- 状态: 已实现
+#### SidePanel
+- 滑入动画
+- 点击外部关闭
+- Esc 关闭
+- 可调整宽度
+- 多面板标签页
 
-#### ✅ 消息组件
-- MessageBubble: `components/chat/MessageBubble.tsx` ✅
-- ThinkingBlock: `components/chat/ThinkingBlock.tsx` ✅
-- ToolCallCard: `components/chat/ToolCallCard.tsx` ✅
-- UserMessage: 包含在 MessageThread 中 ✅
-- AgentMessage: 包含在 MessageThread 中 ✅
+#### LoopCard
+- 状态指示器（运行、暂停、完成、失败）
+- 迷你状态
+- 进度条
+- 控制按钮
 
-#### ✅ SidePanel
-- 位置: `frontend/ralph-web/src/components/chat/SidePanel.tsx`
-- 功能: 滑入式侧边面板
-- 特性: Framer Motion 动画
-- 状态: 已实现
+#### ThinkingBlock
+- 可折叠推理显示
+- 结构使用等宽字体
+- 复制按钮
 
-#### ✅ ActiveLoopsDock
-- 位置: `frontend/ralph-web/src/components/dock/ActiveLoopsDock.tsx`
-- 功能: 底部活动循环坞
-- 状态: 已实现
+#### DiffInline
+- 消息内联 diff
+- 语法高亮
+- 展开/折叠
 
-#### ✅ LoopCard
-- 位置: `frontend/ralph-web/src/components/dock/LoopCard.tsx`
-- 功能: 循环状态卡片
-- 状态: 已实现
+### 增强的现有组件
 
-### 新组件（待创建或增强）
-
-#### 📦 TasksPanel
-- 基础: `components/tasks/ThreadList.tsx`（需要改编）
-- 目标: 适配 SidePanel 系统的任务面板
-- 任务: P1-2
-
-#### 📦 PlanPanel
-- 基础: `components/plan/PlanLanding.tsx`（需要改编）
-- 目标: 适配 SidePanel 系统的规划面板
-- 任务: P1-3
-
-#### 📦 MonitorPanel
-- 基础: `pages/MonitoringPage.tsx`（需要改编）
-- 目标: 合并 Monitoring + Checkpoints + Healing
-- 任务: P1-3
-
-#### 📦 TeamsPanel
-- 基础: `pages/TeamsPage.tsx`（需要改编）
-- 目标: 适配 SidePanel 系统
-- 任务: 待创建
-
-#### 📦 ProjectsPanel
-- 基础: `pages/ProjectsPage.tsx`（需要改编）
-- 目标: 适配 SidePanel 系统
-- 任务: 待创建
+- TaskInput → ChatInput 迁移
+- ThreadList → TasksPanel
+- MonitoringPage → MonitorPanel
 
 ---
 
@@ -441,35 +413,26 @@ ActiveLoopsDock（显示状态）
 
 ## 实施路线图
 
-> **当前状态**: Phase 1 已完成约 60%
-
 ### 阶段 1: 基础（第 1-2 周）
 
-| 任务 | 状态 | 说明 |
-|------|------|------|
-| 1. 创建 ChatPage 组件 | ✅ 已完成 | `pages/ChatPage.tsx` 已实现，路由已配置 |
-| 2. 增强 TaskInput → ChatInput | ✅ 已完成 | `components/chat/ChatInput.tsx` 已实现 |
-| 3. 创建消息组件 | ✅ 已完成 | MessageThread, MessageBubble, ThinkingBlock, ToolCallCard 已实现 |
-| 4. 删除 Skills 页面 | ⏳ 待完成 | SkillsPage 仍在 App.tsx 中导入 |
-| 5. 更新路由 | ✅ 已完成 | 根路由 "/" 已重定向到 "/chat" |
+1. 创建 ChatPage 组件
+2. 增强 TaskInput → ChatInput
+3. 创建消息组件
+5. 更新路由
 
 ### 阶段 2: 侧边面板（第 2-3 周）
 
-| 任务 | 状态 | 说明 |
-|------|------|------|
-| 1. 实现 SidePanel 系统 | ✅ 已完成 | `components/chat/SidePanel.tsx` 已实现 |
-| 2. 改编现有页面为面板 | ⏳ 进行中 | P1-2: TasksPanel, P1-3: PlanPanel/MonitorPanel |
-| 3. 添加面板键盘快捷键 | ⏳ 待完成 | 被阻塞：需要面板组件先完成 |
-| 4. 面板状态管理 | ⏳ 待完成 | panelStore.ts 待创建 |
+1. 实现 SidePanel 系统
+2. 改编现有页面为面板
+3. 添加面板键盘快捷键
+4. 面板状态管理
 
 ### 阶段 3: 多任务 UI（第 3-4 周）
 
-| 任务 | 状态 | 说明 |
-|------|------|------|
-| 1. 创建 ActiveLoopsDock 组件 | ✅ 已完成 | `components/dock/ActiveLoopsDock.tsx` 已实现 |
-| 2. 实现 LoopCard 组件 | ✅ 已完成 | `components/dock/LoopCard.tsx` 已实现 |
-| 3. 创建循环详情视图 | ⏳ 待完成 | 任务 P2-1 |
-| 4. 集成现有 WebSocket | ⏳ 待完成 | 需要扩展消息类型 |
+1. 创建 ActiveLoopsDock 组件
+2. 实现 LoopCard 组件
+3. 创建循环详情视图
+4. 集成现有 WebSocket
 
 ### 阶段 4: 完善（第 4-5 周）
 
@@ -662,7 +625,7 @@ frontend/ralph-web/src/
 
 ---
 
-**文档版本:** 1.1
+**文档版本:** 1.0
 **最后更新:** 2026-02-26
 **作者:** Ralph (AI Agent)
-**状态:** 已批准 - 已更新实施状态
+**状态:** 草稿 - 待审核

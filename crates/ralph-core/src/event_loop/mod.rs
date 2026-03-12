@@ -19,6 +19,7 @@ use crate::memory_store::{MarkdownMemoryStore, format_memories_as_markdown, trun
 use crate::skill_registry::SkillRegistry;
 use crate::text::floor_char_boundary;
 use ralph_proto::{CheckinContext, Event, EventBus, Hat, HatId, RobotService};
+use serde_json::{Map, Value};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -30,6 +31,11 @@ use tracing::{debug, info, warn};
 pub struct ProcessedEvents {
     /// Whether any valid events were found and published.
     pub had_events: bool,
+    /// Whether any published events matched the semantic `plan.*` topic family.
+    pub had_plan_events: bool,
+    /// Structured context for the first processed `human.interact` event,
+    /// including the question payload and post-dispatch outcome metadata.
+    pub human_interact_context: Option<Value>,
     /// Whether any events lacked specific hat subscribers (orphans handled by Ralph).
     pub has_orphans: bool,
 }
@@ -49,6 +55,8 @@ pub enum TerminationReason {
     ConsecutiveFailures,
     /// Loop thrashing detected (repeated blocked events).
     LoopThrashing,
+    /// Stale loop detected (same topic emitted 3+ times consecutively).
+    LoopStale,
     /// Too many consecutive malformed JSONL lines in events file.
     ValidationFailure,
     /// Manually stopped.
@@ -59,6 +67,8 @@ pub enum TerminationReason {
     RestartRequested,
     /// Workspace directory (worktree) was removed externally.
     WorkspaceGone,
+    /// Loop was cancelled gracefully via loop.cancel event (human rejection, timeout).
+    Cancelled,
 }
 
 impl TerminationReason {
@@ -74,6 +84,7 @@ impl TerminationReason {
             TerminationReason::CompletionPromise => 0,
             TerminationReason::ConsecutiveFailures
             | TerminationReason::LoopThrashing
+            | TerminationReason::LoopStale
             | TerminationReason::ValidationFailure
             | TerminationReason::Stopped
             | TerminationReason::WorkspaceGone => 1,
@@ -83,6 +94,8 @@ impl TerminationReason {
             TerminationReason::Interrupted => 130,
             // Restart uses exit code 3 to signal the caller to exec-replace
             TerminationReason::RestartRequested => 3,
+            // Cancelled is a clean exit (0) — the loop stopped intentionally
+            TerminationReason::Cancelled => 0,
         }
     }
 
@@ -98,11 +111,13 @@ impl TerminationReason {
             TerminationReason::MaxCost => "max_cost",
             TerminationReason::ConsecutiveFailures => "consecutive_failures",
             TerminationReason::LoopThrashing => "loop_thrashing",
+            TerminationReason::LoopStale => "loop_stale",
             TerminationReason::ValidationFailure => "validation_failure",
             TerminationReason::Stopped => "stopped",
             TerminationReason::Interrupted => "interrupted",
             TerminationReason::RestartRequested => "restart_requested",
             TerminationReason::WorkspaceGone => "workspace_gone",
+            TerminationReason::Cancelled => "cancelled",
         }
     }
 
@@ -401,6 +416,11 @@ impl EventLoop {
         &self.registry
     }
 
+    /// Records hook telemetry for diagnostics.
+    pub fn log_hook_run_telemetry(&self, entry: crate::diagnostics::HookRunTelemetryEntry) {
+        self.diagnostics.log_hook_run(entry);
+    }
+
     /// Gets the backend configuration for a hat.
     ///
     /// If the hat has a backend configured, returns that.
@@ -466,6 +486,22 @@ impl EventLoop {
             return Some(TerminationReason::ValidationFailure);
         }
 
+        // Check for stale loop: same event signature emitted 3+ times in a row
+        if self.state.consecutive_same_signature >= 3 {
+            let topic = self
+                .state
+                .last_emitted_signature
+                .as_ref()
+                .map(|signature| signature.topic.as_str())
+                .unwrap_or("?");
+            warn!(
+                topic,
+                count = self.state.consecutive_same_signature,
+                "Stale loop detected: same event signature emitted consecutively"
+            );
+            return Some(TerminationReason::LoopStale);
+        }
+
         // Check for stop signal from Telegram /stop or CLI stop-requested
         let stop_path =
             std::path::Path::new(&self.config.core.workspace_root).join(".ralph/stop-requested");
@@ -489,12 +525,57 @@ impl EventLoop {
         None
     }
 
+    /// Check if a loop.cancel event was detected.
+    ///
+    /// Unlike check_completion_event(), this does NOT validate required_events.
+    /// Cancellation is an explicit abort — it doesn't need the workflow to be complete.
+    pub fn check_cancellation_event(&mut self) -> Option<TerminationReason> {
+        if !self.state.cancellation_requested {
+            return None;
+        }
+        self.state.cancellation_requested = false;
+        info!("Loop cancelled gracefully via loop.cancel event");
+
+        self.diagnostics.log_orchestration(
+            self.state.iteration,
+            "loop",
+            crate::diagnostics::OrchestrationEvent::LoopTerminated {
+                reason: "cancelled".to_string(),
+            },
+        );
+
+        Some(TerminationReason::Cancelled)
+    }
+
     /// Checks if a completion event was received and returns termination reason.
     ///
     /// Completion is only accepted via JSONL events (e.g., `ralph emit`).
     pub fn check_completion_event(&mut self) -> Option<TerminationReason> {
         if !self.state.completion_requested {
             return None;
+        }
+
+        // Event chain validation: check required events were seen
+        let required = &self.config.event_loop.required_events;
+        if !required.is_empty() {
+            let missing = self.state.missing_required_events(required);
+            if !missing.is_empty() {
+                warn!(
+                    missing = ?missing,
+                    "Rejecting LOOP_COMPLETE: required events not seen during loop lifetime"
+                );
+                self.state.completion_requested = false;
+
+                // Inject task.resume so the loop continues
+                let resume_payload = format!(
+                    "LOOP_COMPLETE rejected: missing required events: {:?}. \
+                     The agent must complete all workflow phases before emitting LOOP_COMPLETE. \
+                     Use loop.cancel to abort the workflow instead.",
+                    missing
+                );
+                self.bus.publish(Event::new("task.resume", resume_payload));
+                return None;
+            }
         }
 
         self.state.completion_requested = false;
@@ -522,15 +603,23 @@ impl EventLoop {
             return None;
         }
 
-        // Log warning if tasks remain open (informational only)
+        // Runtime tasks are the canonical queue when memories/tasks mode is enabled.
         if self.config.memories.enabled {
             if let Ok(false) = self.verify_tasks_complete() {
                 let open_tasks = self.get_open_task_list();
                 warn!(
                     open_tasks = ?open_tasks,
-                    "Completion event with {} open task(s) - trusting agent decision",
+                    "Rejecting completion event with {} open task(s)",
                     open_tasks.len()
                 );
+                self.bus.publish(Event::new(
+                    "task.resume",
+                    format!(
+                        "Completion rejected: runtime tasks remain open: {:?}. Close, fail, or reopen outstanding tasks before emitting the completion promise.",
+                        open_tasks
+                    ),
+                ));
+                return None;
             }
         } else if let Ok(false) = self.verify_scratchpad_complete() {
             warn!("Completion event with pending scratchpad tasks - trusting agent decision");
@@ -630,6 +719,31 @@ impl EventLoop {
         self.bus.has_human_pending()
     }
 
+    /// Returns whether unread JSONL events include any semantic `plan.*` topics.
+    ///
+    /// This allows callers to dispatch `pre.plan.created` hooks before
+    /// event publication handling without consuming unread events.
+    pub fn has_pending_plan_events_in_jsonl(&self) -> std::io::Result<bool> {
+        let result = self.event_reader.peek_new_events()?;
+        Ok(result
+            .events
+            .iter()
+            .any(|event| event.topic.starts_with("plan.")))
+    }
+
+    /// Returns structured context for the first unread `human.interact` event,
+    /// if one is present in JSONL without consuming reader state.
+    pub fn pending_human_interact_context_in_jsonl(&self) -> std::io::Result<Option<Value>> {
+        let result = self.event_reader.peek_new_events()?;
+        Ok(result
+            .events
+            .iter()
+            .find(|event| event.topic == "human.interact")
+            .map(|event| {
+                Self::parse_human_interact_context(event.payload.as_deref().unwrap_or_default())
+            }))
+    }
+
     /// Gets the topics a hat is allowed to publish.
     ///
     /// Used to build retry prompts when the LLM forgets to publish an event.
@@ -647,25 +761,42 @@ impl EventLoop {
     ///
     /// Returns true if a fallback event was injected, false if recovery is not possible.
     pub fn inject_fallback_event(&mut self) -> bool {
-        let fallback_event = Event::new(
-            "task.resume",
-            "RECOVERY: Previous iteration did not publish an event. \
-             Review the scratchpad and either dispatch the next task or complete the loop.",
-        );
-
         // If a custom hat was last executing, target the fallback back to it
         // This preserves hat context instead of always falling back to Ralph
         let fallback_event = match &self.state.last_hat {
             Some(hat_id) if hat_id.as_str() != "ralph" => {
+                let publishes = self.get_hat_publishes(hat_id);
+                let payload = if publishes.is_empty() {
+                    format!(
+                        "RECOVERY: Previous iteration by hat `{}` did not publish an event. \
+                         Emit exactly one valid next event via `ralph emit`, or stop only after \
+                         publishing the configured completion event.",
+                        hat_id.as_str()
+                    )
+                } else {
+                    format!(
+                        "RECOVERY: Previous iteration by hat `{}` did not publish an event. \
+                         This failed because no event was emitted. Emit exactly ONE valid next \
+                         event via `ralph emit`. Allowed topics: `{}`. Do not only write prose \
+                         or update files. Stop immediately after emitting.",
+                        hat_id.as_str(),
+                        publishes.join("`, `")
+                    )
+                };
+
                 debug!(
                     hat = %hat_id.as_str(),
                     "Injecting fallback event to recover - targeting last hat with task.resume"
                 );
-                fallback_event.with_target(hat_id.clone())
+                Event::new("task.resume", payload).with_target(hat_id.clone())
             }
             _ => {
                 debug!("Injecting fallback event to recover - triggering Ralph with task.resume");
-                fallback_event
+                Event::new(
+                    "task.resume",
+                    "RECOVERY: Previous iteration did not publish an event. \
+                     Review the scratchpad and either dispatch the next task or complete the loop.",
+                )
             }
         };
 
@@ -767,14 +898,17 @@ impl EventLoop {
                 self.update_robot_guidance(guidance_events);
                 self.apply_robot_guidance();
 
-                // Determine which hats are active based on regular events
+                // Ignore kickoff/recovery noise when a real downstream event is pending.
+                let effective_regular_events = self.effective_regular_events(&regular_events);
+
+                // Determine which hats are active based on the effective event set
                 let active_hat_ids = self.determine_active_hat_ids(&regular_events);
                 self.record_hat_activations(&active_hat_ids);
                 self.state.last_active_hat_ids = active_hat_ids.clone();
                 let active_hats = self.determine_active_hats(&regular_events);
 
                 // Format events for context
-                let events_context = regular_events
+                let events_context = effective_regular_events
                     .iter()
                     .map(|e| Self::format_event(e))
                     .collect::<Vec<_>>()
@@ -1202,8 +1336,15 @@ impl EventLoop {
                     _ => "[?]",
                 };
                 section.push_str(&format!(
-                    "- {} [P{}] {} ({})\n",
-                    status_icon, task.priority, task.title, task.id
+                    "- {} [P{}] {} ({}){}\n",
+                    status_icon,
+                    task.priority,
+                    task.title,
+                    task.id,
+                    task.key
+                        .as_deref()
+                        .map(|key| format!(" — key: {key}"))
+                        .unwrap_or_default()
                 ));
             }
             // Show blocked tasks separately so agent knows they exist
@@ -1216,10 +1357,14 @@ impl EventLoop {
                 section.push_str("\nBlocked:\n");
                 for task in blocked {
                     section.push_str(&format!(
-                        "- [blocked] [P{}] {} ({}) — blocked by: {}\n",
+                        "- [blocked] [P{}] {} ({}){} — blocked by: {}\n",
                         task.priority,
                         task.title,
                         task.id,
+                        task.key
+                            .as_deref()
+                            .map(|key| format!(" — key: {key}"))
+                            .unwrap_or_default(),
                         task.blocked_by.join(", ")
                     ));
                 }
@@ -1258,15 +1403,52 @@ impl EventLoop {
 
     fn determine_active_hat_ids(&self, events: &[Event]) -> Vec<HatId> {
         let mut active_hat_ids = Vec::new();
-        for event in events {
-            if let Some(hat) = self.registry.get_for_topic(event.topic.as_str()) {
-                // Avoid duplicates
-                if !active_hat_ids.iter().any(|id| id == &hat.id) {
-                    active_hat_ids.push(hat.id.clone());
-                }
+        for event in self.effective_regular_events(events) {
+            if let Some(active_hat_id) = self.resolve_active_hat_id_for_event(event)
+                && !active_hat_ids.iter().any(|id| id == &active_hat_id)
+            {
+                active_hat_ids.push(active_hat_id);
             }
         }
         active_hat_ids
+    }
+
+    fn effective_regular_events<'a>(&self, events: &'a [Event]) -> Vec<&'a Event> {
+        let has_downstream_event = events
+            .iter()
+            .any(|event| !Self::is_kickoff_or_recovery_event(event.topic.as_str()));
+        events
+            .iter()
+            .filter(|event| {
+                !has_downstream_event || !Self::is_kickoff_or_recovery_event(event.topic.as_str())
+            })
+            .collect()
+    }
+
+    fn resolve_active_hat_id_for_event(&self, event: &Event) -> Option<HatId> {
+        if let Some(target) = &event.target
+            && self.registry.get(target).is_some()
+        {
+            return Some(target.clone());
+        }
+
+        self.registry
+            .get_for_topic(event.topic.as_str())
+            .map(|hat| hat.id.clone())
+    }
+
+    fn is_kickoff_or_recovery_event(topic: &str) -> bool {
+        topic == "task.start" || topic == "task.resume" || topic.strip_suffix(".start").is_some()
+    }
+
+    fn peek_pending_regular_events(&self) -> Vec<Event> {
+        let mut events = Vec::new();
+        for hat_id in self.bus.hat_ids() {
+            if let Some(pending) = self.bus.peek_pending(hat_id) {
+                events.extend(pending.iter().cloned());
+            }
+        }
+        events
     }
 
     /// Formats an event for prompt context.
@@ -1349,17 +1531,13 @@ impl EventLoop {
     /// Returns the first active hat, or "ralph" if no specific hat is active.
     /// BTreeMap iteration is already sorted by key.
     pub fn get_active_hat_id(&self) -> HatId {
-        // Peek at pending events (don't consume them)
-        for hat_id in self.bus.hat_ids() {
-            let Some(events) = self.bus.peek_pending(hat_id) else {
-                continue;
-            };
-            let Some(event) = events.first() else {
-                continue;
-            };
-            if let Some(active_hat) = self.registry.get_for_topic(event.topic.as_str()) {
-                return active_hat.id.clone();
-            }
+        let pending_events = self.peek_pending_regular_events();
+        if let Some(active_hat_id) = self
+            .determine_active_hat_ids(&pending_events)
+            .into_iter()
+            .next()
+        {
+            return active_hat_id;
         }
         HatId::new("ralph")
     }
@@ -1368,6 +1546,11 @@ impl EventLoop {
     ///
     /// Call this after `process_events_from_jsonl` returns `Ok(false)` (no events found).
     /// If the hat has `default_publishes` configured, this injects the default event.
+    ///
+    /// If the default topic matches the completion promise, `completion_requested` is set
+    /// so the loop can terminate. Without this, completion events injected via
+    /// `default_publishes` would only be published to the bus (triggering downstream hats)
+    /// but never detected by `check_completion_event`, causing an infinite loop.
     pub fn check_default_publishes(&mut self, hat_id: &HatId) {
         if let Some(config) = self.registry.get_config(hat_id)
             && let Some(default_topic) = &config.default_publishes
@@ -1379,6 +1562,20 @@ impl EventLoop {
                 topic = %default_topic,
                 "No events written by hat, injecting default_publishes event"
             );
+
+            self.state.record_event(&default_event);
+
+            // If the default topic is the completion promise, set the flag directly.
+            // The normal path (process_events_from_jsonl) sets this when reading from
+            // JSONL, but default_publishes bypasses JSONL entirely.
+            if default_topic.as_str() == self.config.event_loop.completion_promise {
+                info!(
+                    hat = %hat_id.as_str(),
+                    topic = %default_topic,
+                    "default_publishes matches completion_promise — requesting termination"
+                );
+                self.state.completion_requested = true;
+            }
 
             self.bus.publish(default_event);
         }
@@ -1456,12 +1653,69 @@ impl EventLoop {
 
         let _ = output;
 
+        // File-modification audit: detect when a hat with disallowed Edit/Write tools
+        // modified files. This is hard enforcement — emits a scope_violation event.
+        self.audit_file_modifications(hat_id);
+
         // Events are ONLY read from the JSONL file written by `ralph emit`.
         // This enforces tool use and prevents confabulation (agent claiming to emit without actually doing so).
         // See process_events_from_jsonl() for event processing.
 
         // Check termination conditions
         self.check_termination()
+    }
+
+    /// Audits file modifications after a hat iteration.
+    ///
+    /// If the hat has `Edit` or `Write` in its `disallowed_tools`, checks whether
+    /// files were modified (via `git diff --stat HEAD`). If so, emits a
+    /// `<hat_id>.scope_violation` event.
+    fn audit_file_modifications(&mut self, hat_id: &HatId) {
+        let config = match self.registry.get_config(hat_id) {
+            Some(c) => c,
+            None => return,
+        };
+
+        let has_write_restriction = config
+            .disallowed_tools
+            .iter()
+            .any(|t| t == "Edit" || t == "Write");
+
+        if !has_write_restriction {
+            return;
+        }
+
+        let workspace = &self.config.core.workspace_root;
+        let diff_output = std::process::Command::new("git")
+            .args(["diff", "--stat", "HEAD"])
+            .current_dir(workspace)
+            .output();
+
+        match diff_output {
+            Ok(output) if !output.stdout.is_empty() => {
+                let diff_stat = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                warn!(
+                    hat = %hat_id.as_str(),
+                    diff = %diff_stat,
+                    "Hat modified files despite tool restrictions (scope violation)"
+                );
+
+                let violation_topic = format!("{}.scope_violation", hat_id.as_str());
+                let violation = Event::new(
+                    violation_topic.as_str(),
+                    format!(
+                        "Hat '{}' modified files with Edit/Write disallowed:\n{}",
+                        hat_id.as_str(),
+                        diff_stat
+                    ),
+                );
+                self.bus.publish(violation);
+            }
+            Err(e) => {
+                debug!(error = %e, "Could not run git diff for file-modification audit");
+            }
+            _ => {} // No modifications — all good
+        }
     }
 
     /// Extracts task identifier from build.blocked payload.
@@ -1640,6 +1894,69 @@ impl EventLoop {
         }
     }
 
+    fn parse_human_interact_context(payload: &str) -> Value {
+        let mut context = match serde_json::from_str::<Value>(payload) {
+            Ok(Value::Object(map)) => map,
+            Ok(value) => {
+                let mut map = Map::new();
+                map.insert("question".to_string(), value);
+                map
+            }
+            Err(_) => {
+                let mut map = Map::new();
+                map.insert("question".to_string(), Value::String(payload.to_string()));
+                map
+            }
+        };
+
+        if !context.contains_key("question") {
+            context.insert("question".to_string(), Value::String(payload.to_string()));
+        }
+
+        Value::Object(context)
+    }
+
+    fn is_restart_request_payload(payload: &str) -> bool {
+        let payload = payload.to_ascii_lowercase();
+        payload.contains("restart yourself") || payload.contains("restart ralph")
+    }
+
+    fn is_restart_request_event(event: &Event) -> bool {
+        matches!(event.topic.as_str(), "human.response" | "user.prompt")
+            && Self::is_restart_request_payload(&event.payload)
+    }
+
+    fn mark_restart_requested(&self, source: &str) {
+        let restart_path =
+            std::path::Path::new(&self.config.core.workspace_root).join(".ralph/restart-requested");
+
+        if let Some(parent) = restart_path.parent()
+            && let Err(err) = std::fs::create_dir_all(parent)
+        {
+            warn!(
+                error = %err,
+                path = %parent.display(),
+                "Failed to create restart-requested parent directory"
+            );
+            return;
+        }
+
+        if let Err(err) = std::fs::write(&restart_path, source) {
+            warn!(
+                error = %err,
+                path = %restart_path.display(),
+                "Failed to write restart-requested signal"
+            );
+            return;
+        }
+
+        info!(
+            source,
+            path = %restart_path.display(),
+            "Restart requested from human text"
+        );
+    }
+
     /// Processes events from JSONL and routes orphaned events to Ralph.
     ///
     /// Also handles backpressure for malformed JSONL lines by:
@@ -1647,8 +1964,10 @@ impl EventLoop {
     /// 2. Tracking consecutive failures for termination check
     /// 3. Resetting counter when valid events are parsed
     ///
-    /// Returns [`ProcessedEvents`] indicating whether events were found and whether
-    /// any were orphans that Ralph should handle.
+    /// Returns [`ProcessedEvents`] indicating whether events were found, whether
+    /// semantic `plan.*` topics were published, structured `human.interact`
+    /// context/outcome metadata, and whether any were orphans that Ralph should
+    /// handle.
     pub fn process_events_from_jsonl(&mut self) -> std::io::Result<ProcessedEvents> {
         let result = self.event_reader.read_new_events()?;
 
@@ -1676,18 +1995,69 @@ impl EventLoop {
         if result.events.is_empty() && result.malformed.is_empty() {
             return Ok(ProcessedEvents {
                 had_events: false,
+                had_plan_events: false,
+                human_interact_context: None,
                 has_orphans: false,
             });
         }
+
+        // --- Scope enforcement: filter events against active hat's publishes ---
+        // Only active when enforce_hat_scope is true in config (opt-in).
+        let events = if self.config.event_loop.enforce_hat_scope {
+            let active_hats = self.state.last_active_hat_ids.clone();
+            let (in_scope, out_of_scope): (Vec<_>, Vec<_>) =
+                result.events.into_iter().partition(|event| {
+                    if active_hats.is_empty() {
+                        return true; // Ralph coordinating — no scope restriction
+                    }
+                    active_hats
+                        .iter()
+                        .any(|hat_id| self.registry.can_publish(hat_id, event.topic.as_str()))
+                });
+
+            for event in &out_of_scope {
+                let violation_hat = active_hats.first().map(|h| h.as_str()).unwrap_or("unknown");
+                warn!(
+                    active_hats = ?active_hats,
+                    topic = %event.topic,
+                    "Scope violation: active hat(s) cannot publish this topic — dropping event"
+                );
+                let violation_topic = format!("{}.scope_violation", violation_hat);
+                let violation_payload = format!(
+                    "Attempted to publish '{}': {}",
+                    event.topic,
+                    event.payload.clone().unwrap_or_default()
+                );
+                let violation = Event::new(violation_topic, violation_payload);
+                self.bus.publish(violation);
+            }
+
+            in_scope
+        } else {
+            result.events
+        };
+        // --- End scope enforcement ---
 
         let mut has_orphans = false;
 
         // Validate and transform events (apply backpressure for build.done)
         let mut validated_events = Vec::new();
         let completion_topic = self.config.event_loop.completion_promise.as_str();
-        let total_events = result.events.len();
-        for (index, event) in result.events.into_iter().enumerate() {
+        let cancellation_topic = self.config.event_loop.cancellation_promise.clone();
+        let total_events = events.len();
+        for (index, event) in events.into_iter().enumerate() {
             let payload = event.payload.clone().unwrap_or_default();
+
+            // Detect loop.cancel — unconditional graceful termination
+            if !cancellation_topic.is_empty() && event.topic.as_str() == cancellation_topic {
+                info!(
+                    payload = %payload,
+                    "loop.cancel event detected — scheduling graceful termination"
+                );
+                self.state.cancellation_requested = true;
+                // Continue processing remaining events (they may contain cleanup info)
+                continue;
+            }
 
             if event.topic == completion_topic {
                 if index + 1 == total_events {
@@ -1963,6 +2333,7 @@ impl EventLoop {
         // When a human.interact event is detected and robot service is active,
         // send the question and block until human.response or timeout.
         let mut response_event = None;
+        let mut human_interact_context = None;
         let ask_human_idx = validated_events
             .iter()
             .position(|e| e.topic == "human.interact".into());
@@ -1970,6 +2341,11 @@ impl EventLoop {
         if let Some(idx) = ask_human_idx {
             let ask_event = &validated_events[idx];
             let payload = ask_event.payload.clone();
+
+            let mut context = match Self::parse_human_interact_context(&payload) {
+                Value::Object(map) => map,
+                _ => Map::new(),
+            };
 
             if let Some(ref robot_service) = self.robot_service {
                 info!(
@@ -1995,6 +2371,11 @@ impl EventLoop {
                                 retry_count: 3,
                             },
                         );
+                        context.insert(
+                            "outcome".to_string(),
+                            Value::String("send_failure".to_string()),
+                        );
+                        context.insert("error".to_string(), Value::String(e.to_string()));
                         false
                     }
                 };
@@ -2030,20 +2411,55 @@ impl EventLoop {
                                 response = %response,
                                 "Received human.response — continuing loop"
                             );
+                            context.insert(
+                                "outcome".to_string(),
+                                Value::String("response".to_string()),
+                            );
+                            context.insert("response".to_string(), Value::String(response.clone()));
                             // Create a human.response event to inject into the bus
                             response_event = Some(Event::new("human.response", &response));
                         }
                         Ok(None) => {
                             warn!(
                                 timeout_secs = robot_service.timeout_secs(),
-                                "Human response timeout — continuing without response"
+                                "Human response timeout — injecting human.timeout event"
                             );
+                            context.insert(
+                                "outcome".to_string(),
+                                Value::String("timeout".to_string()),
+                            );
+                            context.insert(
+                                "timeout_seconds".to_string(),
+                                Value::from(robot_service.timeout_secs()),
+                            );
+                            let timeout_event = Event::new(
+                                "human.timeout",
+                                format!(
+                                    "No response after {}s. Original question: {}",
+                                    robot_service.timeout_secs(),
+                                    payload
+                                ),
+                            );
+                            response_event = Some(timeout_event);
                         }
                         Err(e) => {
                             warn!(
                                 error = %e,
-                                "Error waiting for human response — continuing without response"
+                                "Error waiting for human response — injecting human.timeout event"
                             );
+                            context.insert(
+                                "outcome".to_string(),
+                                Value::String("wait_error".to_string()),
+                            );
+                            context.insert("error".to_string(), Value::String(e.to_string()));
+                            let timeout_event = Event::new(
+                                "human.timeout",
+                                format!(
+                                    "Error waiting for response: {}. Original question: {}",
+                                    e, payload
+                                ),
+                            );
+                            response_event = Some(timeout_event);
                         }
                     }
                 }
@@ -2051,17 +2467,37 @@ impl EventLoop {
                 debug!(
                     "human.interact event detected but no robot service active — passing through"
                 );
+                context.insert(
+                    "outcome".to_string(),
+                    Value::String("no_robot_service".to_string()),
+                );
             }
+
+            human_interact_context = Some(Value::Object(context));
+        }
+
+        let restart_requested = validated_events.iter().any(Self::is_restart_request_event)
+            || response_event
+                .as_ref()
+                .is_some_and(Self::is_restart_request_event);
+        if restart_requested {
+            self.mark_restart_requested("human_text");
         }
 
         // Track whether any events will be published (before the loop consumes them).
         let had_events = !validated_events.is_empty();
+        let had_plan_events = validated_events
+            .iter()
+            .any(|event| event.topic.as_str().starts_with("plan."));
 
         // Publish validated events to the bus.
         // Ralph is always registered with subscribe("*"), so every event has at least
         // one subscriber. Events without a specific hat subscriber are "orphaned" —
         // Ralph handles them as the universal fallback.
         for event in validated_events {
+            // Record topic for event chain validation
+            self.state.record_event(&event);
+
             self.diagnostics.log_orchestration(
                 self.state.iteration,
                 "jsonl",
@@ -2083,6 +2519,7 @@ impl EventLoop {
 
         // Publish human.response event if one was received during blocking
         if let Some(response) = response_event {
+            self.state.record_event(&response);
             info!(
                 topic = %response.topic,
                 "Publishing human.response event from robot service"
@@ -2092,6 +2529,8 @@ impl EventLoop {
 
         Ok(ProcessedEvents {
             had_events,
+            had_plan_events,
+            human_interact_context,
             has_orphans,
         })
     }
@@ -2246,10 +2685,14 @@ fn termination_status_text(reason: &TerminationReason) -> &'static str {
         TerminationReason::LoopThrashing => {
             "Loop thrashing detected - same hat repeatedly blocked."
         }
+        TerminationReason::LoopStale => {
+            "Stale loop detected - same topic emitted 3+ times consecutively."
+        }
         TerminationReason::ValidationFailure => "Too many consecutive malformed JSONL events.",
         TerminationReason::Stopped => "Manually stopped.",
         TerminationReason::Interrupted => "Interrupted by signal.",
         TerminationReason::RestartRequested => "Restarting by human request.",
         TerminationReason::WorkspaceGone => "Workspace directory removed externally.",
+        TerminationReason::Cancelled => "Cancelled gracefully (human rejection or timeout).",
     }
 }

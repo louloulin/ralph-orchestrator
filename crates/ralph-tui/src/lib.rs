@@ -31,6 +31,7 @@ pub mod rpc_writer;
 pub mod state;
 pub mod state_mutations;
 pub mod text_renderer;
+pub mod update_check;
 pub mod widgets;
 
 use anyhow::{Context, Result};
@@ -128,13 +129,25 @@ impl Tui {
         use tokio::process::Command;
 
         // Build command: ralph run --rpc <args>
+        // Redirect stderr to a log file to prevent child process tracing output
+        // from corrupting the TUI display (ratatui runs in raw terminal mode).
+        let stderr_stdio = match ralph_core::diagnostics::create_log_file(
+            &std::env::current_dir().unwrap_or_default(),
+        ) {
+            Ok((file, path)) => {
+                info!(log_file = %path.display(), "TUI subprocess stderr redirected to log file");
+                Stdio::from(file)
+            }
+            Err(_) => Stdio::null(),
+        };
+
         let mut cmd = Command::new("ralph");
         cmd.arg("run")
             .arg("--rpc")
             .args(&args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::inherit()); // Let stderr pass through for debugging
+            .stderr(stderr_stdio);
 
         let mut child = cmd.spawn().context("failed to spawn ralph subprocess")?;
 

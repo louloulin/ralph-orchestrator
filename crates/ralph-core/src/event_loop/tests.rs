@@ -335,7 +335,7 @@ fn test_completion_promise_detection() {
 }
 
 #[test]
-fn test_completion_promise_with_open_tasks_still_terminates() {
+fn test_completion_promise_with_open_tasks_in_scratchpad_still_terminates() {
     use std::fs;
     use tempfile::TempDir;
 
@@ -360,20 +360,20 @@ fn test_completion_promise_with_open_tasks_still_terminates() {
     let events_path = temp_dir.path().join("events.jsonl");
     event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
 
-    // LOOP_COMPLETE event with pending tasks - should STILL terminate (trust the agent)
-    // Previously this would reject completion, but now we trust the agent's decision
+    // Scratchpad mode still trusts the agent's completion signal even with open checklist items.
     write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
     let _ = event_loop.process_events_from_jsonl();
     let reason = event_loop.check_completion_event();
     assert_eq!(
         reason,
         Some(TerminationReason::CompletionPromise),
-        "Should terminate even with open tasks - trust the agent's decision"
+        "Scratchpad mode should still trust the agent's decision"
     );
 }
 
 #[test]
-fn test_completion_promise_with_pending_tasks_in_task_store() {
+fn test_completion_promise_with_pending_tasks_in_task_store_is_rejected() {
+    use crate::loop_context::LoopContext;
     use crate::task::{Task, TaskStatus};
     use crate::task_store::TaskStore;
     use tempfile::TempDir;
@@ -396,21 +396,24 @@ fn test_completion_promise_with_pending_tasks_in_task_store() {
     config.memories.enabled = true;
     config.core.workspace_root = temp_dir.path().to_path_buf();
 
-    let mut event_loop = EventLoop::new(config);
+    let loop_context = LoopContext::primary(temp_dir.path().to_path_buf());
+    let mut event_loop = EventLoop::with_context(config, loop_context);
     event_loop.initialize("Test");
 
     let events_path = temp_dir.path().join("events.jsonl");
     event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
 
-    // LOOP_COMPLETE event with open tasks in task store - should STILL terminate
-    // The agent knows when the objective is done; not all tasks need to be closed
+    // Runtime tasks are the canonical queue in memories/tasks mode, so completion should be rejected.
     write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
     let _ = event_loop.process_events_from_jsonl();
     let reason = event_loop.check_completion_event();
     assert_eq!(
-        reason,
-        Some(TerminationReason::CompletionPromise),
-        "Should terminate even with open tasks in task store - trust the agent"
+        reason, None,
+        "Should reject completion while runtime tasks remain pending"
+    );
+    assert!(
+        event_loop.has_pending_events(),
+        "Rejecting completion should inject task.resume so the loop continues"
     );
 }
 
@@ -1045,6 +1048,7 @@ fn test_default_publishes_injects_when_no_events() {
             backend: None,
             default_publishes: Some("task.done".to_string()),
             max_activations: None,
+            disallowed_tools: vec![],
         },
     );
     config.hats = hats;
@@ -1065,6 +1069,12 @@ fn test_default_publishes_injects_when_no_events() {
     assert!(
         event_loop.has_pending_events(),
         "Default event should be injected"
+    );
+
+    // The default_publishes topic should be recorded in seen_topics
+    assert!(
+        event_loop.state.seen_topics.contains("task.done"),
+        "default_publishes should record topic in seen_topics for chain validation"
     );
 }
 
@@ -1092,6 +1102,7 @@ fn test_default_publishes_not_injected_when_events_written() {
             backend: None,
             default_publishes: Some("task.done".to_string()),
             max_activations: None,
+            disallowed_tools: vec![],
         },
     );
     config.hats = hats;
@@ -1121,6 +1132,137 @@ fn test_default_publishes_not_injected_when_events_written() {
     assert!(
         result.had_events,
         "Caller should skip check_default_publishes when agent wrote events"
+    );
+}
+
+#[test]
+fn test_has_pending_plan_events_in_jsonl_peeks_without_consuming() {
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut event_loop = EventLoop::new(RalphConfig::default());
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    let mut file = std::fs::File::create(&events_path).unwrap();
+    writeln!(
+        file,
+        r#"{{"topic":"plan.created","payload":"ready","ts":"2024-01-01T00:00:00Z"}}"#
+    )
+    .unwrap();
+    file.flush().unwrap();
+
+    assert!(
+        event_loop
+            .has_pending_plan_events_in_jsonl()
+            .expect("peek should succeed"),
+        "peek should report unread plan.* topics"
+    );
+
+    let processed = event_loop.process_events_from_jsonl().unwrap();
+    assert!(processed.had_events);
+    assert!(
+        processed.had_plan_events,
+        "processed metadata should preserve semantic plan.* detection"
+    );
+    assert!(
+        processed.human_interact_context.is_none(),
+        "plan-only batches should not synthesize human.interact metadata"
+    );
+
+    assert!(
+        !event_loop
+            .has_pending_plan_events_in_jsonl()
+            .expect("peek after consume should succeed"),
+        "peek should return false after unread events are consumed"
+    );
+}
+
+#[test]
+fn test_pending_human_interact_context_in_jsonl_peeks_without_consuming() {
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut event_loop = EventLoop::new(RalphConfig::default());
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    let mut file = std::fs::File::create(&events_path).unwrap();
+    writeln!(
+        file,
+        r#"{{"topic":"human.interact","payload":"Need approval?","ts":"2024-01-01T00:00:00Z"}}"#
+    )
+    .unwrap();
+    file.flush().unwrap();
+
+    let pending_context = event_loop
+        .pending_human_interact_context_in_jsonl()
+        .expect("peek should succeed")
+        .expect("peek should include pending human.interact context");
+    assert_eq!(
+        pending_context["question"],
+        serde_json::json!("Need approval?")
+    );
+    assert!(
+        pending_context.get("outcome").is_none(),
+        "pre-dispatch context should not include outcome metadata"
+    );
+
+    let processed = event_loop.process_events_from_jsonl().unwrap();
+    assert!(processed.had_events);
+    let processed_context = processed
+        .human_interact_context
+        .expect("processed metadata should include human.interact context");
+    assert_eq!(
+        processed_context["question"],
+        serde_json::json!("Need approval?")
+    );
+    assert_eq!(
+        processed_context["outcome"],
+        serde_json::json!("no_robot_service")
+    );
+
+    assert!(
+        event_loop
+            .pending_human_interact_context_in_jsonl()
+            .expect("peek after consume should succeed")
+            .is_none(),
+        "peek should return no pending human.interact events after consume"
+    );
+}
+
+#[test]
+fn test_process_events_from_jsonl_reports_when_plan_topics_absent() {
+    use std::io::Write;
+    use tempfile::tempdir;
+
+    let temp_dir = tempdir().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut event_loop = EventLoop::new(RalphConfig::default());
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    let mut file = std::fs::File::create(&events_path).unwrap();
+    writeln!(
+        file,
+        r#"{{"topic":"task.start","payload":"start","ts":"2024-01-01T00:00:00Z"}}"#
+    )
+    .unwrap();
+    file.flush().unwrap();
+
+    let processed = event_loop.process_events_from_jsonl().unwrap();
+    assert!(processed.had_events);
+    assert!(
+        !processed.had_plan_events,
+        "semantic plan.* flag should remain false when no plan topics were published"
+    );
+    assert!(
+        processed.human_interact_context.is_none(),
+        "non-human batches should not expose human.interact metadata"
     );
 }
 
@@ -1156,6 +1298,7 @@ fn test_default_publishes_skipped_when_non_orphan_event_written() {
             backend: None,
             default_publishes: Some("task.done".to_string()),
             max_activations: None,
+            disallowed_tools: vec![],
         },
     );
     config.hats = hats;
@@ -1222,6 +1365,7 @@ fn test_default_publishes_not_injected_when_not_configured() {
             backend: None,
             default_publishes: None, // No default configured
             max_activations: None,
+            disallowed_tools: vec![],
         },
     );
     config.hats = hats;
@@ -1516,7 +1660,8 @@ hats:
 
 #[test]
 fn test_always_hatless_collects_all_pending_events() {
-    // Verify Ralph's prompt includes events from ALL hats when in multi-hat mode
+    // Verify Ralph's prompt includes downstream events from all hats when in multi-hat mode.
+    // Kickoff events like task.start should drop out once a more specific downstream event exists.
     let yaml = r#"
 hats:
   planner:
@@ -1540,10 +1685,11 @@ hats:
     // Ralph should collect ALL pending events
     let prompt = event_loop.build_prompt(&HatId::new("ralph")).unwrap();
 
-    // Both events should be in Ralph's context
+    // The downstream event should be in Ralph's context, and the kickoff event
+    // should not dominate once downstream work is pending.
     assert!(
-        prompt.contains("task.start"),
-        "Should include task.start event"
+        !prompt.contains("task.start"),
+        "task.start should be filtered once a downstream event is pending"
     );
     assert!(
         prompt.contains("build.task"),
@@ -1682,6 +1828,127 @@ hats:
         let active = event_loop.get_active_hat_id();
         assert_eq!(active.as_str(), "alpha_hat");
     }
+}
+
+#[test]
+fn test_get_active_hat_id_matches_prompt_active_hat_selection() {
+    let yaml = r#"
+hats:
+  investigator:
+    name: "Investigator"
+    triggers: ["debug.start", "hypothesis.confirmed"]
+  tester:
+    name: "Tester"
+    triggers: ["hypothesis.test"]
+"#;
+    let config: RalphConfig = serde_yaml::from_str(yaml).unwrap();
+    let mut event_loop = EventLoop::new(config);
+
+    event_loop
+        .bus
+        .publish(Event::new("debug.start", "Investigate a bug"));
+    event_loop
+        .bus
+        .publish(Event::new("hypothesis.test", "Test the hypothesis"));
+
+    let preview_active_hat = event_loop.get_active_hat_id();
+
+    event_loop
+        .build_prompt(&HatId::new("ralph"))
+        .expect("prompt should build");
+
+    let built_active_hat = event_loop
+        .state
+        .last_active_hat_ids
+        .first()
+        .expect("build_prompt should set active hats")
+        .clone();
+
+    assert_eq!(
+        preview_active_hat.as_str(),
+        "tester",
+        "downstream hypothesis.test should outrank kickoff debug.start in preview selection"
+    );
+    assert_eq!(
+        built_active_hat.as_str(),
+        "tester",
+        "build_prompt should select tester when debug.start and hypothesis.test are both pending"
+    );
+    assert_eq!(
+        preview_active_hat, built_active_hat,
+        "display hat preview should match prompt-selected active hat"
+    );
+}
+
+#[test]
+fn test_get_active_hat_id_prefers_semantic_event_over_targeted_task_resume() {
+    let yaml = r#"
+hats:
+  investigator:
+    name: "Investigator"
+    triggers: ["task.resume", "debug.start", "hypothesis.confirmed"]
+  tester:
+    name: "Tester"
+    triggers: ["hypothesis.test"]
+"#;
+    let config: RalphConfig = serde_yaml::from_str(yaml).unwrap();
+    let mut event_loop = EventLoop::new(config);
+
+    event_loop
+        .bus
+        .publish(Event::new("task.resume", "Recovery").with_target("investigator"));
+    event_loop
+        .bus
+        .publish(Event::new("hypothesis.test", "Test the hypothesis"));
+
+    let preview_active_hat = event_loop.get_active_hat_id();
+    assert_eq!(
+        preview_active_hat.as_str(),
+        "tester",
+        "semantic downstream work should outrank fallback task.resume for display selection"
+    );
+
+    event_loop
+        .build_prompt(&HatId::new("ralph"))
+        .expect("prompt should build");
+
+    let built_active_hat = event_loop
+        .state
+        .last_active_hat_ids
+        .first()
+        .expect("build_prompt should set active hats")
+        .clone();
+    assert_eq!(
+        built_active_hat.as_str(),
+        "tester",
+        "prompt-selected active hat should ignore fallback task.resume when real work is pending"
+    );
+}
+
+#[test]
+fn test_get_active_hat_id_honors_direct_target_before_topic_lookup() {
+    let yaml = r#"
+hats:
+  alpha_hat:
+    name: "Alpha"
+    triggers: ["task.resume"]
+  zebra_hat:
+    name: "Zebra"
+    triggers: ["task.resume"]
+"#;
+    let config: RalphConfig = serde_yaml::from_str(yaml).unwrap();
+    let mut event_loop = EventLoop::new(config);
+
+    event_loop
+        .bus
+        .publish(Event::new("task.resume", "Recovery").with_target("zebra_hat"));
+
+    let active_hat_id = event_loop.get_active_hat_id();
+    assert_eq!(
+        active_hat_id.as_str(),
+        "zebra_hat",
+        "direct event targets should override generic topic subscriber ordering"
+    );
 }
 
 #[test]
@@ -3160,6 +3427,16 @@ hats:
         pending[0].target.as_ref().map(|id| id.as_str()),
         Some("planner")
     );
+    assert!(
+        pending[0]
+            .payload
+            .contains("Previous iteration by hat `planner` did not publish an event"),
+        "Fallback payload should name the stalled hat"
+    );
+    assert!(
+        pending[0].payload.contains("Allowed topics: `task.plan`"),
+        "Fallback payload should list allowed publish topics"
+    );
 
     let ralph_id = HatId::new("ralph");
     let ralph_pending = event_loop.bus.peek_pending(&ralph_id);
@@ -3181,6 +3458,7 @@ fn test_inject_fallback_event_defaults_to_ralph() {
     assert_eq!(pending.len(), 1);
     assert_eq!(pending[0].topic.as_str(), "task.resume");
     assert!(pending[0].target.is_none());
+    assert!(pending[0].payload.contains("Review the scratchpad"));
 }
 
 #[test]
@@ -3276,4 +3554,668 @@ hats:
     let (drop_again, event_again) = event_loop.check_hat_exhaustion(&hat_id, &dropped);
     assert!(drop_again);
     assert!(event_again.is_none());
+}
+
+// ── Phase 1: Hat Scope Enforcement Tests ──────────────────────────────
+
+#[test]
+fn test_scope_enforcement_drops_unauthorized_event() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let yaml = r#"
+event_loop:
+  enforce_hat_scope: true
+hats:
+  builder:
+    name: "Builder"
+    triggers: ["build.start"]
+    publishes: ["build.done"]
+"#;
+    let config: RalphConfig = serde_yaml::from_str(yaml).unwrap();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Set builder as the active hat
+    event_loop.state.last_active_hat_ids = vec![HatId::new("builder")];
+
+    // Builder tries to emit LOOP_COMPLETE (not in its publishes)
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // completion_requested should be false — the event was dropped by scope enforcement
+    assert!(
+        !event_loop.state.completion_requested,
+        "LOOP_COMPLETE should be dropped when builder hat is active (not in publishes)"
+    );
+}
+
+#[test]
+fn test_scope_enforcement_allows_authorized_event() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let yaml = r#"
+event_loop:
+  enforce_hat_scope: true
+hats:
+  builder:
+    name: "Builder"
+    triggers: ["build.start"]
+    publishes: ["build.done", "build.blocked"]
+"#;
+    let config: RalphConfig = serde_yaml::from_str(yaml).unwrap();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Set builder as the active hat
+    event_loop.state.last_active_hat_ids = vec![HatId::new("builder")];
+
+    // Builder emits build.done (in its publishes) — should pass through
+    write_event_to_jsonl(
+        &events_path,
+        "build.done",
+        "tests: pass\nlint: pass\ntypecheck: pass\naudit: pass\ncoverage: pass",
+    );
+    let _ = event_loop.process_events_from_jsonl();
+
+    // The event should have been published to the bus (not dropped)
+    assert!(
+        event_loop.has_pending_events(),
+        "build.done should pass scope enforcement when builder is active"
+    );
+}
+
+#[test]
+fn test_scope_enforcement_skipped_when_no_active_hats() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let yaml = r#"
+event_loop:
+  enforce_hat_scope: true
+hats:
+  builder:
+    name: "Builder"
+    triggers: ["build.start"]
+    publishes: ["build.done"]
+"#;
+    let config: RalphConfig = serde_yaml::from_str(yaml).unwrap();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // No active hats (Ralph coordinating)
+    event_loop.state.last_active_hat_ids = vec![];
+
+    // LOOP_COMPLETE should pass through when Ralph is coordinating
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+
+    assert!(
+        event_loop.state.completion_requested,
+        "LOOP_COMPLETE should be accepted when no active hats (Ralph coordinating)"
+    );
+}
+
+#[test]
+fn test_scope_violation_event_published() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let yaml = r#"
+event_loop:
+  enforce_hat_scope: true
+hats:
+  builder:
+    name: "Builder"
+    triggers: ["build.start"]
+    publishes: ["build.done"]
+"#;
+    let config: RalphConfig = serde_yaml::from_str(yaml).unwrap();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Set builder as the active hat
+    event_loop.state.last_active_hat_ids = vec![HatId::new("builder")];
+
+    // Builder tries to emit plan.approved (not in its publishes)
+    write_event_to_jsonl(&events_path, "plan.approved", "Auto-approved");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // A scope_violation event should have been published to the bus
+    assert!(
+        event_loop.has_pending_events(),
+        "Scope violation event should be published to the bus"
+    );
+}
+
+// ── Phase 2: Event Chain Validation + loop.cancel Tests ───────────────
+
+#[test]
+fn test_chain_validation_rejects_completion_without_required_events() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.required_events = vec!["plan.approved".to_string(), "all.built".to_string()];
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Only emit plan.approved, missing all.built
+    write_event_to_jsonl(&events_path, "plan.approved", "OK");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // Now try to complete
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+    let reason = event_loop.check_completion_event();
+    assert_eq!(
+        reason, None,
+        "LOOP_COMPLETE should be rejected when required events are missing"
+    );
+}
+
+#[test]
+fn test_chain_validation_accepts_completion_with_all_required_events() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.required_events = vec!["plan.approved".to_string(), "all.built".to_string()];
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Emit both required events across iterations
+    write_event_to_jsonl(&events_path, "plan.approved", "OK");
+    let _ = event_loop.process_events_from_jsonl();
+
+    write_event_to_jsonl(&events_path, "all.built", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // Now complete
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+    let reason = event_loop.check_completion_event();
+    assert_eq!(
+        reason,
+        Some(TerminationReason::CompletionPromise),
+        "LOOP_COMPLETE should be accepted when all required events have been seen"
+    );
+}
+
+#[test]
+fn test_chain_validation_tracks_topics_across_iterations() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.required_events = vec![
+        "research.complete".to_string(),
+        "plan.approved".to_string(),
+        "all.built".to_string(),
+    ];
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Iteration 1: research.complete
+    write_event_to_jsonl(&events_path, "research.complete", "findings");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // Iteration 2: plan.approved
+    write_event_to_jsonl(&events_path, "plan.approved", "ok");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // Iteration 3: all.built + LOOP_COMPLETE
+    write_event_to_jsonl(&events_path, "all.built", "done");
+    let _ = event_loop.process_events_from_jsonl();
+
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+    let reason = event_loop.check_completion_event();
+    assert_eq!(
+        reason,
+        Some(TerminationReason::CompletionPromise),
+        "Topics should be tracked across iterations"
+    );
+}
+
+#[test]
+fn test_chain_validation_empty_required_events_allows_completion() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let config = RalphConfig::default(); // No required_events
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+    let reason = event_loop.check_completion_event();
+    assert_eq!(
+        reason,
+        Some(TerminationReason::CompletionPromise),
+        "Empty required_events should allow completion (backward compatible)"
+    );
+}
+
+#[test]
+fn test_chain_validation_injects_task_resume_on_rejection() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.required_events = vec!["plan.approved".to_string()];
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Try to complete without the required event
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+    let reason = event_loop.check_completion_event();
+    assert_eq!(reason, None, "Should reject completion");
+
+    // A task.resume event should have been published to the bus
+    assert!(
+        event_loop.has_pending_events(),
+        "task.resume should be published on rejection"
+    );
+}
+
+#[test]
+fn test_loop_cancel_terminates_without_chain_validation() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.cancellation_promise = "loop.cancel".to_string();
+    config.event_loop.required_events = vec!["plan.approved".to_string(), "all.built".to_string()];
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Send loop.cancel without any required events seen
+    write_event_to_jsonl(&events_path, "loop.cancel", "rejected by human");
+    let _ = event_loop.process_events_from_jsonl();
+    let reason = event_loop.check_cancellation_event();
+    assert_eq!(
+        reason,
+        Some(TerminationReason::Cancelled),
+        "loop.cancel should terminate without chain validation"
+    );
+}
+
+#[test]
+fn test_default_publishes_satisfies_required_events_for_completion() {
+    use std::collections::HashMap;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.required_events = vec!["plan.draft".to_string(), "all.built".to_string()];
+
+    let mut hats = HashMap::new();
+    hats.insert(
+        "planner".to_string(),
+        crate::config::HatConfig {
+            name: "planner".to_string(),
+            description: Some("Plans work".to_string()),
+            triggers: vec!["research.complete".to_string()],
+            publishes: vec!["plan.draft".to_string()],
+            instructions: "Plan".to_string(),
+            extra_instructions: vec![],
+            backend: None,
+            backend_args: None,
+            default_publishes: Some("plan.draft".to_string()),
+            max_activations: None,
+            disallowed_tools: vec![],
+        },
+    );
+    config.hats = hats;
+
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Simulate: planner wrote no events, default_publishes injects plan.draft
+    let planner_id = HatId::new("planner");
+    event_loop.check_default_publishes(&planner_id);
+
+    // Then all.built arrives via JSONL
+    write_event_to_jsonl(&events_path, "all.built", "done");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // Now LOOP_COMPLETE should be accepted (plan.draft was from default_publishes)
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+    let reason = event_loop.check_completion_event();
+    assert_eq!(
+        reason,
+        Some(TerminationReason::CompletionPromise),
+        "default_publishes events should satisfy required_events chain validation"
+    );
+}
+
+#[test]
+fn test_default_publishes_completion_promise_triggers_termination() {
+    use std::collections::HashMap;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.completion_promise = "LOOP_COMPLETE".to_string();
+    config.event_loop.required_events = vec!["all.built".to_string()];
+
+    let mut hats = HashMap::new();
+    hats.insert(
+        "final_committer".to_string(),
+        crate::config::HatConfig {
+            name: "FinalCommitter".to_string(),
+            description: Some("Verifies all work is complete".to_string()),
+            triggers: vec!["all.built".to_string()],
+            publishes: vec!["LOOP_COMPLETE".to_string()],
+            instructions: "Verify and complete".to_string(),
+            extra_instructions: vec![],
+            backend: None,
+            backend_args: None,
+            default_publishes: Some("LOOP_COMPLETE".to_string()),
+            max_activations: None,
+            disallowed_tools: vec![],
+        },
+    );
+    config.hats = hats;
+
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Satisfy required_events: all.built arrives via JSONL
+    write_event_to_jsonl(&events_path, "all.built", "done");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // Set active hat so check_default_publishes targets the right hat
+    event_loop.state.last_active_hat_ids = vec![HatId::new("final_committer")];
+
+    // Simulate: final_committer wrote no events, default_publishes injects LOOP_COMPLETE
+    let hat_id = HatId::new("final_committer");
+    event_loop.check_default_publishes(&hat_id);
+
+    // completion_requested should be set directly by check_default_publishes
+    // (not requiring a JSONL round-trip)
+    let reason = event_loop.check_completion_event();
+    assert_eq!(
+        reason,
+        Some(TerminationReason::CompletionPromise),
+        "default_publishes of completion_promise should trigger termination directly, \
+         not just publish to the bus where it would be lost"
+    );
+}
+
+#[test]
+fn test_loop_cancel_exit_code_is_zero() {
+    assert_eq!(
+        TerminationReason::Cancelled.exit_code(),
+        0,
+        "Cancelled should have exit code 0"
+    );
+}
+
+#[test]
+fn test_loop_cancel_is_not_success() {
+    assert!(
+        !TerminationReason::Cancelled.is_success(),
+        "Cancelled should not be a success"
+    );
+}
+
+#[test]
+fn test_loop_cancel_takes_priority_over_completion() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.cancellation_promise = "loop.cancel".to_string();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // Both loop.cancel and LOOP_COMPLETE in same batch
+    write_event_to_jsonl(&events_path, "loop.cancel", "rejected");
+    write_event_to_jsonl(&events_path, "LOOP_COMPLETE", "Done");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // Cancellation should take priority (checked first)
+    let cancel_reason = event_loop.check_cancellation_event();
+    assert_eq!(
+        cancel_reason,
+        Some(TerminationReason::Cancelled),
+        "Cancellation should take priority over completion"
+    );
+}
+
+#[test]
+fn test_loop_cancel_disabled_when_empty_string() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.event_loop.cancellation_promise = String::new(); // Disabled
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    // loop.cancel should pass through as a normal event (no termination)
+    write_event_to_jsonl(&events_path, "loop.cancel", "rejected");
+    let _ = event_loop.process_events_from_jsonl();
+
+    let reason = event_loop.check_cancellation_event();
+    assert_eq!(
+        reason, None,
+        "loop.cancel should not trigger cancellation when disabled"
+    );
+}
+
+// ── Phase 3: Human Timeout Event Injection Tests ──────────────────────
+
+use std::path::Path;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
+
+struct MockRobotService {
+    timeout: u64,
+    should_timeout: bool,
+}
+
+impl ralph_proto::RobotService for MockRobotService {
+    fn send_question(&self, _payload: &str) -> anyhow::Result<i32> {
+        Ok(1)
+    }
+    fn wait_for_response(&self, _events_path: &Path) -> anyhow::Result<Option<String>> {
+        if self.should_timeout {
+            Ok(None)
+        } else {
+            Ok(Some("approved".to_string()))
+        }
+    }
+    fn send_checkin(
+        &self,
+        _: u32,
+        _: Duration,
+        _: Option<&ralph_proto::CheckinContext>,
+    ) -> anyhow::Result<i32> {
+        Ok(0)
+    }
+    fn timeout_secs(&self) -> u64 {
+        self.timeout
+    }
+    fn shutdown_flag(&self) -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
+    }
+    fn stop(self: Box<Self>) {}
+}
+
+struct RestartRequestRobotService;
+
+impl ralph_proto::RobotService for RestartRequestRobotService {
+    fn send_question(&self, _payload: &str) -> anyhow::Result<i32> {
+        Ok(1)
+    }
+
+    fn wait_for_response(&self, _events_path: &Path) -> anyhow::Result<Option<String>> {
+        Ok(Some("Please restart yourself now".to_string()))
+    }
+
+    fn send_checkin(
+        &self,
+        _: u32,
+        _: Duration,
+        _: Option<&ralph_proto::CheckinContext>,
+    ) -> anyhow::Result<i32> {
+        Ok(0)
+    }
+
+    fn timeout_secs(&self) -> u64 {
+        5
+    }
+
+    fn shutdown_flag(&self) -> Arc<AtomicBool> {
+        Arc::new(AtomicBool::new(false))
+    }
+
+    fn stop(self: Box<Self>) {}
+}
+
+#[test]
+fn test_human_timeout_injects_timeout_event() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let config = RalphConfig::default();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+    event_loop.set_robot_service(Box::new(MockRobotService {
+        timeout: 5,
+        should_timeout: true,
+    }));
+
+    // Write a human.interact event
+    write_event_to_jsonl(&events_path, "human.interact", "Please review this plan");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // The bus should have a human.timeout event (from the mock timeout)
+    assert!(
+        event_loop.has_pending_events(),
+        "human.timeout event should be published on timeout"
+    );
+}
+
+#[test]
+fn test_human_response_still_works() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let config = RalphConfig::default();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+    event_loop.set_robot_service(Box::new(MockRobotService {
+        timeout: 5,
+        should_timeout: false,
+    }));
+
+    // Write a human.interact event — mock returns "approved"
+    write_event_to_jsonl(&events_path, "human.interact", "Please review this plan");
+    let _ = event_loop.process_events_from_jsonl();
+
+    // The bus should have a human.response event
+    assert!(
+        event_loop.has_pending_events(),
+        "human.response event should be published when response received"
+    );
+}
+
+#[test]
+fn test_user_prompt_restart_request_creates_restart_signal_file() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.core.workspace_root = temp_dir.path().to_path_buf();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+
+    write_event_to_jsonl(&events_path, "user.prompt", "Please restart yourself");
+    let _ = event_loop.process_events_from_jsonl();
+
+    assert!(
+        temp_dir.path().join(".ralph/restart-requested").exists(),
+        "user.prompt restart request should create restart signal file"
+    );
+}
+
+#[test]
+fn test_human_response_restart_request_creates_restart_signal_file() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let events_path = temp_dir.path().join("events.jsonl");
+
+    let mut config = RalphConfig::default();
+    config.core.workspace_root = temp_dir.path().to_path_buf();
+    let mut event_loop = EventLoop::new(config);
+    event_loop.initialize("Test");
+    event_loop.event_reader = crate::event_reader::EventReader::new(&events_path);
+    event_loop.set_robot_service(Box::new(RestartRequestRobotService));
+
+    write_event_to_jsonl(&events_path, "human.interact", "Need approval");
+    let _ = event_loop.process_events_from_jsonl();
+
+    assert!(
+        temp_dir.path().join(".ralph/restart-requested").exists(),
+        "human.response restart request should create restart signal file"
+    );
 }

@@ -1,87 +1,72 @@
-# Hat Collections (Built-ins)
+# Hat Collections
 
-Built-in hat collections are pre-configured workflows for common development patterns.
+Built-in hat collections are now intentionally small. Ralph ships a core working set of defaults and documents broader workflow ideas as examples instead of treating every pattern as a supported builtin.
 
-## Quick Usage
+## Quick Start
 
 ```bash
-# 1) Create core config once
 ralph init --backend claude
-
-# 2) List built-in hat collections
 ralph init --list-presets
 
-# 3) Run with a collection
-ralph run -c ralph.yml -H builtin:feature
+ralph run -c ralph.yml -H builtin:code-assist -p "Add user authentication"
 ```
 
-> `ralph init --preset <name>` is removed. Presets are now used via `-H/--hats`.
+## Supported Builtins
 
-## Available Built-in Collections
+| Collection | Hats | Best for | Notes |
+|---|---|---|---|
+| `code-assist` | `planner`, `builder`, `critic`, `finalizer` | Default implementation work | Recommended default; adds fresh-eyes review and a final completion gate |
+| `debug` | `investigator`, `tester`, `fixer`, `verifier` | Root-cause debugging | Strong on repro and fix verification |
+| `research` | `researcher`, `synthesizer` | Read-only analysis | No code changes |
+| `review` | `reviewer`, `analyzer` | Adversarial code review | No code changes |
+| `pdd-to-code-assist` | multi-stage design + build pipeline | Idea to code | Advanced and fun, but slower and less predictable |
 
-- `feature` — general feature development
-- `code-assist` — TDD implementation workflow
-- `spec-driven` — specification-first workflow
-- `refactor` — incremental refactoring workflow
-- `pdd-to-code-assist` — full idea-to-code pipeline
-- `bugfix` — reproduce/fix/verify/commit flow
-- `debug` — hypothesis-driven debugging
-- `review` — review-only workflow
-- `pr-review` — multi-perspective PR review
-- `fresh-eyes` — repeated skeptical review passes
-- `gap-analysis` — spec-vs-implementation audit
-- `docs` — documentation workflow
-- `research` — exploration/analysis workflow
-- `deploy` — deployment workflow
-- `hatless-baseline` — no-hat baseline
-- `merge-loop` — internal merge-loop workflow
+## Internal Presets
 
-## Examples
+Ralph also keeps a few internal/testing presets available without advertising them in the normal list:
+
+- `merge-loop`
+- `hatless-baseline`
+
+## Recommended Workflow
+
+- Use `code-assist` for most implementation tasks.
+- Use `debug`, `research`, or `review` when you need a specialized mode.
+- Use `pdd-to-code-assist` when you specifically want an end-to-end exploratory workflow and are comfortable paying for extra iterations.
+
+## Why The Builtin Set Is Small
+
+Every builtin preset becomes product surface area:
+
+- It must be documented.
+- It must be tested and kept working.
+- It must appear coherent in API and CLI listings.
+
+Ralph now prefers a small supported set plus documentation examples for more experimental or niche orchestration patterns.
+
+## Examples Instead Of Builtins
+
+Historical workflow ideas such as spec-driven development, red-team review, mob programming, and fresh-eyes loops are now examples rather than shipped builtins. See:
+
+- [Examples Index](../examples/index.md)
+- [Spec-Driven Development Example](../examples/spec-driven.md)
+- [Multi-Hat Workflow](../examples/multi-hat.md)
+
+## Usage Examples
 
 ```bash
-# Feature work
-ralph run -c ralph.yml -H builtin:feature -p "Add user authentication"
+# Default implementation workflow
+ralph run -c ralph.yml -H builtin:code-assist -p "Add OAuth login"
 
-# Debug workflow
-ralph run -c ralph.yml -H builtin:debug -p "Investigate intermittent timeout"
+# Debugging
+ralph run -c ralph.yml -H builtin:debug -p "Investigate why login fails on mobile"
 
-# Use a local hats file
-ralph run -c ralph.yml -H .ralph/hats/my-workflow.yml
-```
+# Research
+ralph run -c ralph.yml -H builtin:research -p "Map the authentication architecture"
 
-## Core vs Hats Responsibilities
+# Review
+ralph run -c ralph.yml -H builtin:review -p "Review the changes in src/api/"
 
-- `-c/--config` (core): backend, paths, guardrails, memories/tasks/skills, runtime defaults
-- `-H/--hats` (collection): hats, events, and workflow event-loop settings
-
-Single-file combined configs remain supported (`-c` file may include `hats`/`events`).
-
-When `-H/--hats` is provided, it takes precedence:
-- `hats`/`events` from `-H` replace `hats`/`events` from `-c`
-- `event_loop` values from `-H` override matching `event_loop` keys from `-c`
-
-For maintainability, prefer keeping core/runtime settings in `-c` and workflow hats in `-H`.
-
-## Creating Your Own Hat Collection
-
-Create a hats file with only hats-related sections:
-
-```yaml
-event_loop:
-  starting_event: "build.start"
-  completion_promise: "LOOP_COMPLETE"
-
-hats:
-  builder:
-    name: "Builder"
-    triggers: ["build.start"]
-    publishes: ["build.done"]
-    instructions: |
-      Implement the requested change and verify it.
-```
-
-Run it:
-
-```bash
-ralph run -c ralph.yml -H hats/my-workflow.yml
+# Advanced/fun workflow
+ralph run -c ralph.yml -H builtin:pdd-to-code-assist -p "Build a rate limiter"
 ```
